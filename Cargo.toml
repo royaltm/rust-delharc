@@ -1,0 +1,16 @@
+[package]
+name = "delharc"
+version = "0.1.0"
+authors = ["Rafal Michalski <royaltm75@gmail.com>"]
+edition = "2018"
+
+[features]
+default = ["lh1", "lz"]
+lh1 = []
+lhx = []
+lz = []
+
+[dependencies]
+chrono = "0.4"
+crc = "1.8"
+modular-bitfield = "0.6.0"
