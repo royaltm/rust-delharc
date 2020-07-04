@@ -6,7 +6,7 @@ delharc
 [![Build Status][Build img]][Build Link]
 [![Coverage Status][Coverage img]][Coverage Link]
 
-A [Rust] library for parsing and extracting files from [LHA/LZH] archive file format.
+A [Rust] library for parsing and extracting files from [LHA/LZH] archive files.
 
 Cargo.toml:
 
