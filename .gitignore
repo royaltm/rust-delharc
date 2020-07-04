@@ -1,2 +1,12 @@
 /target
 Cargo.lock
+**/*.rs.bk
+*.log
+Thumbs.db
+.DS_Store
+*.tmp
+*~
+*.lnk
+*.sublime-project
+*.sublime-workspace
+sftp-config.json

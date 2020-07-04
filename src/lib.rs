@@ -1,4 +1,4 @@
-/*! A library for parsing and decoding [LHA/LZH](https://en.wikipedia.org/wiki/LHA_(file_format)) archive file format.
+/*! A library for parsing and extracting files from [LHA/LZH](https://en.wikipedia.org/wiki/LHA_(file_format)) archive file format.
 
 The scope of this library focuses on parsing LHA/LZH headers and decompressing original file data from archives.
 
@@ -13,7 +13,7 @@ LHA header levels: 0, 1, 2 and 3 are supported.
 
 ## Compression methods
 
-You may include or opt out of some of the decoders using features:
+You may include or opt out of some of the decoders:
 
 ```toml
 [dependencies.delharc]

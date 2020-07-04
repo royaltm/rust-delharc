@@ -1,0 +1,24 @@
+language: rust
+os: linux
+dist: bionic
+addons:
+    apt:
+        packages:
+            - libssl-dev
+rust:
+  - 1.32.0
+  - stable
+  - beta
+  - nightly
+cache: cargo
+before_script: |
+  if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
+    cargo install cargo-tarpaulin
+  fi
+script:
+  - cargo build --verbose --all-features
+  - cargo test --verbose --all-features
+after_success: |
+  if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
+    cargo tarpaulin --verbose --exclude-files tests/*.rs --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
+  fi
