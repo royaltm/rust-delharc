@@ -21,7 +21,7 @@ For more information, please see the [Documentation][Docs Link].
 Rust Version Requirements
 -------------------------
 
-`delharc` requires Rustc version 1.36 or greater due to the usage of some macro features and api that was introduced
+`delharc` requires Rustc version 1.44 or greater due to the usage of some macro features and api that was introduced
 or stabilized in this version.
 
 
@@ -36,4 +36,4 @@ or stabilized in this version.
 [Coverage Link]: https://coveralls.io/github/royaltm/rust-delharc?branch=master
 [Coverage img]: https://coveralls.io/repos/github/royaltm/rust-delharc/badge.svg?branch=master
 [rustc version link]: https://github.com/royaltm/rust-delharc#rust-version-requirements
-[rustc version img]: https://img.shields.io/badge/rustc-1.36+-lightgray.svg
+[rustc version img]: https://img.shields.io/badge/rustc-1.44+-lightgray.svg
