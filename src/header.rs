@@ -1,4 +1,4 @@
-//! # **LHA** header definitions.
+//! # **LHA** header related types definitions.
 use core::convert::TryFrom;
 use std::path::PathBuf;
 use std::borrow::Cow;
@@ -36,8 +36,8 @@ pub struct LhaHeader {
     pub msdos_attrs: MsDosAttrs,
     /// File's last modified date, format depends on the header level.
     ///
-    /// * Level 0 and 1 - MS-DOS format.
-    /// * Level 2 and 3 - Unix timestamp.
+    /// * Level 0 and 1 - MS-DOS format (no time zone).
+    /// * Level 2 and 3 - Unix timestamp (UTC).
     ///
     /// The "last modified" timestamp can also be found in the extended area and extra headers, as well as
     /// other kinds of timestamps (- last access, created).
@@ -84,8 +84,9 @@ impl LhaHeader {
     pub fn parse_os_type(&self) -> Result<OsType, UnrecognizedOsType> {
         OsType::try_from(self.os_type)
     }
-    /// Attempts to parse the `last_modified` field taking into account the header level, extended area
-    /// and headers and returns a `DateTime` in the `Local` time zone on success.
+    /// Attempts to parse the extended area, extra headers and as a last resort the `last_modified` field
+    /// taking into account the header level, and on success returns an instance of [`DateTime<Utc>`][DateTime]
+    /// or a [NaiveDateTime] wrapped in an `TimestampResult` enum.
     pub fn parse_last_modified(&self) -> TimestampResult {
         for header in self.iter_extra() {
             match header {
