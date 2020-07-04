@@ -21,8 +21,7 @@ For more information, please see the [Documentation][Docs Link].
 Rust Version Requirements
 -------------------------
 
-`delharc` requires Rustc version 1.44 or greater due to the usage of some macro features and api that was introduced
-or stabilized in this version.
+`delharc` requires Rustc version 1.44 or greater due to the usage of api that was stabilized in this version.
 
 
 [Rust]: https://www.rust-lang.org/
