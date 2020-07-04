@@ -1,162 +1,180 @@
 //! # **LHA** header definitions.
-use core::mem;
 use core::convert::TryFrom;
-use core::num::Wrapping;
-use core::slice;
-use std::io::{self, Read};
+use std::path::PathBuf;
+use std::borrow::Cow;
 
-use chrono::prelude::*;
+use chrono::{LocalResult, prelude::*};
 
-#[non_exhaustive]
-#[derive(Debug,Clone,Copy,PartialEq,Eq)]
-pub enum CompressionMethod {
-    Lzs,
-    Lz4,
-    Lz5,
-    Lh0,
-    Lh1,
-    Lh4,
-    Lh5,
-    Lh6,
-    Lh7,
-    Lhx,
-    Lhd,
-    Pm0,
-    Pm1,
-    Pm2
-}
+mod compression;
+mod ostype;
+mod msdos;
+mod parser;
+mod timestamp;
 
-impl TryFrom<&[u8;5]> for CompressionMethod {
-    type Error = &'static str;
-    fn try_from(s: &[u8;5]) -> Result<Self, Self::Error> {
-        Ok(match s {
-            b"-lzs-" => CompressionMethod::Lzs,
-            b"-lz4-" => CompressionMethod::Lz4,
-            b"-lz5-" => CompressionMethod::Lz5,
-            b"-lh0-" => CompressionMethod::Lh0,
-            b"-lh1-" => CompressionMethod::Lh1,
-            b"-lh4-" => CompressionMethod::Lh4,
-            b"-lh5-" => CompressionMethod::Lh5,
-            b"-lh6-" => CompressionMethod::Lh6,
-            b"-lh7-" => CompressionMethod::Lh7,
-            b"-lhx-" => CompressionMethod::Lhx,
-            b"-lhd-" => CompressionMethod::Lhd,
-            b"-pm0-" => CompressionMethod::Pm0,
-            b"-pm1-" => CompressionMethod::Pm1,
-            b"-pm2-" => CompressionMethod::Pm2,
-            _ => return Err("unrecognized compression method")
-        })
-    }
-}
+pub use msdos::*;
+pub use compression::*;
+pub use ostype::*;
+pub use parser::*;
+pub use timestamp::*;
 
+/// Semi-parsed LHA header.
 #[derive(Debug, Clone)]
 pub struct LhaHeader {
-    pub level: u8, // currently only 0
-    pub compression: CompressionMethod,
-    pub compressed_size: u32,
-    pub original_size: u32,
-    pub pathname: Vec<u8>,
-    pub last_modified: NaiveDateTime,
-    pub crc: u16
+    /// Header level: 0, 1, 2 or 3.
+    pub level: u8,
+    /// Raw compression identifier.
+    pub compression: [u8;5],
+    /// Compressed file size.
+    pub compressed_size: u64,
+    /// Original file size.
+    pub original_size: u64,
+    /// A raw filename for level 1 or 0 headers, might be empty. Always being empty for levels 2 or 3.
+    ///
+    /// In this instance the filename is stored in extra headers.
+    pub filename: Box<[u8]>,
+    /// MS-DOS attributes.
+    pub msdos_attrs: MsDosAttrs,
+    /// File's last modified date, format depends on the header level.
+    ///
+    /// * Level 0 and 1 - MS-DOS format.
+    /// * Level 2 and 3 - Unix timestamp.
+    ///
+    /// The "last modified" timestamp can also be found in the extended area and extra headers, as well as
+    /// other kinds of timestamps (- last access, created).
+    pub last_modified: u32,
+    /// A raw OS-TYPE.
+    pub os_type: u8,
+    /// Uncompressed file's CRC-16.
+    pub file_crc: u16,
+    /// An extended area as raw bytes.
+    pub extended_area: Box<[u8]>,
+    /// The size of the first extra header.
+    pub first_header_len: u32,
+    /// The extra headers' data.
+    pub extra_headers: Box<[u8]>,
 }
 
 impl Default for LhaHeader {
     fn default() -> Self {
         LhaHeader {
             level: 0,
-            compression: CompressionMethod::Lh0,
+            compression: [0;5],
             compressed_size: 0,
             original_size: 0,
-            pathname: Vec::new(),
-            last_modified: datetime_epoch(),
-            crc: 0
+            filename: Box::new([]),
+            msdos_attrs: MsDosAttrs::ARCHIVE,
+            last_modified: 0,
+            os_type: 0,
+            file_crc: 0,
+            extended_area: Box::new([]),
+            first_header_len: 0,
+            extra_headers: Box::new([]),
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-#[repr(C)]
-#[repr(packed)]
-struct LhaLevel0Header {
-    csum: u8,
-    compression: [u8;5],
-    compressed_size: [u8;4],
-    original_size: [u8;4],
-    last_modified: [u8;4],
-    file_attr_msdos: u8,
-    lha_level: u8,
-    pathname_len: u8,
 }
 
 impl LhaHeader {
-    pub fn read<R: Read>(mut rd: R) -> io::Result<Option<Self>> {
-        let mut header_size: u8 = 0;
-        rd.read_exact(slice::from_mut(&mut header_size))?;
-        if header_size == 0 {
-            return Ok(None)
-        }
-
-        let mut raw_head = LhaLevel0Header::default();
-        rd.read_exact(unsafe { struct_slice_mut(&mut raw_head) })?;
-        if raw_head.lha_level != 0 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "wrong header level"))
-        }
-        let csum = wrapping_csum(0, unsafe { struct_slice_ref(&raw_head) });
-        let pathname_len = raw_head.pathname_len as usize;
-        let min_len = mem::size_of_val(&raw_head) + pathname_len;
-        if (header_size as usize) < min_len {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "wrong header size"))
-        }
-
-        let mut pathname = Vec::with_capacity(pathname_len);
-        if rd.by_ref().take(pathname_len as u64).read_to_end(&mut pathname)? != pathname_len {
-            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "file too short"))
-        }
-        let csum = wrapping_csum(csum, &pathname);
-
-        let mut crc = [0u8;2];
-        rd.read_exact(&mut crc)?;
-        let mut csum = wrapping_csum(csum, &crc);
-
-        let extra_remaining = header_size as usize - min_len;
-        if extra_remaining != 0 {
-            let mut extra = Vec::with_capacity(extra_remaining);
-            if rd.by_ref().take(extra_remaining as u64).read_to_end(&mut extra)? != extra_remaining {
-                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "file too short"))
+    /// Returns `true` if the archive is an empty directory or a symbolic link.
+    pub fn is_directory(&self) -> bool {
+        self.compression_method().ok()
+            .filter(CompressionMethod::is_directory)
+            .is_some()
+    }
+    /// Attempts to parse the `os_type` field and returns the `OsType` enum on success.
+    pub fn parse_os_type(&self) -> Result<OsType, UnrecognizedOsType> {
+        OsType::try_from(self.os_type)
+    }
+    /// Attempts to parse the `last_modified` field taking into account the header level, extended area
+    /// and headers and returns a `DateTime` in the `Local` time zone on success.
+    pub fn parse_last_modified(&self) -> TimestampResult {
+        for header in self.iter_extra() {
+            match header {
+                [EXT_HEADER_UNIX_TIME, data @ ..] => {
+                    if let Some(ts) = data.get(0..4).and_then(read_u32) {
+                        return Utc.timestamp_opt(ts as i64, 0).into()
+                    }
+                }
+                [EXT_HEADER_MSDOS_TIME, data @ ..] if data.len() == 24 => {
+                    if let Some(mtime) = read_u64(&data[8..16]) {
+                        return parse_win_filetime(mtime).into()
+                    }
+                }
+                _ => {}
             }
-            csum = wrapping_csum(csum, &extra);
         }
-
-        if csum != raw_head.csum {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid header level checksum"))
+        if self.level < 2 {
+            match self.parse_os_type() {
+                Ok(OsType::Unix)|Ok(OsType::Osk) => {
+                    if let Some(ts) = self.extended_area.get(1..5).and_then(read_u32) {
+                        return Utc.timestamp_opt(ts as i64, 0).into()
+                    }
+                }
+                _ => {}
+            }
+            parse_msdos_datetime(self.last_modified).into()
         }
-
-        let compression = CompressionMethod::try_from(&raw_head.compression).map_err(|e|
-            io::Error::new(io::ErrorKind::InvalidData, e)
-        )?;
-        let compressed_size = u32::from_le_bytes(raw_head.compressed_size);
-        let original_size = u32::from_le_bytes(raw_head.original_size);
-        let last_modified = parse_msdos_datetime(u32::from_le_bytes(raw_head.last_modified));
-        let crc = u16::from_le_bytes(crc);
-
-        Ok(Some(LhaHeader {
-            level: 0,
-            compression,
-            compressed_size,
-            original_size,
-            pathname,
-            last_modified,
-            crc
-        }))
+        else {
+            Utc.timestamp_opt(self.last_modified as i64, 0).into()
+        }
+    }
+    /// Attempts to parse the `compression` method field and returns the `CompressionMethod` enum on success.
+    pub fn compression_method(&self) -> Result<CompressionMethod, UnrecognizedCompressionMethod> {
+        CompressionMethod::try_from(&self.compression)
+    }
+    /// Attempts to parse the `filename` field and searches the extended data for the directory and an
+    /// alternative file name and returns a `PathBuf` on success.
+    ///
+    /// The routine converts all non-ascii or control ascii characters to `%xx` sequences and all system
+    /// specific directory separator characters to `_` in file names.
+    ///
+    /// Malicious path components, like `..`, `.` or `//` are stripped from the path names.
+    ///
+    /// # Note
+    /// * If the path name could not be found the returned `PathBuf` will be empty.
+    /// * Some filesystems may still reject the file or path names if they include some forbidden characters,
+    ///   like `?` or `*`.
+    /// * Also make sure that the path is not absolute before creating a file.
+    pub fn parse_pathname(&self) -> PathBuf {
+        let mut path = PathBuf::new();
+        let mut filename = Cow::Borrowed("");
+        for header in self.iter_extra() {
+            match header {
+                [EXT_HEADER_FILENAME, data @ ..] => {
+                    filename = parse_filename(data)
+                },
+                [EXT_HEADER_PATH, data @ ..] => {
+                    parse_pathname(data, &mut path);
+                }
+                _ => {}
+            }
+        }
+        if filename.is_empty() {
+            parse_pathname(&self.filename, &mut path);
+        }
+        else {
+            path.push(filename.as_ref());
+        }
+        path
     }
 }
 
-fn wrapping_csum(init: u8, data: &[u8]) -> u8 {
-    let sum: Wrapping<u8> = data.iter().copied().map(Wrapping).sum();
-    (sum + Wrapping(init)).0
-}
-
-fn parse_msdos_datetime(ts: u32) -> NaiveDateTime {
+/// Returns a `NaiveDateTime` on success from MS-DOS timestamp format.
+///
+/// ```text
+/// bit   24       16        8        0
+/// 76543210 76543210 76543210 76543210
+/// YYYYYYYM MMMDDDDD hhhhhmmm mmmsssss
+/// ```
+///
+/// | Sym. | Description                                 |
+/// |------|---------------------------------------------|
+/// | Y    | The year from 1980 (0 = 1980)               |
+/// | M    | Month. [1, 12]                              |
+/// | D    | Day. [1, 31]                                |
+/// | h    | Hour. [0, 23].                              |
+/// | m    | Minute. [0, 59].                            |
+/// | s    | 2 seconds. [0, 29] (in units of 2 seconds). |
+pub fn parse_msdos_datetime(ts: u32) -> Option<NaiveDateTime> {
     let sec = ts << 1 & 0x3e;
     let min = ts >> 5 & 0x3f;
     let hour = ts >> 11 & 0x1f;
@@ -164,26 +182,18 @@ fn parse_msdos_datetime(ts: u32) -> NaiveDateTime {
     let mon = ts >> 21 & 0xf;
     let year = 1980 + (ts >> 25 & 0x7f) as i32;
     NaiveDate::from_ymd_opt(year, mon, day).and_then(|d| d.and_hms_opt(hour, min, sec))
-              .unwrap_or_else(|| datetime_epoch())
 }
 
-fn datetime_epoch() -> NaiveDateTime {
-    NaiveDate::from_ymd(1980, 1, 1).and_hms(0, 0, 0)
-}
-
-
-/// # Safety
-/// This function can be used safely only with packed structs that solely consist of
-/// `u8` or array of `u8` primitives.
-unsafe fn struct_slice_mut<T: Copy>(obj: &mut T) -> &mut [u8] {
-    let len = core::mem::size_of::<T>() / core::mem::size_of::<u8>();
-    core::slice::from_raw_parts_mut(obj as *mut T as *mut u8, len)
-}
-
-/// # Safety
-/// This function can be used safely only with packed structs that solely consist of
-/// `u8` or array of `u8` primitives.
-unsafe fn struct_slice_ref<T: Copy>(obj: &T) -> &[u8] {
-    let len = core::mem::size_of::<T>() / core::mem::size_of::<u8>();
-    core::slice::from_raw_parts(obj as *const T as *const u8, len)
+/// Returns a `DateTime<Utc>` on success from Windows [FILETIME] format.
+///
+/// [FILETIME]: https://docs.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-filetime
+pub fn parse_win_filetime(filetime: u64) -> LocalResult<DateTime<Utc>> {
+    if let Some(ft) = i64::try_from(filetime).ok().and_then(|ft|
+                        ft.checked_sub(116_444_736_000_000_000))
+    {
+        let secs = ft / 10_000_000;
+        let nanos = (ft % 10_000_000) as u32 * 100;
+        return Utc.timestamp_opt(secs, nanos)
+    }
+    LocalResult::None
 }

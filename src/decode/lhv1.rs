@@ -4,7 +4,7 @@ use crate::decode::Decoder;
 use crate::ringbuf::*;
 use crate::bitstream::*;
 
-pub mod dyntree;
+mod dyntree;
 use dyntree::*;
 
 const RING_BUFFER_SIZE: usize = 4096;
@@ -119,5 +119,18 @@ fn decode_offset(bits9: u16) -> (u16, u32) {
        /* 11111111x -> 111111 xyyyyy */
         0b111100000..=0b111111111 => ((bits9 - 0b110000000) << 5, 5),
         _ => unreachable!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn lhav1_works() {
+        println!("Lh1Decoder<Empty> {}", core::mem::size_of::<Lh1Decoder<io::Empty>>());
+        println!("Lh1Decoder<File> {}", core::mem::size_of::<Lh1Decoder<fs::File>>());
+        println!("DynHuffTree {}", core::mem::size_of::<DynHuffTree>());
     }
 }

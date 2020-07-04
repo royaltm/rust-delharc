@@ -49,59 +49,16 @@ use core::fmt;
 use std::io;
 use crate::bitstream::BitRead;
 
+pub mod entry;
+use entry::*;
+
 /// A static Huffman tree.
 #[derive(Debug, Clone)]
 pub struct HuffTree {
     tree: Vec<TreeEntry>
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(transparent)]
-struct TreeEntry(u16);
-
-const LEAF_BIT: u16 = 1u16.rotate_right(1);
-
-enum NodeType {
-    Leaf(u16),
-    Branch(u16),
-}
-
-impl TreeEntry {
-    const MAX_VALUE: usize = LEAF_BIT as usize - 1;
-
-    #[inline]
-    fn leaf(value: u16) -> Self {
-        TreeEntry(value | LEAF_BIT)
-    }
-
-    #[inline]
-    fn branch(index: usize) -> Result<Self, &'static str> {
-        if index > Self::MAX_VALUE {
-            return Err("too many tree items");
-        }
-        Ok(TreeEntry(index as u16))
-    }
-
-    #[inline]
-    fn as_type(self) -> NodeType {
-        let TreeEntry(value) = self;
-        if value & LEAF_BIT == LEAF_BIT {
-            NodeType::Leaf(value & !LEAF_BIT)
-        }
-        else {
-            NodeType::Branch(value)
-        }
-    }
-}
-
 impl HuffTree {
-    /// Creates a new and empty `HuffTree`.
-    ///
-    /// Any attempt to read from a new tree will result in panic.
-    pub fn new() -> HuffTree {
-        let tree = Vec::new();
-        HuffTree { tree }
-    }
     /// Creates a new and empty `HuffTree` with the reserved node capacity.
     ///
     /// Any attempt to read from a new tree will result in panic.
@@ -121,40 +78,45 @@ impl HuffTree {
     /// the `length` (or depth), measured in nodes from the tree root, at which the leaf is being created.
     ///
     /// * Entries containing `0` are being ignored.
-    /// * Missing leaves are being populated with the `value` of `0`.
     /// * If too many entries contain the same `length`, exceeding the given `length` capacity, an error
     ///   is being returned.
-    /// * If the size of the argument slice is larger than or equal to the [core::u16::MAX], an error is
-    ///   being returned.
-    /// * If the number of created nodes would exceed [core::u16::MAX], an error is being returned.
+    /// * If the size of the argument slice is larger than or equal to the [TreeEntry::MAX_INDEX] / 2,
+    ///   an error is being returned.
+    /// * If the number of created nodes would exceed [TreeEntry::MAX_INDEX], an error is being returned.
+    /// * An error is returned if a built tree is incomplete.
     pub fn build_tree(&mut self, value_lengths: &[u8]) -> Result<(), &'static str> {
         // println!("({}) {:?}", value_lengths.len(), value_lengths);
-        if value_lengths.len() > TreeEntry::MAX_VALUE {
+        if value_lengths.len() > TreeEntry::MAX_INDEX / 2 {
             return Err("too many code lengths");
         }
-        let max_values: u16 = value_lengths.len() as u16;
         let tree = &mut self.tree;
+
         tree.clear();
-        let mut max_allocated: usize = 1;
-        for value_len in 1u8..=u8::max_value() {
-            // add new length nodes
+        // the number of allocated tree indices
+        // the tree size should be equal to the value of this variable
+        let mut max_allocated: usize = 1; // start with a single (root) node
+        for current_len in 1u8.. {
+            // add missing branches
             for _ in  tree.len()..max_allocated {
                 match TreeEntry::branch(max_allocated) {
                     Ok(branch) => tree.push(branch),
                     Err(e) => {
-                        tree.clear(); // make sure no outstanding branch index exists
+                        // make sure no outstanding branch indices exist
+                        tree.clear();
                         return Err(e);
                     }
                 }
+                // for every branch node, two new child nodes are required
                 max_allocated += 2;
             }
-            // fill new length with leaves
-            let more = value_lengths.iter().copied().zip(0..max_values)
-                                   .fold(false, |mut more, (len, value)| {
-                if len == value_len {
+            // fill tree with leaves found in the lengths table at the current length
+            let more_leaves = value_lengths.iter().copied().zip(0..)
+                              .fold(false, |mut more, (len, value)| {
+                if len == current_len {
                     tree.push(TreeEntry::leaf(value));
                 }
-                else if len > value_len {
+                else if len > current_len {
+                    // there are more leaves to process
                     more = true;
                 }
                 more
@@ -162,17 +124,21 @@ impl HuffTree {
             if tree.len() > max_allocated {
                 return Err("too many leaves");
             }
-            if !more {
+            if !more_leaves {
                 break;
             }
         }
         // println!("tree missing leaves: {}", max_allocated - tree.len());
-        tree.extend(
-            (tree.len()..max_allocated).map(|_| TreeEntry::leaf(0) )
-        );
+        if tree.len() != max_allocated {
+            return Err("missing some leaves")
+        }
+        // // make sure no outstanding indices exist, perhaps this should be reported as an error
+        // tree.extend(
+        //     (tree.len()..max_allocated).map(|_| TreeEntry::leaf(0) )
+        // );
         Ok(())
     }
-    /// Returns the `value` of the leaf by following the path read from the given bit reader.
+    /// Returns the `value` of the leaf by following the bit `path` read from the given bit reader.
     ///
     /// Bits are being read from the stream until a leaf is being encountered. The `value` stored in that
     /// leaf is being returned.
@@ -185,16 +151,19 @@ impl HuffTree {
     ///
     /// # Panics
     /// Panics if a tree has not been built or otherwise initialized as a single value tree.
-    pub fn read_entry<R: BitRead>(&self, mut entry: R) -> io::Result<u16> {
+    pub fn read_entry<R: BitRead>(&self, mut path: R) -> io::Result<u16> {
         let tree = &self.tree;
         let mut node = &tree[0]; // panics if tree uninitialized
         loop {
             match node.as_type() {
                 NodeType::Leaf(code) => return Ok(code),
                 NodeType::Branch(index) => {
-                    let index = index as usize + entry.read_bits::<usize>(1)?;
-                    node = unsafe { tree.get_unchecked(index) };
-                    // safe because tree was initialized in a sane way
+                    let index = index as usize + path.read_bits::<usize>(1)?;
+                    node = unsafe {
+                        // safe because tree was initialized in a sane way,
+                        // no outstanding child index has been used
+                        tree.get_unchecked(index)
+                    };
                 }
             }
         }
@@ -229,24 +198,68 @@ impl fmt::Display for HuffTree {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use core::mem;
     use crate::bitstream::BitStream;
+    use std::collections::{HashSet, HashMap};
+    use super::*;
+
+    fn validate_tree(tree: &HuffTree, num_leaves: usize) {
+        let mut leaves: HashMap<u16, usize> = HashMap::with_capacity(num_leaves);
+        let mut children: HashSet<u16> = HashSet::with_capacity(tree.tree.len());
+        for (index, node) in tree.tree.iter().enumerate() {
+            match node.as_type() {
+                NodeType::Leaf(value) => {
+                    // all leaves should be unique
+                    assert!(leaves.insert(value, index).is_none());
+                }
+                NodeType::Branch(child_index) => {
+                    // invalid (default) node should not be present
+                    assert!(child_index != 0);
+                    // child_index should not exceed the tree length
+                    assert!((child_index as usize) < tree.tree.len() - 1);
+                    // all child indexes should be odd
+                    assert!(child_index & 1 == 1);
+                    // there must be no duplicate parents of the same children
+                    assert!(children.insert(child_index));
+                }
+            }
+        }
+        // all leaves should be present
+        assert_eq!(leaves.len(), num_leaves);
+        // all leaves should be reachable and on the unique path
+        fn into_branch(nodes: &[TreeEntry], index: usize, leaves: &mut HashSet<u16>) {
+            match nodes[index].as_type() {
+                NodeType::Leaf(code) => {
+                    assert!(leaves.insert(code));
+                }
+                NodeType::Branch(index) => {
+                    into_branch(nodes, index as usize, leaves);
+                    into_branch(nodes, index as usize + 1, leaves);
+                }
+            }
+        }
+        let mut leaves: HashSet<u16> = HashSet::with_capacity(num_leaves);
+        into_branch(&tree.tree, 0, &mut leaves);
+        assert_eq!(leaves.len(), num_leaves);
+    }
+
     #[test]
     fn hufftree_works() {
-        assert_eq!(mem::size_of::<TreeEntry>(), 2);
-        assert_eq!(LEAF_BIT, 0x8000);
-        let mut tree = HuffTree::new();
-        println!("{:?}", tree);
+        let mut tree = HuffTree::with_capacity(0);
         println!("{}", tree);
         tree.set_single(42);
+        validate_tree(&tree, 1);
         let path = BitStream::new([].as_ref());
         assert_eq!(tree.read_entry(path).unwrap(), 42);
-        println!("{:?}", tree);
         println!("{}", tree);
+
+        tree.build_tree(&[0, 1, 0, 1]).unwrap();
+        validate_tree(&tree, 2);
+        println!("{}", tree);
+
         tree.build_tree(&[0, 0, 0, 1, 0, 3, 3, 0, 4, 4, 5, 0, 0, 5, 5, 5]).unwrap();
-        println!("{:?}", tree);
-        println!("{}len: {}", tree, tree.tree.len());
+        println!("{}", tree);
+        validate_tree(&tree, 9);
+        assert_eq!(tree.tree.len(), 9 + 8);
         let bits: &[u8] = &[0b01001011, 0b10011011, 0b11001110, 0b11111011, 0b11100000];
         let mut path = BitStream::new(bits);
         let mut res = Vec::new();
@@ -254,5 +267,8 @@ mod tests {
             res.push(tree.read_entry(path.by_ref()).unwrap());
         }
         assert_eq!(res, [3, 5, 6, 8, 9, 10, 13, 14, 15]);
+
+        assert!(tree.build_tree(&[0, 1, 0, 1, 1]).is_err());
+        assert!(tree.build_tree(&[0, 1, 0, 1, 10]).is_err());
     }
 }

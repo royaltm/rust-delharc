@@ -1,6 +1,7 @@
 //! # Decoding algorithms.
 use std::io;
-use crc::{crc16, Hasher16};
+
+use crate::crc::Crc16;
 use crate::header::{CompressionMethod, LhaHeader};
 
 #[cfg(feature = "lz")]
@@ -41,8 +42,8 @@ pub trait Decoder<R> {
 /// underlying stream.
 pub struct LhaDecodeReader<R> {
     header: LhaHeader,
-    crc: crc16::Digest,
-    output_length: usize,
+    crc: Crc16,
+    output_length: u64,
     decoder: Option<DecoderAny<io::Take<R>>>
 }
 
@@ -52,10 +53,18 @@ pub struct PassthroughDecoder<R> {
     inner: R
 }
 
+/// A decoder used when compression method is unsupported.
+/// Reading from it will always produce an error.
+#[derive(Debug)]
+pub struct UnsupportedDecoder<R> {
+    inner: R
+}
+
 #[non_exhaustive]
 #[derive(Debug)]
 pub enum DecoderAny<R> {
     PassthroughDecoder(PassthroughDecoder<R>),
+    UnsupportedDecoder(UnsupportedDecoder<R>),
     #[cfg(feature = "lz")]
     LzsDecoder(LzsDecoder<R>),
     #[cfg(feature = "lz")]
@@ -74,6 +83,7 @@ macro_rules! decoder_any_dispatch {
     (($model:expr)($($spec:tt)*) => $expr:expr) => {
         match $model {
             DecoderAny::PassthroughDecoder($($spec)*) => $expr,
+            DecoderAny::UnsupportedDecoder($($spec)*) => $expr,
             #[cfg(feature = "lz")]
             DecoderAny::LzsDecoder($($spec)*) => $expr,
             #[cfg(feature = "lz")]
@@ -96,7 +106,7 @@ impl<R: io::Read> Default for LhaDecodeReader<R> {
     fn default() -> Self {
         LhaDecodeReader {
             header: Default::default(),
-            crc: crc16::Digest::new(crc16::USB),
+            crc: Crc16::default(),
             output_length: 0,
             decoder: None
         }
@@ -106,7 +116,7 @@ impl<R: io::Read> Default for LhaDecodeReader<R> {
 impl<R: io::Read> LhaDecodeReader<R> {
     /// Creates a new instance of `LhaDecodeReader<R>` after reading and parsing the first header from source.
     ///
-    /// Pass the stream reader as an instance value or a mutable reference to it.
+    /// Provide an instance of the stream reader.
     ///
     /// # Errors
     /// Returns an error if the header could not be read or parsed.
@@ -114,22 +124,22 @@ impl<R: io::Read> LhaDecodeReader<R> {
         let header = LhaHeader::read(rd.by_ref())?
                     .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "header missing"))?;
         let limited_rd = rd.take(header.compressed_size as u64);
-        let decoder = DecoderAny::new_from_compression(header.compression, limited_rd);
-        if decoder.is_none() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "unsupported compression method"))
-        }
-        let crc = crc16::Digest::new(crc16::USB);
+        let decoder = match header.compression_method() {
+            Ok(compression) => DecoderAny::new_from_compression(compression, limited_rd),
+            Err(..) => DecoderAny::UnsupportedDecoder(UnsupportedDecoder::new(limited_rd))
+        };
+        let crc = Crc16::default();
         Ok(LhaDecodeReader {
             header,
             crc,
             output_length: 0,
-            decoder
+            decoder: Some(decoder)
         })
     }
     /// Attempts to read the first file header from a new source stream and initializes a decoder returning
     /// `Ok(true)` on success. Returns `Ok(false)` if there are no more headers in the stream.
     ///
-    /// Pass the stream reader as an instance value or a mutable reference to it.
+    /// Provide an instance of the stream reader.
     ///
     /// Regardles of the retuned boolean value, the inner reader is being always replaced with `rd`.
     ///
@@ -139,11 +149,11 @@ impl<R: io::Read> LhaDecodeReader<R> {
     pub fn with_new(&mut self, mut rd: R) -> io::Result<bool> {
         let res = if let Some(header) = LhaHeader::read(rd.by_ref())? {
             let limited_rd = rd.take(header.compressed_size as u64);
-            let decoder = DecoderAny::new_from_compression(header.compression, limited_rd);
-            if decoder.is_none() {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "unsupported compression method"))
-            }
-            self.decoder = decoder;
+            let decoder = match header.compression_method() {
+                Ok(compression) => DecoderAny::new_from_compression(compression, limited_rd),
+                Err(..) => DecoderAny::UnsupportedDecoder(UnsupportedDecoder::new(limited_rd))
+            };
+            self.decoder = Some(decoder);
             self.header = header;
             true
         }
@@ -156,9 +166,9 @@ impl<R: io::Read> LhaDecodeReader<R> {
         self.output_length = 0;
         Ok(res)
     }
-    /// Assigns a header and the decoder externally parsed.
+    /// Assigns externally parsed header and decoder to this instance of `LhaDecodeReader<R>`.
     ///
-    /// It is up to the caller to make sure the decoder and the header are correct.
+    /// It is up to the caller to make sure the decoder and the header are matching each other.
     ///
     /// This method assumes the file will be read and decoded from its beginning.
     pub fn with_header_and_decoder(&mut self, header: LhaHeader, decoder: DecoderAny<io::Take<R>>) {
@@ -208,12 +218,12 @@ impl<R: io::Read> LhaDecodeReader<R> {
         self.decoder.take().map(|decoder| decoder.into_inner().into_inner())
     }
     /// Returns the number of remaining bytes to be read.
-    pub fn len(&self) -> usize {
-        self.header.original_size as usize - self.output_length
+    pub fn len(&self) -> u64 {
+        self.header.original_size - self.output_length
     }
     /// Returns `true` if the current file has been finished reading.
-    pub fn is_empty(&self) -> usize {
-        self.header.original_size as usize - self.output_length
+    pub fn is_empty(&self) -> bool {
+        self.header.original_size == self.output_length
     }
     /// Returns `true` if an underlying stream reader is present in the decoder.
     pub fn is_present(&self) -> bool {
@@ -229,7 +239,7 @@ impl<R: io::Read> LhaDecodeReader<R> {
     ///
     /// This should be called after the whole file has been read.
     pub fn crc_is_ok(&self) -> bool {
-        self.crc.sum16() == self.header.crc
+        self.crc.sum16() == self.header.file_crc
     }
     /// Returns CRC-16 checksum if the computed checksum matches the one in the header.
     /// Otherwise returns an error.
@@ -237,21 +247,27 @@ impl<R: io::Read> LhaDecodeReader<R> {
     /// This should be called after the whole file has been read.
     pub fn crc_check(&self) -> io::Result<u16> {
         if self.crc_is_ok() {
-            Ok(self.header.crc)
+            Ok(self.header.file_crc)
         }
         else {
             Err(io::Error::new(io::ErrorKind::InvalidData, "crc16 mismatch"))
         }
     }
+    /// Returns `true` if the current file's decoder is supported.
+    /// If this method returns `false`, trying to read from the decoder will result in an error.
+    /// In this instance it is still ok to skip to the next file.
+    pub fn is_decoder_supported(&self) -> bool {
+        self.decoder.as_ref().map(|d| d.is_supported()).unwrap_or(false)
+    }
 }
 
 impl<R: io::Read + 'static> io::Read for LhaDecodeReader<R> {
     fn read(&mut self, buf: &mut[u8]) -> io::Result<usize> {
-        let len = buf.len().min(self.header.original_size as usize - self.output_length);
+        let len = buf.len().min((self.header.original_size - self.output_length) as usize);
         let target = &mut buf[0..len];
         self.decoder.as_mut().unwrap().fill_buffer(target)?;
-        self.output_length += len;
-        self.crc.write(target);
+        self.output_length += len as u64;
+        self.crc.digest(target);
         Ok(len)
     }
 }
@@ -261,9 +277,9 @@ impl<R: io::Read> DecoderAny<R> {
     pub fn new_from_compression(
             compression: CompressionMethod,
             rd: R
-        ) -> Option<Self>
+        ) -> Self
     {
-        Some(match compression {
+        match compression {
             CompressionMethod::Pm0|
             CompressionMethod::Lz4|
             CompressionMethod::Lh0 => DecoderAny::PassthroughDecoder(PassthroughDecoder::new(rd)),
@@ -279,8 +295,15 @@ impl<R: io::Read> DecoderAny<R> {
             CompressionMethod::Lh7 => DecoderAny::Lh7Decoder(Lh7Decoder::new(rd)),
             #[cfg(feature = "lhx")]
             CompressionMethod::Lhx => DecoderAny::LhxDecoder(LhxDecoder::new(rd)),
-            _ => return None
-        })
+            _ => DecoderAny::UnsupportedDecoder(UnsupportedDecoder::new(rd))
+        }
+    }
+    /// Returns `true` if the decoder is able to decode the file content.
+    pub fn is_supported(&self) -> bool {
+        match self {
+            DecoderAny::UnsupportedDecoder(..) => true,
+            _ => false
+        }
     }
 }
 
@@ -309,5 +332,22 @@ impl<R: io::Read> Decoder<R> for PassthroughDecoder<R> {
     #[inline]
     fn fill_buffer(&mut self, buf: &mut[u8]) -> io::Result<()> {
         self.inner.read_exact(buf)
+    }
+}
+
+impl<R: io::Read> UnsupportedDecoder<R> {
+    pub fn new(inner: R) -> Self {
+        UnsupportedDecoder { inner }
+    }
+}
+
+impl<R: io::Read> Decoder<R> for UnsupportedDecoder<R> {
+    fn into_inner(self) -> R {
+        self.inner
+    }
+
+    #[inline]
+    fn fill_buffer(&mut self, _buf: &mut[u8]) -> io::Result<()> {
+        Err(io::Error::new(io::ErrorKind::InvalidData, "unsupported compression method"))
     }
 }

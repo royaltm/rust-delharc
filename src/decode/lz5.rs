@@ -42,7 +42,7 @@ impl<R: Read> Lz5Decoder<R> {
         ringbuf.set_cursor(START_OFFSET);
         // a margin of zeroes (4096)
         while ringbuf.cursor() != 0 {
-            ringbuf.push(b' ');
+            ringbuf.push(0);
         }
         // set the start offset
         ringbuf.set_cursor(START_OFFSET);

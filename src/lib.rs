@@ -1,8 +1,17 @@
 /*! A library for parsing and decoding [LHA/LZH](https://en.wikipedia.org/wiki/LHA_(file_format)) archive file format.
 
-Currently only LEVEL 0 headers are supported and a limited number of [decoders][decode].
+The scope of this library focuses on parsing LHA/LZH headers and decompressing original file data from archives.
 
-## Supported compression methods
+Because there are many different extensions to the LHA headers, used by archive programs, in different
+operating systems, this library only allows to parse some basic properties of the archived files, such as
+file path names and last modification timestamps.
+
+The [LhaHeader] allows to inspect the raw content of header extensions as well as extended header data, and
+may be explored by the user program in case extra archive properties are needed to be read.
+
+LHA header levels: 0, 1, 2 and 3 are supported.
+
+## Compression methods
 
 You may include or opt out of some of the decoders using features:
 
@@ -32,16 +41,60 @@ features = ["lh1"] # select desired features
 | `-pm1-`    | unsupported        | N/A     | PMarc, 8 Kb sliding window, static huffman
 | `-pm2-`    | unsupported        | N/A     | PMarc, 4 Kb sliding window, static huffman
 
+## Example
+
+```no_run
+use std::{io, path::Path};
+
+fn extract_to_stdout<P: AsRef<Path>>(
+        archive_name: P,
+        matching_path: P
+    ) -> io::Result<bool>
+{
+    let mut lha_reader = delharc::parse_file(archive_name.as_ref())?;
+    loop {
+        let header = lha_reader.header();
+        let filename = header.parse_pathname();
+
+        eprintln!("Path: {:?} modified: {} ", filename, header.parse_last_modified());
+
+        if lha_reader.is_decoder_supported() {
+            if filename.ends_with(matching_path.as_ref()) {
+                let stdout = io::stdout();
+                let mut handle = stdout.lock();
+                io::copy(&mut lha_reader, &mut handle)?;
+                lha_reader.crc_check()?;
+                return Ok(true)
+            }
+        }
+        else if header.is_directory() {
+            eprintln!("  is a directory");
+        }
+        else {
+            eprintln!("  has unsupported compression method");
+        }
+
+        if !lha_reader.next_file()? {
+            break;
+        }
+    }
+
+    Ok(false)
+}
+```
 */
-pub mod ringbuf;
+// http://archive.gamedev.net/archive/reference/articles/article295.html
+pub mod crc;
+pub(crate) mod ringbuf;
 pub mod decode;
 pub mod header;
 pub mod bitstream;
-pub mod statictree;
+pub(crate) mod statictree;
 
 pub use decode::LhaDecodeReader;
-pub use header::LhaHeader;
-pub use header::CompressionMethod;
+pub use header::{
+    LhaHeader, CompressionMethod, OsType, TimestampResult, MsDosAttrs
+};
 
 use std::path::Path;
 use std::io;
@@ -53,7 +106,7 @@ use std::fs::File;
 ///
 /// # Errors
 /// This function will return an error if an opened file is not an LHA/LZH file or the header couldn't
-/// be recognized. Other errors may also be returned from [File::open] and from reading the file content.
+/// be recognized. Other errors may also be returned from [File::open] and from reading from file.
 pub fn parse_file<P: AsRef<Path>>(path: P) -> io::Result<LhaDecodeReader<File>> {
   let file = File::open(path)?;
   LhaDecodeReader::new(file)
