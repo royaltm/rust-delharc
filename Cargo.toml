@@ -10,7 +10,7 @@ homepage = "https://github.com/royaltm/rust-delharc"
 repository = "https://github.com/royaltm/rust-delharc"
 license = "MIT"
 readme = "README.md"
-exclude = ["/.travis.yml", ".gitignore", "tests/**/*.lzh"]#, "tests/**/*.rs"]
+exclude = ["/.travis.yml", ".gitignore", "tests/**/*.lzh", "tests/**/*.rs"]
 
 [package.metadata.docs.rs]
 all-features = true
