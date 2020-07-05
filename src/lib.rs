@@ -12,7 +12,7 @@ file path names and last modification timestamps.
 The [LhaHeader] exposes properties and methods to inspect the raw content of header extensions, as well as
 extended header data and may be explored by the user program in case extra archive properties are needed to be read.
 
-LHA header levels: 0, 1, 2 and 3 are supported.
+LHA header levels: 0, 1, 2 and 3 are recognized.
 
 ## Compression methods
 
