@@ -1,5 +1,5 @@
-use std::io;
-use delharc::header::*;
+use std::{io, fs};
+use delharc::{*, decode::DecoderAny};
 
 mod sink;
 use sink::SinkSum;
@@ -18,9 +18,16 @@ const TESTS_CASES: &[(&str, &str, u64, u64, u16, u32, &str, u8, CompressionMetho
 
 #[test]
 fn test_lengths() -> io::Result<()> {
+    let mut lha_reader: delharc::LhaDecodeReader::<fs::File> = Default::default();
+    assert!(!lha_reader.is_present());
+    assert!(lha_reader.is_absent());
+    assert!(lha_reader.take_inner().is_none());
     for (name, path, size_c, size_o, crc16, crc32, modif, level, compr) in TESTS_CASES {
         println!("-------------\n{:?}", name);
-        let mut lha_reader = delharc::parse_file(format!("tests/lengths/{}", name))?;
+        let mut file = fs::File::open(format!("tests/lengths/{}", name))?;
+        let header = LhaHeader::read(&mut file)?.unwrap();
+        let decoder = DecoderAny::new_from_header(&header, file);
+        lha_reader.begin_with_header_and_decoder(header, decoder);
         loop {
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
@@ -28,6 +35,8 @@ fn test_lengths() -> io::Result<()> {
             // for extra in header.iter_extra() {
             //     println!("{:?}", extra);
             // }
+            assert!(lha_reader.is_present());
+            assert!(!lha_reader.is_absent());
             assert_eq!(header.level, *level);
             assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             assert_eq!(&header.parse_pathname().to_str().unwrap(), path);
@@ -40,6 +49,8 @@ fn test_lengths() -> io::Result<()> {
             assert_eq!(header.compression_method().unwrap(), *compr);
             assert_eq!(header.compressed_size, *size_c);
             assert_eq!(header.original_size, *size_o);
+            assert_eq!(lha_reader.len(), *size_o);
+            assert_eq!(lha_reader.is_empty(), lha_reader.len() == 0);
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
             assert_eq!(header.file_crc, *crc16);
