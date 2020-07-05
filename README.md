@@ -46,7 +46,7 @@ Rust Version
 [LHA/LZH]: https://en.wikipedia.org/wiki/LHA_(file_format)
 [Aminet]: https://aminet.net/
 [YM]: http://leonard.oxg.free.fr/ymformat.html
-[Crate Link]: https://crates.io/crates/rust-delharc
+[Crate Link]: https://crates.io/crates/delharc
 [Crate img]: https://img.shields.io/crates/v/delharc.svg
 [Docs Link]: https://docs.rs/delharc
 [Docs img]: https://docs.rs/delharc/badge.svg
