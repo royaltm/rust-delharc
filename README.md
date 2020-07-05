@@ -14,7 +14,8 @@ What it does
 
 This library provides ways to parse the content of **LHA** headers and allows to read files, compressed with some of the methods used by the archive format.
 
-Files using this format usually have `.lzh` or `.lha` extensions. Some formats, such as the retro chip-tune [YM] format, use **LHA** as its default packaging method. The entire content on the [Aminet] has also been packaged using this format.
+Files using this format usually have `.lzh` or `.lha` extensions. Some formats, such as the retro chip-tune [YM] format, use **LHA** as its default packaging method. The entire content of the [Aminet] has also been packaged using this format.
+
 
 What it doesn't do
 ------------------
@@ -22,7 +23,10 @@ What it doesn't do
 This library does not provide high level methods for creating files or directories from the extracted archives.
 
 
-`Cargo.toml`:
+Usage
+-----
+
+Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
@@ -30,6 +34,7 @@ delharc = "0.1"
 ```
 
 For more information, please see the [Documentation][Docs Link].
+
 
 Rust Version Requirements
 -------------------------
