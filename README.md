@@ -7,9 +7,22 @@ delharc
 [![Coverage Status][Coverage img]][Coverage Link]
 [![Minimum rustc version][rustc version img]][rustc version link]
 
-A [Rust] library for parsing and extracting files from [LHA/LZH] archives.
+A [Rust] library for parsing and extracting content of [LHA/LZH] archives.
 
-Cargo.toml:
+What it does
+------------
+
+This library provides ways to parse the content of **LHA** headers and allows to read files, compressed with some of the methods used by the archive format.
+
+Files using this format usually have `.lzh` or `.lha` extensions. Some formats, such as the retro chip-tune [YM] format, use **LHA** as its default packaging method. The entire content on the [Aminet] has also been packaged using this format.
+
+What it doesn't do
+------------------
+
+This library does not provide high level methods for creating files or directories from the extracted archives.
+
+
+`Cargo.toml`:
 
 ```toml
 [dependencies]
@@ -26,6 +39,8 @@ Rust Version Requirements
 
 [Rust]: https://www.rust-lang.org/
 [LHA/LZH]: https://en.wikipedia.org/wiki/LHA_(file_format)
+[Aminet]: https://aminet.net/
+[YM]: http://leonard.oxg.free.fr/ymformat.html
 [Crate Link]: https://crates.io/crates/rust-delharc
 [Crate img]: https://img.shields.io/crates/v/delharc.svg
 [Docs Link]: https://docs.rs/delharc

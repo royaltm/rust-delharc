@@ -31,15 +31,20 @@ pub trait Decoder<R> {
     fn fill_buffer(&mut self, buf: &mut[u8]) -> io::Result<()>;
 }
 
-/// This is the LHA/LZH file format decoding reader.
-///
-/// It can parse subsequent headers from the underlying data stream and decompress files.
+/// This type provides a convenient way to parse and decode LHA/LZH files.
 ///
 /// To read the current archived file's content use the [io::Read] trait methods on the instance of this type.
+/// After reading the whole file, its checksum should be verified using [LhaDecodeReader::crc_check].
 ///
-/// After parsing the LHA header, a decompressed content of a file can be simply read from the `LhaDecodeReader`,
+/// To parse and decode the next archive file, invoke [LhaDecodeReader::next_file].
+///
+/// After parsing the LHA header, a decompressed content of a file can be simply read from the `LhaDecodeReader<R>`,
 /// which decompresses it using a proper decoder, designated in the header, while reading data from the
 /// underlying stream.
+///
+/// If the compression method is not supported by the decoder, but otherwise the header has been parsed
+/// successfully, invoke [LhaDecodeReader::is_decoder_supported] to ensure you can actually read the file.
+/// Otherwise, trying to read from an unsupported decoder will result in an error.
 pub struct LhaDecodeReader<R> {
     header: LhaHeader,
     crc: Crc16,
@@ -123,11 +128,7 @@ impl<R: io::Read> LhaDecodeReader<R> {
     pub fn new(mut rd: R) -> io::Result<LhaDecodeReader<R>> {
         let header = LhaHeader::read(rd.by_ref())?
                     .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "header missing"))?;
-        let limited_rd = rd.take(header.compressed_size as u64);
-        let decoder = match header.compression_method() {
-            Ok(compression) => DecoderAny::new_from_compression(compression, limited_rd),
-            Err(..) => DecoderAny::UnsupportedDecoder(UnsupportedDecoder::new(limited_rd))
-        };
+        let decoder = DecoderAny::new_from_header(&header, rd);
         let crc = Crc16::default();
         Ok(LhaDecodeReader {
             header,
@@ -141,25 +142,24 @@ impl<R: io::Read> LhaDecodeReader<R> {
     ///
     /// Provide an instance of the stream reader.
     ///
-    /// Regardles of the retuned boolean value, the inner reader is being always replaced with `rd`.
+    /// When `Ok` is returned, regardles of the retuned boolean value, the inner reader is being always
+    /// replaced with the given `rd`.
+    ///
+    /// When `Ok(false)` has been returned, trying to read from the decoder will result in an error.
     ///
     /// # Errors
     /// Returns an error if the header could not be read or parsed. In this instance the inner stream
     /// reader is not being replaced by a new one.
-    pub fn with_new(&mut self, mut rd: R) -> io::Result<bool> {
+    pub fn begin_new(&mut self, mut rd: R) -> io::Result<bool> {
         let res = if let Some(header) = LhaHeader::read(rd.by_ref())? {
-            let limited_rd = rd.take(header.compressed_size as u64);
-            let decoder = match header.compression_method() {
-                Ok(compression) => DecoderAny::new_from_compression(compression, limited_rd),
-                Err(..) => DecoderAny::UnsupportedDecoder(UnsupportedDecoder::new(limited_rd))
-            };
+            let decoder = DecoderAny::new_from_header(&header, rd);
             self.decoder = Some(decoder);
             self.header = header;
             true
         }
         else {
-            let decoder = PassthroughDecoder::new(rd.take(0));
-            self.decoder = Some(DecoderAny::PassthroughDecoder(decoder));
+            let decoder = UnsupportedDecoder::new(rd.take(0));
+            self.decoder = Some(DecoderAny::UnsupportedDecoder(decoder));
             false
         };
         self.crc.reset();
@@ -170,8 +170,11 @@ impl<R: io::Read> LhaDecodeReader<R> {
     ///
     /// It is up to the caller to make sure the decoder and the header are matching each other.
     ///
+    /// The decoder should be initialized with the reader limited by the [io::Take] wrapper
+    /// with its limit set to the [LhaHeader::compressed_size] number of bytes.
+    ///
     /// This method assumes the file will be read and decoded from its beginning.
-    pub fn with_header_and_decoder(&mut self, header: LhaHeader, decoder: DecoderAny<io::Take<R>>) {
+    pub fn begin_with_header_and_decoder(&mut self, header: LhaHeader, decoder: DecoderAny<io::Take<R>>) {
         self.decoder = Some(decoder);
         self.header = header;
         self.crc.reset();
@@ -183,7 +186,7 @@ impl<R: io::Read> LhaDecodeReader<R> {
     /// read entirely.
     ///
     /// On success returns `Ok(true)` if the next header has been read and parsed successfully.
-    /// If there are no more headers returns `Ok(false)`.
+    /// If there are no more headers, returns `Ok(false)`.
     ///
     /// # Errors
     /// Returns an error if the header could not be read or parsed.
@@ -195,7 +198,7 @@ impl<R: io::Read> LhaDecodeReader<R> {
         if limited_rd.limit() != 0 {
             io::copy(&mut limited_rd, &mut io::sink())?;
         }
-        self.with_new(limited_rd.into_inner())
+        self.begin_new(limited_rd.into_inner())
     }
     /// Returns a reference to the last parsed file's [LhaHeader].
     pub fn header(&self) -> &LhaHeader {
@@ -210,18 +213,18 @@ impl<R: io::Read> LhaDecodeReader<R> {
     }
     /// Takes the inner stream reader value out of the decoder, leaving a none in its place.
     ///
-    /// After this call, reading from this instance will result in panic.
+    /// After this call, reading from this instance will result in a panic.
     pub fn take_inner(&mut self) -> Option<R> {
         self.header.original_size = 0;
         self.output_length = 0;
         self.crc.reset();
         self.decoder.take().map(|decoder| decoder.into_inner().into_inner())
     }
-    /// Returns the number of remaining bytes to be read.
+    /// Returns the number of remaining bytes of the currently decompressed file to be read.
     pub fn len(&self) -> u64 {
         self.header.original_size - self.output_length
     }
-    /// Returns `true` if the current file has been finished reading.
+    /// Returns `true` if the current file has been finished reading or if the file was empty.
     pub fn is_empty(&self) -> bool {
         self.header.original_size == self.output_length
     }
@@ -229,9 +232,9 @@ impl<R: io::Read> LhaDecodeReader<R> {
     pub fn is_present(&self) -> bool {
         self.decoder.is_some()
     }
-    /// Returns `true` if an underlying stream reader is absent in the decoder.
+    /// Returns `true` if an underlying stream reader is absent from the decoder.
     ///
-    /// Reading from such decoder will result in panic.
+    /// An attempt to read file's content in this state will result in a panic.
     pub fn is_absent(&self) -> bool {
         self.decoder.is_none()
     }
@@ -253,9 +256,14 @@ impl<R: io::Read> LhaDecodeReader<R> {
             Err(io::Error::new(io::ErrorKind::InvalidData, "crc16 mismatch"))
         }
     }
-    /// Returns `true` if the current file's decoder is supported.
+    /// Returns `true` if the current file's compression method is supported.
     /// If this method returns `false`, trying to read from the decoder will result in an error.
     /// In this instance it is still ok to skip to the next file.
+    ///
+    /// # Note
+    /// If the variant of compression is [CompressionMethod::Lhd] this method will return `false`.
+    /// In this instance check the result from header's [LhaHeader::is_directory] to determine
+    /// what steps should be taken next.
     pub fn is_decoder_supported(&self) -> bool {
         self.decoder.as_ref().map(|d| d.is_supported()).unwrap_or(false)
     }
@@ -273,7 +281,15 @@ impl<R: io::Read + 'static> io::Read for LhaDecodeReader<R> {
 }
 
 impl<R: io::Read> DecoderAny<R> {
-    /// Creates an instance of DecoderAny<R> from the given compression method and a stream reader.
+    /// Creates an instance of `DecoderAny<Take<R>>` from the given `LhaHeader` reference and a stream reader.
+    pub fn new_from_header(header: &LhaHeader, rd: R) -> DecoderAny<io::Take<R>> {
+        let limited_rd = rd.take(header.compressed_size);
+        match header.compression_method() {
+            Ok(compression) => DecoderAny::new_from_compression(compression, limited_rd),
+            Err(..) => DecoderAny::UnsupportedDecoder(UnsupportedDecoder::new(limited_rd))
+        }
+    }
+    /// Creates an instance of `DecoderAny<R>` from the given compression method and a stream reader.
     pub fn new_from_compression(
             compression: CompressionMethod,
             rd: R
@@ -298,7 +314,7 @@ impl<R: io::Read> DecoderAny<R> {
             _ => DecoderAny::UnsupportedDecoder(UnsupportedDecoder::new(rd))
         }
     }
-    /// Returns `true` if the decoder is able to decode the file content.
+    /// Returns `true` if the decoder is able to decode the file's content.
     pub fn is_supported(&self) -> bool {
         match self {
             DecoderAny::UnsupportedDecoder(..) => true,

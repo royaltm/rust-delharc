@@ -70,18 +70,6 @@ impl<R: Read> BitStream<R> {
     pub fn into_inner(self) -> R {
         self.inner
     }
-    /// Gets a mutable reference to the underlying reader.
-    ///
-    /// It is inadvisable to directly read from the underlying reader.
-    pub fn get_mut(&mut self) -> &mut R {
-        &mut self.inner
-    }
-    /// Gets a reference to the underlying reader.
-    ///
-    /// It is inadvisable to directly read from the underlying reader.
-    pub fn get_ref(&self) -> &R {
-        &self.inner
-    }
 
     #[inline]
     fn next_bits(&mut self, n: u32) -> io::Result<BitBuf> {

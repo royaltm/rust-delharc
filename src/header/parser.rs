@@ -7,22 +7,28 @@ use std::borrow::Cow;
 use crate::crc::Crc16;
 use super::*;
 
-pub const EXT_HEADER_COMMON:      u8 = 0x00;
-pub const EXT_HEADER_FILENAME:    u8 = 0x01;
-pub const EXT_HEADER_PATH:        u8 = 0x02;
-pub const EXT_HEADER_MULTI_DISC:  u8 = 0x39;
-pub const EXT_HEADER_COMMENT:     u8 = 0x3F;
-pub const EXT_HEADER_MSDOS_ATTRS: u8 = 0x40;
-pub const EXT_HEADER_MSDOS_TIME:  u8 = 0x41;
-pub const EXT_HEADER_MSDOS_SIZE:  u8 = 0x42;
-pub const EXT_HEADER_UNIX_PERM:   u8 = 0x50;
-pub const EXT_HEADER_UNIX_UIDGID: u8 = 0x51;
-pub const EXT_HEADER_UNIX_GROUP:  u8 = 0x52;
-pub const EXT_HEADER_UNIX_OWNER:  u8 = 0x53;
-pub const EXT_HEADER_UNIX_TIME:   u8 = 0x54;
-pub const EXT_HEADER_OS9:         u8 = 0xCC;
-pub const EXT_HEADER_EXT_ATTRS:   u8 = 0x7F;
+/// Raw identifiers of extra headers.
+pub mod ext {
+    /// The "Common" header's CRC-16 field will always be reset to 0 in the parsed header data.
+    /// This is the necessary condition to verify header's checksum.
+    pub const EXT_HEADER_COMMON:      u8 = 0x00;
+    pub const EXT_HEADER_FILENAME:    u8 = 0x01;
+    pub const EXT_HEADER_PATH:        u8 = 0x02;
+    pub const EXT_HEADER_MULTI_DISC:  u8 = 0x39;
+    pub const EXT_HEADER_COMMENT:     u8 = 0x3F;
+    pub const EXT_HEADER_MSDOS_ATTRS: u8 = 0x40;
+    pub const EXT_HEADER_MSDOS_TIME:  u8 = 0x41;
+    pub const EXT_HEADER_MSDOS_SIZE:  u8 = 0x42;
+    pub const EXT_HEADER_UNIX_PERM:   u8 = 0x50;
+    pub const EXT_HEADER_UNIX_UIDGID: u8 = 0x51;
+    pub const EXT_HEADER_UNIX_GROUP:  u8 = 0x52;
+    pub const EXT_HEADER_UNIX_OWNER:  u8 = 0x53;
+    pub const EXT_HEADER_UNIX_TIME:   u8 = 0x54;
+    pub const EXT_HEADER_OS9:         u8 = 0xCC;
+    pub const EXT_HEADER_EXT_ATTRS:   u8 = 0x7F;
+}
 
+use ext::*;
 /// An iterator through extra headers, yielding the headers' raw content excluding
 /// the next header length field.
 pub struct ExtraHeaderIter<'a> {
@@ -146,7 +152,7 @@ impl LhaHeader {
     /// All extra data is available as raw bytes and extra headers can be iterated with [LhaHeader::iter_extra].
     ///
     /// Instance methods can be further called on the parsed `LhaHeader` struct to attempt to parse the
-    /// file name or other file's meta-data.
+    /// name and path of the file or other file's meta-data.
     ///
     /// # Errors
     /// Returns an error from the underlying reading operations or because a malformed header was encountered.

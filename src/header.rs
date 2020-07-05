@@ -1,4 +1,4 @@
-//! # **LHA** header related types definitions.
+//! # **LHA** header and related types.
 use core::convert::TryFrom;
 use std::path::PathBuf;
 use std::borrow::Cow;
@@ -10,6 +10,8 @@ mod ostype;
 mod msdos;
 mod parser;
 mod timestamp;
+
+use parser::ext::*;
 
 pub use msdos::*;
 pub use compression::*;
@@ -123,18 +125,19 @@ impl LhaHeader {
         CompressionMethod::try_from(&self.compression)
     }
     /// Attempts to parse the `filename` field and searches the extended data for the directory and an
-    /// alternative file name and returns a `PathBuf` on success.
+    /// alternative file name and returns a `PathBuf`.
     ///
     /// The routine converts all non-ascii or control ascii characters to `%xx` sequences and all system
     /// specific directory separator characters to `_` in file names.
     ///
     /// Malicious path components, like `..`, `.` or `//` are stripped from the path names.
     ///
-    /// # Note
+    /// # Notes
     /// * If the path name could not be found the returned `PathBuf` will be empty.
-    /// * Some filesystems may still reject the file or path names if they include some forbidden characters,
-    ///   like `?` or `*`.
-    /// * Also make sure that the path is not absolute before creating a file.
+    /// * Some filesystems may still reject the file or path names if path names include some forbidden
+    ///   characters, e.g. `?` or `*` in `Windows`.
+    /// * This method makes its best effort to return a non-absolute path name, however it is not guaranteed,
+    ///   so make sure the path is not absolute before creating a file or a directory.
     pub fn parse_pathname(&self) -> PathBuf {
         let mut path = PathBuf::new();
         let mut filename = Cow::Borrowed("");
