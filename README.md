@@ -39,7 +39,7 @@ For more information, please see the [Documentation][Docs Link].
 Rust Version
 ------------
 
-`delharc` requires Rustc version 1.44 or greater due to the usage of api that was stabilized in this version.
+`delharc` requires Rustc version 1.44 or greater due to the usage of API that was stabilized in this version.
 
 
 [Rust]: https://www.rust-lang.org/
