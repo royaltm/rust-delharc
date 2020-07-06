@@ -35,7 +35,7 @@ features = ["lh1"] # select desired features
 | `-lh5-`    | Lh5Decoder         |         | LHarc version 2, 8kB sliding window, static huffman
 | `-lh6-`    | Lh7Decoder         |         | LHarc version 2, 32kB sliding window, static huffman
 | `-lh7-`    | Lh7Decoder         |         | LHarc version 2, 64kB sliding window, static huffman
-| `-lhd-`    | PassthroughDecoder |         | an empty directory
+| `-lhd-`    | unsupported        |         | an empty directory, data should be empty and should be skipped
 | `-lhx-`    | LhxDecoder         | lhx     | UNLHA32.DLL method, 128-512kb sliding window, static huffman
 | `-lz4-`    | PassthroughDecoder |         | no compression
 | `-lzs-`    | LzsDecoder         | lz      | LArc, 2kb sliding window
