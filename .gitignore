@@ -10,3 +10,4 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 sftp-config.json
+/resources
