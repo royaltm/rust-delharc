@@ -112,5 +112,5 @@ use std::fs::File;
 /// be recognized. Other errors may also be returned from [File::open] and from attempts to read the file.
 pub fn parse_file<P: AsRef<Path>>(path: P) -> io::Result<LhaDecodeReader<File>> {
   let file = File::open(path)?;
-  LhaDecodeReader::new(file)
+  Ok(LhaDecodeReader::new(file)?)
 }

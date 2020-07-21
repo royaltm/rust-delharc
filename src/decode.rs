@@ -1,4 +1,6 @@
 //! # Decoding algorithms.
+use core::fmt;
+use std::error::Error;
 use std::io;
 
 use crate::crc::Crc16;
@@ -65,6 +67,17 @@ pub struct UnsupportedDecoder<R> {
     inner: R
 }
 
+/// An error returned from methods of [LhaDecodeReader].
+///
+/// The error contains a stream source that can be accessed or unwrapped.
+///
+/// Alternatively, the error can be converted to the underlying [io::Error] using [From]
+/// trait, thus discarding the contained stream.
+pub struct LhaDecodeError<R> {
+    read: R,
+    source: io::Error
+}
+
 #[non_exhaustive]
 #[derive(Debug)]
 pub enum DecoderAny<R> {
@@ -125,9 +138,14 @@ impl<R: io::Read> LhaDecodeReader<R> {
     ///
     /// # Errors
     /// Returns an error if the header could not be read or parsed.
-    pub fn new(mut rd: R) -> io::Result<LhaDecodeReader<R>> {
-        let header = LhaHeader::read(rd.by_ref())?
-                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "header missing"))?;
+    pub fn new(mut rd: R) -> Result<LhaDecodeReader<R>, LhaDecodeError<R>> {
+        let header = match LhaHeader::read(rd.by_ref()).and_then(|h|
+                        h.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "header missing"))
+                    )
+        {
+            Ok(h) => h,
+            Err(e) => return Err(wrap_err(rd, e))
+        };
         let decoder = DecoderAny::new_from_header(&header, rd);
         let crc = Crc16::default();
         Ok(LhaDecodeReader {
@@ -149,18 +167,22 @@ impl<R: io::Read> LhaDecodeReader<R> {
     ///
     /// # Errors
     /// Returns an error if the header could not be read or parsed. In this instance the inner stream
-    /// reader is not being replaced by a new one.
-    pub fn begin_new(&mut self, mut rd: R) -> io::Result<bool> {
-        let res = if let Some(header) = LhaHeader::read(rd.by_ref())? {
-            let decoder = DecoderAny::new_from_header(&header, rd);
-            self.decoder = Some(decoder);
-            self.header = header;
-            true
-        }
-        else {
-            let decoder = UnsupportedDecoder::new(rd.take(0));
-            self.decoder = Some(DecoderAny::UnsupportedDecoder(decoder));
-            false
+    /// reader is not being replaced by a new one and the provided source stream can be retrieved from
+    /// the returned error.
+    pub fn begin_new(&mut self, mut rd: R) -> Result<bool, LhaDecodeError<R>> {
+        let res = match LhaHeader::read(rd.by_ref()) {
+            Ok(Some(header)) => {
+                let decoder = DecoderAny::new_from_header(&header, rd);
+                self.decoder = Some(decoder);
+                self.header = header;
+                true
+            }
+            Ok(None) => {
+                let decoder = UnsupportedDecoder::new(rd.take(0));
+                self.decoder = Some(DecoderAny::UnsupportedDecoder(decoder));
+                false
+            }
+            Err(e) => return Err(wrap_err(rd, e))
         };
         self.crc.reset();
         self.output_length = 0;
@@ -190,13 +212,16 @@ impl<R: io::Read> LhaDecodeReader<R> {
     ///
     /// # Errors
     /// Returns an error if the header could not be read or parsed.
+    /// In this instance the underlying stream source will be taken and returned with the error.
     ///
     /// # Panics
     /// Panics if called when the underlying stream reader has been already taken.
-    pub fn next_file(&mut self) -> io::Result<bool> {
+    pub fn next_file(&mut self) -> Result<bool, LhaDecodeError<R>> {
         let mut limited_rd = self.decoder.take().expect("decoder not empty").into_inner();
         if limited_rd.limit() != 0 {
-            io::copy(&mut limited_rd, &mut io::sink())?;
+            if let Err(e) = io::copy(&mut limited_rd, &mut io::sink()) {
+                return Err(wrap_err(limited_rd.into_inner(), e))
+            }
         }
         self.begin_new(limited_rd.into_inner())
     }
@@ -366,4 +391,49 @@ impl<R: io::Read> Decoder<R> for UnsupportedDecoder<R> {
     fn fill_buffer(&mut self, _buf: &mut[u8]) -> io::Result<()> {
         Err(io::Error::new(io::ErrorKind::InvalidData, "unsupported compression method"))
     }
+}
+
+impl<R> LhaDecodeError<R> {
+    /// Gets a reference to the contained reader.
+    pub fn get_ref(&self) -> &R {
+        &self.read
+    }
+    /// Gets a mutable reference to the contained reader.
+    pub fn get_mut(&mut self) -> &mut R {
+        &mut self.read
+    }
+    /// Unwraps this `LhaDecodeError<R>`, returning the contained reader.
+    pub fn into_inner(self) -> R {
+        self.read
+    }
+}
+
+impl<R> Error for LhaDecodeError<R> {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Some(&self.source)
+    }
+}
+
+impl<R> fmt::Debug for LhaDecodeError<R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LhaDecodeError")
+         .field("source", &self.source)
+         .finish()
+    }
+}
+
+impl<R> fmt::Display for LhaDecodeError<R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "LHA decode error: {}", self.source)
+    }
+}
+
+impl<R> From<LhaDecodeError<R>> for io::Error {
+    fn from(e: LhaDecodeError<R>) -> Self {
+        e.source
+    }
+}
+
+fn wrap_err<R>(read: R, source: io::Error) -> LhaDecodeError<R> {
+    LhaDecodeError { read, source }
 }
