@@ -141,7 +141,7 @@ impl<R: io::Read> LhaDecodeReader<R> {
     /// Returns an error if the header could not be read or parsed.
     pub fn new(mut rd: R) -> Result<LhaDecodeReader<R>, LhaDecodeError<R>> {
         let header = match LhaHeader::read(rd.by_ref()).and_then(|h|
-                        h.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "header missing"))
+                        h.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "a header is missing"))
                     )
         {
             Ok(h) => h,
@@ -437,4 +437,22 @@ impl<R> From<LhaDecodeError<R>> for io::Error {
 
 fn wrap_err<R>(read: R, source: io::Error) -> LhaDecodeError<R> {
     LhaDecodeError { read, source }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+    use super::*;
+
+    #[test]
+    fn decode_error_works() {
+        let rd = io::Cursor::new(vec![0u8;3]);
+        let mut err = LhaDecodeReader::new(rd).unwrap_err();
+        assert_eq!(err.to_string(), "LHA decode error: a header is missing");
+        assert_eq!(err.get_ref().get_ref(), &vec![0u8;3]);
+        assert_eq!(err.get_mut().get_mut(), &mut vec![0u8;3]);
+        let rd = err.into_inner();
+        assert_eq!(rd.position(), 1);
+        assert_eq!(rd.into_inner(), vec![0u8;3]);
+    }
 }
