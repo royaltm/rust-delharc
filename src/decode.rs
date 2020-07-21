@@ -47,6 +47,7 @@ pub trait Decoder<R> {
 /// If the compression method is not supported by the decoder, but otherwise the header has been parsed
 /// successfully, invoke [LhaDecodeReader::is_decoder_supported] to ensure you can actually read the file.
 /// Otherwise, trying to read from an unsupported decoder will result in an error.
+#[derive(Debug)]
 pub struct LhaDecodeReader<R> {
     header: LhaHeader,
     crc: Crc16,
