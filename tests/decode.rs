@@ -30,6 +30,7 @@ fn test_decode() {
         for limit in [usize::max_value(), 128, 31, 3, 2, 1].iter().copied() {
             let mut decoder = DecoderAny::new_from_compression(*compression,
                                           file.take(compressed_size - offset));
+            assert!(decoder.is_supported());
             test_decoder(&mut decoder, size as usize, CRC32, limit);
             // println!("{:?}", decoder);
             file = decoder.into_inner().into_inner();

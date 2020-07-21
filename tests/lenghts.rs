@@ -35,6 +35,7 @@ fn test_lengths() -> io::Result<()> {
             // for extra in header.iter_extra() {
             //     println!("{:?}", extra);
             // }
+            assert!(lha_reader.is_decoder_supported());
             assert!(lha_reader.is_present());
             assert!(!lha_reader.is_absent());
             assert_eq!(header.level, *level);
