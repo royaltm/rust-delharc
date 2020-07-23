@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, fs};
 use delharc::header::*;
 
 mod sink;
@@ -67,7 +67,8 @@ const TESTS_CASES: &[(&str, &[(&str, u64, u64, u16, u32, &str, u8, OsType, Compr
 fn test_regression() -> io::Result<()> {
     for (name, headers) in TESTS_CASES {
         println!("-------------\n{:?}", name);
-        let mut lha_reader = delharc::parse_file(format!("tests/regression/{}", name))?;
+        let file = fs::File::open(format!("tests/regression/{}", name))?;
+        let mut lha_reader = delharc::LhaDecodeReader::new(&file)?;
         for filen in 0.. {
             assert!(filen < headers.len());
             let (path, size_c, size_o, crc16, crc32, modif, level, ostype, compr) = &headers[filen];

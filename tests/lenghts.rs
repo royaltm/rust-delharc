@@ -18,7 +18,7 @@ const TESTS_CASES: &[(&str, &str, u64, u64, u16, u32, &str, u8, CompressionMetho
 
 #[test]
 fn test_lengths() -> io::Result<()> {
-    let mut lha_reader: delharc::LhaDecodeReader::<fs::File> = Default::default();
+    let mut lha_reader: delharc::LhaDecodeReader<fs::File> = Default::default();
     assert!(!lha_reader.is_present());
     assert!(lha_reader.is_absent());
     assert!(lha_reader.take_inner().is_none());

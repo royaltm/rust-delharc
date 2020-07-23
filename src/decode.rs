@@ -135,7 +135,7 @@ impl<R: io::Read> Default for LhaDecodeReader<R> {
 impl<R: io::Read> LhaDecodeReader<R> {
     /// Creates a new instance of `LhaDecodeReader<R>` after reading and parsing the first header from source.
     ///
-    /// Provide an instance of the stream reader.
+    /// Provide a stream reader.
     ///
     /// # Errors
     /// Returns an error if the header could not be read or parsed.
@@ -159,7 +159,7 @@ impl<R: io::Read> LhaDecodeReader<R> {
     /// Attempts to read the first file header from a new source stream and initializes a decoder returning
     /// `Ok(true)` on success. Returns `Ok(false)` if there are no more headers in the stream.
     ///
-    /// Provide an instance of the stream reader.
+    /// Provide a stream reader.
     ///
     /// When `Ok` is returned, regardles of the retuned boolean value, the inner reader is being always
     /// replaced with the given `rd`.
@@ -295,7 +295,7 @@ impl<R: io::Read> LhaDecodeReader<R> {
     }
 }
 
-impl<R: io::Read + 'static> io::Read for LhaDecodeReader<R> {
+impl<R: io::Read> io::Read for LhaDecodeReader<R> {
     fn read(&mut self, buf: &mut[u8]) -> io::Result<usize> {
         let len = buf.len().min((self.header.original_size - self.output_length) as usize);
         let target = &mut buf[0..len];
