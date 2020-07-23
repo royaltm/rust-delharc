@@ -1,3 +1,6 @@
+v0.2.2
+* Removed unnecessary static lifetime constraint on the inner reader of LhaDecodeReader.
+
 v0.2.1
 * Fixed result of LhaHeader::is_supported and LhaDecodeReader::is_decoder_supported.
 
