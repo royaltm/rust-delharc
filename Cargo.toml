@@ -27,5 +27,5 @@ bitflags = "1.2"
 memchr = { version = "2", default-features = false }
 
 [dev-dependencies]
-crc-any = "2.3"
-rand = "0.7"
+crc-any = "2.3.5"
+rand = "0.8.3"

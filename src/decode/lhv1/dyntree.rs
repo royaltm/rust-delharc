@@ -592,7 +592,8 @@ mod tests {
         validate_tree(&tree);
         println!("--------------\n{}", tree);
 
-        let mut rng = thread_rng();
+        let mut trng = thread_rng();
+        let rng = &mut trng;
         // spam tree with random values
         let mut tree = DynHuffTree::new();
         for sample in rng.sample_iter(Uniform::new(0, NUM_LEAVES)).take(1_000_000) {
@@ -614,7 +615,7 @@ mod tests {
         println!("--------------\n{}", tree);
 
         // now with some random bit stream
-        let rnd_stream: &mut (dyn RngCore + 'static) = &mut rng;
+        let rnd_stream: &mut (dyn RngCore) = rng;
         let mut rndstream = BitStream::new(rnd_stream);
         for _ in 0..1_000_000 {
             tree.read_entry(&mut rndstream).unwrap();
