@@ -1,3 +1,7 @@
+v0.3.0
+* LhaHeader::parse_comment.
+* LhaHeader::parse_pathname returns the file name up to a nul character with Amiga archives.
+
 v0.2.2
 * Removed unnecessary static lifetime constraint on the inner reader of LhaDecodeReader.
 
