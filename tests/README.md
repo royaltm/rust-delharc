@@ -1,4 +1,4 @@
-The test archives in the following subdirectories have been copied from the [lhasa] by fragglet: Free Software LHA implementation project.
+Most of the test archives in the following subdirectories have been copied from the [lhasa] by fragglet: Free Software LHA implementation project.
 
 - `decode`
 - `larc333`

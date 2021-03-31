@@ -42,3 +42,7 @@ dotdot.lzh          - Archive containing paths with '..'. This could be used
                       to break out of the extract directory and overwrite
                       arbitrary files on the filesystem.
 
+comment.lzh         - Archive created on Amiga with a file note embedded in
+                      the file name.
+                      Sent by @sonnenscheinchen
+                      https://github.com/royaltm/rust-delharc/issues/1
