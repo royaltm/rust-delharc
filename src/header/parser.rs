@@ -408,20 +408,31 @@ fn wrapping_csum(init: Wrapping<u8>, data: &[u8]) -> Wrapping<u8> {
     sum + init
 }
 
+pub(super) fn split_data_at_nil_or_end(data: &[u8]) -> (&[u8], Option<&[u8]>) {
+    match memchr::memchr(0, data) {
+        Some(index) => (&data[0..index], Some(&data[index + 1..data.len()])),
+        None => (data, None)
+    }
+}
+
 pub(super) fn parse_pathname(data: &[u8], path: &mut PathBuf) {
     path.reserve(data.len());
     // split by all possible path separators
     for part in data.split(|&c| c == 0xFF || c == b'/' || c == b'\\') {
         match part {
             b"."|b".."|[] => {} // ignore malicious and empty paths
-            name => path.push(parse_filename(name).as_ref())
+            name => path.push(parse_str_nilterm(name, false, false).as_ref())
         }
     }
 }
 
-pub(super) fn parse_filename(data: &[u8]) -> Cow<str> {
+pub(super) fn parse_str_nilterm(
+        data: &[u8], nilterm: bool, ignore_sep: bool
+    ) -> Cow<str>
+{
     if let Some(index) = data.iter().position(|&c|
-            c < 0x20 || c >= 0x7f || std::path::is_separator(c as char)
+            c < 0x20 || c >= 0x7f ||
+            (!ignore_sep && std::path::is_separator(c as char))
         )
     {
         let mut out = String::with_capacity(data.len()*3);
@@ -431,13 +442,14 @@ pub(super) fn parse_filename(data: &[u8]) -> Cow<str> {
         });
         for byte in rest.iter() {
             match byte {
+                0 if nilterm => break,
                 0x00..=0x1f|
                 0x7f..=0xff => {
                     write!(out, "%{:02x}", byte).unwrap();
                 }
                 &ch => {
                     let c = ch as char;
-                    if std::path::is_separator(c) {
+                    if !ignore_sep && std::path::is_separator(c) {
                         out.push('_');
                     }
                     else {
@@ -469,6 +481,17 @@ mod tests {
     use super::*;
     use std::path::{MAIN_SEPARATOR, PathBuf};
 
+    fn parse_filename(data: &[u8]) -> Cow<str> {
+        parse_str_nilterm(data, false, false)
+    }
+
+   #[test]
+    fn split_data_at_nil_or_end_works() {
+        assert_eq!((&b"Foo"[..], None), split_data_at_nil_or_end(b"Foo"));
+        assert_eq!((&b"Foo"[..], Some(&b"Bar"[..])), split_data_at_nil_or_end(b"Foo\x00Bar"));
+        assert_eq!((&[][..], Some(&b"Bar"[..])), split_data_at_nil_or_end(b"\x00Bar"));
+    }
+
    #[test]
     fn path_parser_works() {
         assert_eq!("", parse_filename(b""));
@@ -481,7 +504,11 @@ mod tests {
         }
         assert_eq!("Hello%00World%7f", parse_filename(b"Hello\x00World\x7f"));
         assert_eq!("Hello%01World%ff", parse_filename(b"Hello\x01World\xff"));
+        assert_eq!("Hello", parse_str_nilterm(b"Hello\x00World\xff", true, false));
         if std::path::is_separator('/') {
+            assert_eq!("He_llo", parse_str_nilterm(b"He/llo\x00World\xff", true, false));
+            assert_eq!("He/llo", parse_str_nilterm(b"He/llo\x00World\xff", true, true));
+            assert_eq!("He/llo%00World%ff", parse_str_nilterm(b"He/llo\x00World\xff", false, true));
             assert_eq!("_Hello%1fWorld%80", parse_filename(b"/Hello\x1fWorld\x80"));
         }
         let mut path = PathBuf::new();

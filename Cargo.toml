@@ -24,6 +24,7 @@ lz = []
 [dependencies]
 chrono = "0.4"
 bitflags = "1.2"
+memchr = { version = "2", default-features = false }
 
 [dev-dependencies]
 crc-any = "2.3"

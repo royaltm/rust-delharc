@@ -124,10 +124,10 @@ impl LhaHeader {
     pub fn compression_method(&self) -> Result<CompressionMethod, UnrecognizedCompressionMethod> {
         CompressionMethod::try_from(&self.compression)
     }
-    /// Attempts to parse the `filename` field and searches the extended data for the directory and an
+    /// Attempts to parse the `filename` field and searches extended data for the directory and an
     /// alternative file name and returns a `PathBuf`.
     ///
-    /// The routine converts all non-ascii or control ascii characters to `%xx` sequences and all system
+    /// The routine converts all non-ASCII or control characters to `%xx` sequences and all system
     /// specific directory separator characters to `_` in file names.
     ///
     /// Malicious path components, like `..`, `.` or `//` are stripped from the path names.
@@ -138,13 +138,15 @@ impl LhaHeader {
     ///   characters, e.g. `?` or `*` in `Windows`.
     /// * This method makes its best effort to return a non-absolute path name, however it is not guaranteed,
     ///   so make sure the path is not absolute before creating a file or a directory.
+    /// * If the archive OS is [OsType::Amiga] the file name parsing terminates before the `nul` character.
     pub fn parse_pathname(&self) -> PathBuf {
         let mut path = PathBuf::new();
         let mut filename = Cow::Borrowed("");
+        let nilterm = self.parse_os_type() == Ok(OsType::Amiga);
         for header in self.iter_extra() {
             match header {
                 [EXT_HEADER_FILENAME, data @ ..] => {
-                    filename = parse_filename(data)
+                    filename = parse_str_nilterm(data, nilterm, false);
                 },
                 [EXT_HEADER_PATH, data @ ..] => {
                     parse_pathname(data, &mut path);
@@ -153,12 +155,51 @@ impl LhaHeader {
             }
         }
         if filename.is_empty() {
-            parse_pathname(&self.filename, &mut path);
+            let data = if nilterm {
+                split_data_at_nil_or_end(&self.filename).0
+            }
+            else {
+                &self.filename
+            };
+            parse_pathname(data, &mut path);
         }
         else {
             path.push(filename.as_ref());
         }
         path
+    }
+    /// Attempts to find and return the file comment field in extended header data.
+    ///
+    /// The routine converts all non-ASCII or control characters to `%xx` sequences.
+    ///
+    /// # Notes
+    /// Some archives made on [OsType::Amiga] can have a comment embedded in the filename field
+    /// after the `nul` character. If the comment could not be found in extended data, an attempt
+    /// is made to extract the comment from the filename if the archive OS supports it.
+    pub fn parse_comment(&self) -> Option<Cow<str>> {
+        let mut raw_filename = &self.filename[..];
+        for header in self.iter_extra() {
+            match header {
+                [EXT_HEADER_FILENAME, data @ ..] => {
+                    raw_filename = data;
+                },
+                [EXT_HEADER_COMMENT, data @ ..] => {
+                    let comment = parse_str_nilterm(data, false, true);
+                    if !comment.is_empty() {
+                        return Some(comment)
+                    }
+                }
+                _ => {}
+            }
+        }
+        if self.parse_os_type() == Ok(OsType::Amiga) {
+            split_data_at_nil_or_end(raw_filename)
+            .1
+            .map(|data| parse_str_nilterm(data, false, true))
+        }
+        else {
+            None
+        }
     }
 }
 
