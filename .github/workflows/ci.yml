@@ -1,0 +1,53 @@
+name: Continuous integration
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+    
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    strategy:
+      matrix:
+        rust:
+          - 1.44.0
+          - stable
+          - beta
+          - nightly
+        include:
+          - rust: 1.44.0
+            coverage: 'send'
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+      - name: Install ${{ matrix.rust }} toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain:  ${{ matrix.rust }}
+          override: true
+      - name: Tests
+        env:
+          RUSTFLAGS: '-D warnings'
+        run: |
+          cargo build --verbose --no-default-features
+          cargo test --verbose --no-default-features
+          cargo build --verbose --no-default-features --features=lz
+          cargo test --verbose --no-default-features --features=lz
+          cargo build --verbose --no-default-features --features=lh1
+          cargo test --verbose --no-default-features --features=lh1
+          cargo build --verbose --all-features
+          cargo test --verbose --all-features
+      - name: Coverage
+        if: matrix.coverage == 'send'
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          version: 'latest'
+          args: --verbose --all-features --exclude-files tests/*.rs tests/*/*.rs --coveralls ${{secrets.COVERALLS_KEY}}
