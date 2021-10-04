@@ -1,3 +1,9 @@
+v0.4.0
+* CI: migration to Github Actions
+* Tests: pass all tests regardless of selected features
+* Minimum supported rust version changed to Rust 1.46 (const fn improvements)
+* Deps: bitflags updated to 1.3, dev-deps updated
+
 v0.3.0
 * LhaHeader::parse_comment.
 * LhaHeader::parse_pathname returns the file name up to a nul character with Amiga archives.
