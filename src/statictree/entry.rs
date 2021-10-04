@@ -38,16 +38,19 @@ impl TreeEntry {
         }
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn set_as_branch(&mut self, child_index: usize) {
         self.0 = (child_index as u16) & !LEAF_BIT;
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn is_leaf(self) -> bool {
         self.0 & LEAF_BIT == LEAF_BIT
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn as_value(self) -> u16 {
         self.0 & !LEAF_BIT
