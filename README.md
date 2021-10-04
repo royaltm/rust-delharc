@@ -39,7 +39,7 @@ For more information, please see the [Documentation][Docs Link].
 Rust Version
 ------------
 
-`delharc` requires Rustc version 1.44 or greater due to the usage of API that was stabilized in this version.
+`delharc` requires Rustc version 1.46 or greater due to the newly allowed const fn expressions in this version.
 
 
 [Rust]: https://www.rust-lang.org/
@@ -50,9 +50,9 @@ Rust Version
 [Crate img]: https://img.shields.io/crates/v/delharc.svg
 [Docs Link]: https://docs.rs/delharc
 [Docs img]: https://docs.rs/delharc/badge.svg
-[Build Link]: https://travis-ci.org/royaltm/rust-delharc
-[Build img]: https://travis-ci.org/royaltm/rust-delharc.svg?branch=master
+[Build Link]: https://github.com/royaltm/rust-delharc/actions/workflows/ci.yml
+[Build img]: https://github.com/royaltm/rust-delharc/actions/workflows/ci.yml/badge.svg?branch=master
 [Coverage Link]: https://coveralls.io/github/royaltm/rust-delharc?branch=master
 [Coverage img]: https://coveralls.io/repos/github/royaltm/rust-delharc/badge.svg?branch=master
 [rustc version link]: https://github.com/royaltm/rust-delharc#rust-version
-[rustc version img]: https://img.shields.io/badge/rustc-1.44+-lightgray.svg
+[rustc version img]: https://img.shields.io/badge/rustc-1.46+-lightgray.svg

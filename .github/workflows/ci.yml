@@ -17,12 +17,12 @@ jobs:
     strategy:
       matrix:
         rust:
-          - 1.44.0
+          - 1.46.0
           - stable
           - beta
           - nightly
         include:
-          - rust: 1.44.0
+          - rust: 1.46.0
             coverage: 'send'
     steps:
       - name: Checkout sources
