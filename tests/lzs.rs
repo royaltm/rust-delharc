@@ -1,3 +1,4 @@
+#![cfg(feature = "lz")]
 use std::io;
 use delharc::header::*;
 

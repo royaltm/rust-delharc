@@ -6,12 +6,15 @@ use sink::SinkSum;
 
 const TESTS_CASES: &[(&str, &str, u64, u64, u16, u32, &str, u8, CompressionMethod)] = &[
     ("h0_lh0.lzh", "gpl-2.gz", 6829,  6829, 0xB6D5, 0xE4690583, "2010-01-01 06:00:00 UTC", 0, CompressionMethod::Lh0),
+    #[cfg(feature = "lh1")]
     ("h0_lh1.lzh", "gpl-2",    7208, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 0, CompressionMethod::Lh1),
     ("h0_lh5.lzh", "gpl-2",    7004, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 0, CompressionMethod::Lh5),
     ("h1_lh0.lzh", "gpl-2.gz", 6829,  6829, 0xB6D5, 0xE4690583, "2010-01-01 06:00:00 UTC", 1, CompressionMethod::Lh0),
+    #[cfg(feature = "lh1")]
     ("h1_lh1.lzh", "gpl-2",    7208, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 1, CompressionMethod::Lh1),
     ("h1_lh5.lzh", "gpl-2",    7004, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 1, CompressionMethod::Lh5),
     ("h2_lh0.lzh", "gpl-2.gz", 6829,  6829, 0xB6D5, 0xE4690583, "2010-01-01 06:00:00 UTC", 2, CompressionMethod::Lh0),
+    #[cfg(feature = "lh1")]
     ("h2_lh1.lzh", "gpl-2",    7208, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 2, CompressionMethod::Lh1),
     ("h2_lh5.lzh", "gpl-2",    7004, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 2, CompressionMethod::Lh5),
 ];

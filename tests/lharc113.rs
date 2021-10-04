@@ -5,9 +5,12 @@ mod sink;
 use sink::SinkSum;
 
 const TESTS_CASES: &[(u64, &str, &str, u64, u64, u16, u32, &str, CompressionMethod)] = &[
+    #[cfg(feature = "lh1")]
     (0x4EF, "sfx.com", "GPL-2",      7518,   18092, 0xA33A, 0x4E46F4A1, "2010-01-01 00:00:00", CompressionMethod::Lh1),
     (0, "lh0.lzh",     "GPL-2.GZ",   6829,    6829, 0xB6D5, 0xE4690583, "2010-01-01 00:00:00", CompressionMethod::Lh0),
+    #[cfg(feature = "lh1")]
     (0, "lh1.lzh",     "GPL-2",      7518,   18092, 0xA33A, 0x4E46F4A1, "2010-01-01 00:00:00", CompressionMethod::Lh1),
+    #[cfg(feature = "lh1")]
     (0, "long.lzh",    "LONG.TXT", 114249, 1241658, 0x6a7c, 0x06788E85, "2011-06-09 20:18:28", CompressionMethod::Lh1),
     (0, "subdir.lzh",
            "SUBDIR*SUBDIR2*HELLO.TXT", 12,      12, 0x9778, 0xAF083B2D, "2010-01-01 00:00:00", CompressionMethod::Lh0),

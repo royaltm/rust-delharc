@@ -5,14 +5,22 @@ mod sink;
 use sink::SinkSum;
 
 const TESTS_CASES: &[(&str, &str, u64, u64, u16, u32, &str, u8, CompressionMethod)] = &[
+    #[cfg(feature = "lh1")]
     ("lh1-0.lzh",   "0.bin",        0,       0, 0x0000, 0x00000000, "2011-07-03 18:05:35 UTC", 1, CompressionMethod::Lh1),
     ("lh1-1.lzh",   "1.BIN",        1,       1, 0x0000, 0xD202EF8D, "2011-07-03 19:00:16", 0, CompressionMethod::Lh0),
+    #[cfg(feature = "lh1")]
     ("lh1-1m.lzh",  "1M.BIN",   21888, 1048576, 0x0000, 0xA738EA1C, "2011-07-03 19:00:38", 0, CompressionMethod::Lh1),
+    #[cfg(feature = "lh1")]
     ("lh1-2m.lzh",  "2M.BIN",   43733, 2097152, 0x0000, 0x8D89877E, "2011-07-03 23:32:12", 0, CompressionMethod::Lh1),
+    #[cfg(feature = "lh1")]
     ("lh1-64k.lzh", "65536.BIN", 1408,   65536, 0x0000, 0xD7978EEB, "2011-07-03 19:00:28", 0, CompressionMethod::Lh1),
+    #[cfg(feature = "lz")]
     ("lz5-0.lzs",   "0.BIN",        0,       0, 0x0000, 0x00000000, "2011-07-03 19:05:34", 0, CompressionMethod::Lz4),
+    #[cfg(feature = "lz")]
     ("lz5-1.lzs",   "1.BIN",        1,       1, 0x0000, 0xD202EF8D, "2011-07-03 19:00:16", 0, CompressionMethod::Lz4),
+    #[cfg(feature = "lz")]
     ("lz5-1m.lzs",  "1M.BIN",  123793, 1048576, 0x0000, 0xA738EA1C, "2011-07-03 19:00:38", 0, CompressionMethod::Lz5),
+    #[cfg(feature = "lz")]
     ("lz5-64k.lzs", "65536.BIN", 7739,   65536, 0x0000, 0xD7978EEB, "2011-07-03 19:00:28", 0, CompressionMethod::Lz5),
 ];
 

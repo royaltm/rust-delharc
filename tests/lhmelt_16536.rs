@@ -11,14 +11,17 @@ const TESTS_CASES: &[(u64, &str, &str, u64, u64, u16, u32, &str, u8, Compression
     (0x7C00, "sfx_winsfx32_213.exe",  "gpl-2", 6992, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 00:00:00 UTC", 2, CompressionMethod::Lh5),
     (0xD000, "sfx_winsfx32m_250.exe", "gpl-2", 6992, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 00:00:00 UTC", 2, CompressionMethod::Lh5),
     (0, "h0_lh0.lzh", "gpl-2.gz", 6829,  6829, 0xB6D5, 0xE4690583, "2010-01-01 01:00:00", 0, CompressionMethod::Lh0),
+    #[cfg(feature = "lh1")]
     (0, "h0_lh1.lzh", "gpl-2",    7199, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 01:00:00", 0, CompressionMethod::Lh1),
     (0, "h0_lh5.lzh", "gpl-2",    6992, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 01:00:00", 0, CompressionMethod::Lh5),
     (0, "h0_lh6.lzh", "gpl-2",    6828, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 01:00:00", 0, CompressionMethod::Lh6),
     (0, "h0_lh7.lzh", "gpl-2",    6828, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 01:00:00", 0, CompressionMethod::Lh7),
     (0, "h1_lh0.lzh", "gpl-2.gz", 6829,  6829, 0xB6D5, 0xE4690583, "2010-01-01 01:00:00", 1, CompressionMethod::Lh0),
+    #[cfg(feature = "lh1")]
     (0, "h1_lh1.lzh", "gpl-2",    7199, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 01:00:00", 1, CompressionMethod::Lh1),
     (0, "h1_lh5.lzh", "gpl-2",    6992, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 01:00:00", 1, CompressionMethod::Lh5),
     (0, "h2_lh0.lzh", "gpl-2.gz", 6829,  6829, 0xB6D5, 0xE4690583, "2010-01-01 00:00:00 UTC", 2, CompressionMethod::Lh0),
+    #[cfg(feature = "lh1")]
     (0, "h2_lh1.lzh", "gpl-2",    7199, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 00:00:00 UTC", 2, CompressionMethod::Lh1),
     (0, "h2_lh5.lzh", "gpl-2",    6992, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 00:00:00 UTC", 2, CompressionMethod::Lh5),
     (0, "h0_subdir.lzh",

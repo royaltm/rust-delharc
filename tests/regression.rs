@@ -9,6 +9,7 @@ const TESTS_CASES: &[(&str, &[(&str, Option<&str>, u64, u64, u16, u32, &str, u8,
         ("tmp*absolute_path.txt", None,
             46,      46, 0x6BC0, 0xBD98D221, "2012-04-05 20:21:38 UTC", 1, OsType::Unix, CompressionMethod::Lh0)
     ]),
+    #[cfg(feature = "lh1")]
     ("badterm.lzh", &[
         ("tmp*%1b]2;malicious%07%0a", None,
              0,       0, 0x0000, 0x00000000, "2012-04-05 21:10:20 UTC", 1, OsType::Unix, CompressionMethod::Lh1)

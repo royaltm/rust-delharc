@@ -5,6 +5,7 @@ mod sink;
 use sink::SinkSum;
 
 const TESTS_CASES: &[(&str, &str, u64, u64, u16, u32, &str, u8, CompressionMethod)] = &[
+    #[cfg(feature = "lh1")]
     ("lh1.lzh",    "gpl-2",    7201, 18092, 0xA33A, 0x4E46F4A1, "1980-06-12 21:03:18", 0, CompressionMethod::Lh1),
     ("lh6.lzh",    "gpl-2",    6832, 18092, 0xA33A, 0x4E46F4A1, "1980-06-12 21:03:18", 0, CompressionMethod::Lh6),
     ("level0.lzh",

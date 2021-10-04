@@ -7,10 +7,13 @@ use sink::SinkSum;
 const TESTS_CASES: &[(u64, &str, &str, u64, u64, u16, u32, &str, u8, CompressionMethod)] = &[
     (0, "lh0.lzh",    "GPL2.GZ", 6829,  6829, 0xB6D5, 0xE4690583, "2011-12-11 18:30:36", 0, CompressionMethod::Lh0),
     (0, "lh5.lzh",    "GPL2",    7004, 18092, 0xA33A, 0x4E46F4A1, "2011-12-11 18:30:36", 0, CompressionMethod::Lh5),
+    #[cfg(feature = "lz")]
     (0, "lz5.lzh",    "GPL2",    8480, 18092, 0xA33A, 0x4E46F4A1, "2011-12-11 18:30:36", 0, CompressionMethod::Lz5),
     (0, "h1_lh5.lzh", "GPL2",    7004, 18092, 0xA33A, 0x4E46F4A1, "2011-12-11 18:30:36", 1, CompressionMethod::Lh5),
+    #[cfg(feature = "lz")]
     (0, "h1_lz5.lzh", "GPL2",    8480, 18092, 0xA33A, 0x4E46F4A1, "2011-12-11 18:30:36", 1, CompressionMethod::Lz5),
     (0, "h2_lh5.lzh", "GPL2",    7004, 18092, 0xA33A, 0x4E46F4A1, "2012-01-11 18:30:36 UTC", 2, CompressionMethod::Lh5),
+    #[cfg(feature = "lz")]
     (0, "h2_lz5.lzh", "GPL2",    8480, 18092, 0xA33A, 0x4E46F4A1, "2012-01-11 18:30:36 UTC", 2, CompressionMethod::Lz5),
     (0, "shorter.lzh", "SHORTER.TXT", 83043, 286015, 0xEA66, 0x3FDCDA96, "2011-12-11 18:31:32", 0, CompressionMethod::Lh5),
     (0, "subdir.lzh",

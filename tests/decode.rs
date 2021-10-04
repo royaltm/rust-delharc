@@ -7,8 +7,11 @@ mod sink;
 use sink::SinkSum;
 
 const TESTS_CASES: &[(&str, CompressionMethod, u64)] = &[
+    #[cfg(feature = "lz")]
     ("lzs.bin", CompressionMethod::Lzs, 0),
+    #[cfg(feature = "lz")]
     ("lz5.bin", CompressionMethod::Lz5, 1),
+    #[cfg(feature = "lh1")]
     ("lh1.bin", CompressionMethod::Lh1, 1),
     ("lh5.bin", CompressionMethod::Lh5, 1),
     ("lh6.bin", CompressionMethod::Lh6, 1),
