@@ -26,9 +26,9 @@ jobs:
             coverage: 'send'
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Install ${{ matrix.rust }} toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v2
         with:
           profile: minimal
           toolchain:  ${{ matrix.rust }}
@@ -49,5 +49,5 @@ jobs:
         if: matrix.coverage == 'send'
         uses: actions-rs/tarpaulin@v0.1
         with:
-          version: 'latest'
+          # version: 'latest'
           args: --verbose --all-features --exclude-files tests/*.rs tests/*/*.rs --coveralls ${{secrets.COVERALLS_KEY}}
