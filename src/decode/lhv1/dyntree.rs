@@ -312,7 +312,7 @@ impl DynHuffTree {
             }
 
             // 3. insert branch
-            let mut node = target_mut.next().unwrap();
+            let node = target_mut.next().unwrap();
             node.make_branch(child_index);
             node.freq = branch_freq;
             target_len = target_mut.len();
