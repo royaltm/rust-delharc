@@ -8,7 +8,7 @@ categories = ["compression"]
 keywords = ["LHA", "LZH", "UNLHA"]
 homepage = "https://github.com/royaltm/rust-delharc"
 repository = "https://github.com/royaltm/rust-delharc"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 readme = "README.md"
 exclude = ["/.travis.yml", ".gitignore", "tests/*", "examples/*"]
 
