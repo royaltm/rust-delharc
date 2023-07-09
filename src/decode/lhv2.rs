@@ -33,7 +33,7 @@ macro_rules! impl_lhav2_decoder {
         pub struct $cfg_name;
 
         impl LhaDecoderConfig for $cfg_name {
-            type RingBuffer = RingArrayBuf<[u8; 1 << $history_bits - 1]>;
+            type RingBuffer = RingArrayBuf<{1 << $history_bits - 1}>;
             const HISTORY_BITS: u32 = $history_bits;
             const OFFSET_BITS: u32 = $offset_bits;
         }

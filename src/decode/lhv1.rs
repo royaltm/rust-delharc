@@ -15,7 +15,7 @@ pub struct Lh1Decoder<R> {
     bit_reader: BitStream<R>,
     command_tree: Box<DynHuffTree>,
     copy_progress: Option<(u16, NonZeroU16)>,
-    ringbuf: Box<RingArrayBuf<[u8;RING_BUFFER_SIZE]>>,
+    ringbuf: Box<RingArrayBuf<RING_BUFFER_SIZE>>,
 }
 
 impl<R: Read> Lh1Decoder<R> {

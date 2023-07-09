@@ -13,12 +13,12 @@ pub struct Lz5Decoder<R> {
     reader: R,
     bitmap: u16,
     copy_progress: Option<(u16, NonZeroU16)>,
-    ringbuf: Box<RingArrayBuf<[u8;RING_BUFFER_SIZE]>>,
+    ringbuf: Box<RingArrayBuf<RING_BUFFER_SIZE>>,
 }
 
 impl<R: Read> Lz5Decoder<R> {
     pub fn new(reader: R) -> Lz5Decoder<R> {
-        let mut ringbuf = Box::new(RingArrayBuf::<_>::default());
+        let mut ringbuf = Box::new(RingArrayBuf::default());
 
         // fill 13 times with each byte value (3328)
         for i in 0..=255 {

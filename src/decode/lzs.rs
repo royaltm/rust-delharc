@@ -12,13 +12,13 @@ const START_OFFSET: isize = -17;
 pub struct LzsDecoder<R> {
     bit_reader: BitStream<R>,
     copy_progress: Option<(u16, NonZeroU16)>,
-    ringbuf: Box<RingArrayBuf<[u8;RING_BUFFER_SIZE]>>,
+    ringbuf: Box<RingArrayBuf<RING_BUFFER_SIZE>>,
 }
 
 impl<R: Read> LzsDecoder<R> {
     pub fn new(rd: R) -> LzsDecoder<R> {
         let bit_reader = BitStream::new(rd);
-        let mut ringbuf = Box::new(RingArrayBuf::<_>::default());
+        let mut ringbuf = Box::new(RingArrayBuf::default());
         ringbuf.set_cursor(START_OFFSET);
         LzsDecoder {
             bit_reader,

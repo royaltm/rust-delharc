@@ -1,6 +1,5 @@
 //! # Ring buffer tools.
 use core::fmt;
-use core::mem;
 use core::ops::Index;
 
 /// A ring buffer trait.
@@ -27,16 +26,18 @@ pub trait RingBuffer: Default + Index<usize, Output=u8> {
 }
 
 /// A generic ring buffer implementation using arrays of the size of the power of two as internal buffers.
+///
+/// `N` must be a power of 2.
 #[derive(Clone)]
-pub struct RingArrayBuf<T: Copy> {
-    buffer: T,
+pub struct RingArrayBuf<const N: usize> {
+    buffer: [u8; N],
     cursor: usize
 }
 
-impl<T: Copy> fmt::Debug for RingArrayBuf<T> {
+impl<const N: usize> fmt::Debug for RingArrayBuf<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RingArrayBuf")
-         .field("buffer", &mem::size_of::<T>())
+         .field("buffer", &N)
          .field("cursor", &self.cursor)
          .finish()
     }
@@ -61,82 +62,62 @@ impl<'a, T: RingBuffer> Iterator for HistoryIter<'a, T> {
     }
 }
 
-macro_rules! buffer_size {
-    ($bits:expr) => { 1 << $bits };
-}
-
 macro_rules! index_mask {
-    ($bits:expr) => { (1 << $bits) - 1 };
+    ($size:expr) => { ($size - 1) };
 }
 
-macro_rules! buffer_type {
-    ($bits:expr) => { [u8; buffer_size!($bits)] };
+impl<const N: usize> Default for RingArrayBuf<N> {
+    fn default() -> Self {
+        assert!(N.is_power_of_two(), "invalid RingArrayBuf size: should be a power of two!");
+        let buffer = [b' '; N];
+        RingArrayBuf { buffer, cursor: 0 }
+    }
 }
 
-macro_rules! impl_ring_buffer {
-    ($bitsize:literal) => {
-        impl Default for RingArrayBuf<buffer_type!($bitsize)> {
-            fn default() -> Self {
-                let buffer = [b' '; buffer_size!($bitsize)];
-                RingArrayBuf { buffer, cursor: 0 }
-            }
-        }
+impl<const N: usize> Index<usize> for RingArrayBuf<N> {
+    type Output = u8;
 
-        impl Index<usize> for RingArrayBuf<buffer_type!($bitsize)> {
-            type Output = u8;
-
-            #[inline(always)]
-            fn index(&self, index: usize) -> &Self::Output {
-                self.buffer.index(index & index_mask!($bitsize))
-            }
-        }
-
-        impl RingBuffer for RingArrayBuf<buffer_type!($bitsize)> {
-            const BUFFER_SIZE: usize = buffer_size!($bitsize);
-
-            #[inline(always)]
-            fn cursor(&self) -> usize {
-                self.cursor
-            }
-
-            fn set_cursor(&mut self, pos: isize) {
-                self.cursor = pos as usize & index_mask!($bitsize);
-            }
-
-            fn push(&mut self, byte: u8) {
-                let index = self.cursor;
-                self.buffer[index & index_mask!($bitsize)] = byte;
-                self.cursor = (index + 1) & index_mask!($bitsize);
-            }
-
-            fn iter_from_offset<'a>(&'a mut self, offset: usize) -> HistoryIter<'a, Self> {
-                let offset = (offset & index_mask!($bitsize)) + 1;
-                let index = self.cursor + buffer_size!($bitsize) - offset;
-                HistoryIter { index, ringbuf: self }
-            }
-
-            fn iter_from_pos<'a>(&'a mut self, pos: usize) -> HistoryIter<'a, Self> {
-                let index = pos & index_mask!($bitsize);
-                HistoryIter { index, ringbuf: self }
-            }
-        }
-    };
+    #[inline(always)]
+    fn index(&self, index: usize) -> &Self::Output {
+        self.buffer.index(index & index_mask!(N))
+    }
 }
 
-impl_ring_buffer!(11);
-impl_ring_buffer!(12);
-impl_ring_buffer!(13);
-impl_ring_buffer!(16);
-#[cfg(feature = "lhx")]
-impl_ring_buffer!(19);
+impl<const N: usize> RingBuffer for RingArrayBuf<N> {
+    const BUFFER_SIZE: usize = N;
 
+    #[inline(always)]
+    fn cursor(&self) -> usize {
+        self.cursor
+    }
+
+    fn set_cursor(&mut self, pos: isize) {
+        self.cursor = pos as usize & index_mask!(N);
+    }
+
+    fn push(&mut self, byte: u8) {
+        let index = self.cursor;
+        self.buffer[index & index_mask!(N)] = byte;
+        self.cursor = (index + 1) & index_mask!(N);
+    }
+
+    fn iter_from_offset<'a>(&'a mut self, offset: usize) -> HistoryIter<'a, Self> {
+        let offset = (offset & index_mask!(N)) + 1;
+        let index = self.cursor + N - offset;
+        HistoryIter { index, ringbuf: self }
+    }
+
+    fn iter_from_pos<'a>(&'a mut self, pos: usize) -> HistoryIter<'a, Self> {
+        let index = pos & index_mask!(N);
+        HistoryIter { index, ringbuf: self }
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    impl_ring_buffer!(5);
 
-    type TestRingBuffer = RingArrayBuf<[u8;32]>;
+    type TestRingBuffer = RingArrayBuf<32>;
 
     #[test]
     fn ringbuf_works() {
