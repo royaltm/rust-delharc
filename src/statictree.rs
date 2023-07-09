@@ -159,6 +159,7 @@ impl HuffTree {
                 NodeType::Leaf(code) => return Ok(code),
                 NodeType::Branch(index) => {
                     let index = index as usize + path.read_bits::<usize>(1)?;
+                    debug_assert!(index < tree.len());
                     node = unsafe {
                         // safe because tree was initialized in a sane way,
                         // no outstanding child index has been used

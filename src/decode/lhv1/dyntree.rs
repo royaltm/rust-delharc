@@ -1,7 +1,6 @@
 //! # Dynamic Huffman Coding.
 use std::io;
 use core::fmt;
-use core::mem::{self, MaybeUninit};
 use crate::bitstream::BitRead;
 use crate::statictree::entry::*;
 
@@ -208,16 +207,17 @@ impl DynHuffTree {
     pub fn new() -> Self {
         let mut groups = Groups::new();
         let mut nodes = [TreeNode::default(); NUM_NODES];
-        let mut leaves = [0u16; NUM_LEAVES];
+        let leaves: [u16; NUM_LEAVES] = core::array::from_fn(|value| {
+            (NUM_NODES - 1) as u16 - value as u16
+        });
 
         let mut last_group = groups.allocate();
-        for ((node, leaf), value) in nodes[NUM_NODES - NUM_LEAVES..NUM_NODES]
-                           .iter_mut().rev()
-                           .zip(leaves.iter_mut())
-                           .zip(0..)
+
+        for (node, value) in nodes[NUM_NODES - NUM_LEAVES..NUM_NODES]
+                             .iter_mut().rev()
+                             .zip(0..)
         {
             *node = TreeNode::new_leaf(value, last_group);
-            *leaf = (NUM_NODES - 1) as u16 - value;
         }
 
         let mut tail_len = NUM_LEAVES;
@@ -261,20 +261,14 @@ impl DynHuffTree {
     #[inline(never)]
     fn rebuild_tree(&mut self) {
         // move leave entries away maintaining order and dampen down frequency
-        let mut leave_nodes: [MaybeUninit<(TreeEntry, u16)>; NUM_LEAVES] = unsafe {
-            MaybeUninit::uninit().assume_init()
-        };
         // we can't use leaf index, as the current order of leaves should be preserved
         let mut node_filter = self.nodes.iter().filter(|&n| n.is_leaf());
-        for t in leave_nodes.iter_mut() {
+        let leave_nodes: [(TreeEntry, u16); NUM_LEAVES] = core::array::from_fn(|_| {
             let node = node_filter.next().unwrap();
-            *t = MaybeUninit::new((node.entry, (node.freq + 1) / 2));
-        }
-        let leave_nodes = unsafe { //safe, cause all leave nodes has been initialized
-            mem::transmute::<_,[(TreeEntry, u16); NUM_LEAVES]>(leave_nodes)
-        };
+            (node.entry, (node.freq + 1) / 2)
+        });
         // an iterator of leaves from last to first
-        let mut leaves_riter = leave_nodes.iter().rev();
+        let mut leaves_riter = leave_nodes.into_iter().rev();
         // maybe get a next leaf
         let mut next_leaf = leaves_riter.next();
         let mut target_len = NUM_NODES;
@@ -288,8 +282,8 @@ impl DynHuffTree {
                     let (entry, freq) = next_leaf.unwrap();
                     target_len -= 1;
                     self.leaves.set_leaf_node_index(entry.as_value(), target_len);
-                    node.entry = *entry;
-                    node.freq = *freq;
+                    node.entry = entry;
+                    node.freq = freq;
                     next_leaf = leaves_riter.next();
                 }
             }
@@ -301,13 +295,13 @@ impl DynHuffTree {
 
             // 2. copy more leaves until frequency is less
             while let Some((entry, freq)) = next_leaf {
-                if branch_freq < *freq {
+                if branch_freq < freq {
                     break;
                 }
                 let node = target_mut.next().unwrap();
                 self.leaves.set_leaf_node_index(entry.as_value(), target_mut.len());
-                node.entry = *entry;
-                node.freq = *freq;
+                node.entry = entry;
+                node.freq = freq;
                 next_leaf = leaves_riter.next();
             }
 
