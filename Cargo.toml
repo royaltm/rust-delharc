@@ -28,4 +28,4 @@ memchr = { version = "2", default-features = false }
 
 [dev-dependencies]
 crc-any = "2.4"
-rand = "0.8.4"
+rand = "0.8.5"
