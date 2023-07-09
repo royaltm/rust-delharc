@@ -2,7 +2,7 @@
 name = "delharc"
 version = "0.4.0"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "A library for parsing and extracting files from LHA/LZH archives."
 categories = ["compression"]
 keywords = ["LHA", "LZH", "UNLHA"]
