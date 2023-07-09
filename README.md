@@ -39,7 +39,7 @@ For more information, please see the [Documentation][Docs Link].
 Rust Version
 ------------
 
-`delharc` requires Rustc version 1.60 or greater due to the new syntax for Cargo features, needed by dependent crates.
+`delharc` requires Rustc version 1.63 or greater due to the stabilized array::from_fn function in this version.
 
 
 [Rust]: https://www.rust-lang.org/
@@ -55,4 +55,4 @@ Rust Version
 [Coverage Link]: https://coveralls.io/github/royaltm/rust-delharc?branch=master
 [Coverage img]: https://coveralls.io/repos/github/royaltm/rust-delharc/badge.svg?branch=master
 [rustc version link]: https://github.com/royaltm/rust-delharc#rust-version
-[rustc version img]: https://img.shields.io/badge/rustc-1.60+-lightgray.svg
+[rustc version img]: https://img.shields.io/badge/rustc-1.63+-lightgray.svg
