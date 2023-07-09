@@ -255,7 +255,7 @@ impl LhaHeader {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "wrong header size"))
         }
 
-        let mut msdos_attrs = MsDosAttrs::from_bits_truncate(raw_header.msdos_attrs as u16);
+        let mut msdos_attrs = MsDosAttrs::from_bits_retain(raw_header.msdos_attrs as u16);
         let mut original_size = u32::from_le_bytes(raw_header.original_size) as u64;
         let mut compressed_size = u32::from_le_bytes(raw_header.compressed_size) as u64;
         let mut header_crc: Option<u16> = None;
@@ -295,7 +295,7 @@ impl LhaHeader {
                 [EXT_HEADER_MSDOS_ATTRS, data @ ..]|
                 [EXT_HEADER_EXT_ATTRS,   data @ ..] if data.len() >= 2 => {
                     if let Some(attrs) = read_u16(&data[0..2]) {
-                        msdos_attrs = MsDosAttrs::from_bits_truncate(attrs);
+                        msdos_attrs = MsDosAttrs::from_bits_retain(attrs);
                     }
                 }
                 [EXT_HEADER_MSDOS_SIZE, data @ ..] if raw_header.lha_level >= 2 && data.len() >= 16 => {

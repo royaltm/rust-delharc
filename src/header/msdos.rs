@@ -1,7 +1,7 @@
 use bitflags::bitflags;
 
 bitflags! {
-    #[derive(Default)]
+    #[derive(Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     pub struct MsDosAttrs: u16 {
         const READ_ONLY = 0b00000000_00000001;
         const HIDDEN    = 0b00000000_00000010;
