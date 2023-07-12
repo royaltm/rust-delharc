@@ -41,6 +41,17 @@ Rust Version
 
 `delharc` requires Rustc version 1.63 or greater due to the stabilized array::from_fn function in this version.
 
+License
+-------
+
+This project is licensed under either of
+
+ * MIT license ([LICENSE-MIT](LICENSE-MIT) or
+   https://opensource.org/licenses/MIT)
+ * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
+   https://www.apache.org/licenses/LICENSE-2.0)
+
+at your option.
 
 [Rust]: https://www.rust-lang.org/
 [LHA/LZH]: https://en.wikipedia.org/wiki/LHA_(file_format)
