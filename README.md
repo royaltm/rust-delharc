@@ -30,7 +30,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-delharc = "0.4"
+delharc = "0.5"
 ```
 
 For more information, please see the [Documentation][Docs Link].
