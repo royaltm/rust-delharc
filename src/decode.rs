@@ -50,7 +50,7 @@ pub trait Decoder<R> {
 /// successfully, invoke [`LhaDecodeReader::is_decoder_supported`] to ensure you can actually read the file.
 /// Otherwise, trying to read from an unsupported decoder will result in an error.
 ///
-/// # no-std
+/// # `no_std`
 /// Without the `std` feature in the absence of `std::io` the crate's [`Read`] trait methods should
 /// be used instead to read the content of the decompressed files.
 #[derive(Debug)]
@@ -224,7 +224,7 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
     /// # Panic
     /// Panics if called when the underlying stream reader has been already taken.
     ///
-    /// # no-std
+    /// # `no_std`
     /// To skip the remaining file's content this function uses 8 KB stack-allocated buffer
     /// when using with `std` feature enabled. Without `std` the buffer size is 512 bytes.
     /// See also [`LhaDecodeReader::next_file_with_sink`].
