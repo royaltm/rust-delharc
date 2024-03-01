@@ -33,61 +33,80 @@ rand = "0.8.5"
 
 [[example]]
 name = "extract"
+path = "examples/extract.rs"
 required-features = ["std"]
 
 [[test]]
 name = "decode"
+path = "tests/decode.rs"
 required-features = ["std"]
 [[test]]
 name = "larc333"
+path = "tests/larc333.rs"
 required-features = ["std"]
 [[test]]
 name = "lenghts"
+path = "tests/lenghts.rs"
 required-features = ["std"]
 [[test]]
 name = "lha213"
+path = "tests/lha213.rs"
 required-features = ["std"]
 [[test]]
 name = "lha255e"
+path = "tests/lha255e.rs"
 required-features = ["std"]
 [[test]]
 name = "lha_amiga_122"
+path = "tests/lha_amiga_122.rs"
 required-features = ["std"]
 [[test]]
 name = "lha_amiga_212"
+path = "tests/lha_amiga_212.rs"
 required-features = ["std"]
 [[test]]
 name = "lha_os2_208"
+path = "tests/lha_os2_208.rs"
 required-features = ["std"]
 [[test]]
 name = "lha_os9_211c"
+path = "tests/lha_os9_211c.rs"
 required-features = ["std"]
 [[test]]
 name = "lha_osk_201"
+path = "tests/lha_osk_201.rs"
 required-features = ["std"]
 [[test]]
 name = "lha_unix114i"
+path = "tests/lha_unix114i.rs"
 required-features = ["std"]
 [[test]]
 name = "lha_x68k_213"
+path = "tests/lha_x68k_213.rs"
 required-features = ["std"]
 [[test]]
 name = "lharc113"
+path = "tests/lharc113.rs"
 required-features = ["std"]
 [[test]]
 name = "lharc_atari_313a"
+path = "tests/lharc_atari_313a.rs"
 required-features = ["std"]
 [[test]]
 name = "lhmelt_16536"
+path = "tests/lhmelt_16536.rs"
 required-features = ["std"]
 [[test]]
 name = "lzs"
+path = "tests/lzs.rs"
 required-features = ["std"]
 [[test]]
 name = "regression"
+path = "tests/regression.rs"
 required-features = ["std"]
 [[test]]
 name = "unlha32"
+path = "tests/unlha32.rs"
 required-features = ["std"]
 
 [workspace]
