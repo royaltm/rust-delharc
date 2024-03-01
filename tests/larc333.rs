@@ -26,9 +26,10 @@ fn test_larc333() -> io::Result<()> {
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
             assert_eq!(header.level, 0);
-            let path = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
-            assert_eq!(&header.parse_pathname().to_str().unwrap(), &path);
-            assert_eq!(&header.parse_pathname_to_str(), &path);
+            let path1 = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
+            assert_eq!(&header.parse_pathname().to_str().unwrap(), &path1);
+            let path1 = path.replace("*", "/");
+            assert_eq!(&header.parse_pathname_to_str(), &path1);
             assert_eq!(header.parse_os_type()?, OsType::Generic);
             assert_eq!(header.compression_method().unwrap(), *compr);
             assert_eq!(header.compressed_size, *size_c);
