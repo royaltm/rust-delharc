@@ -27,9 +27,9 @@ impl<E: fmt::Display> fmt::Display for LhaError<E> {
         use LhaError::*;
         match self {
             Io(e) => e.fmt(f),
-            HeaderParse(e) => write!(f, "while parsing header: {}", e),
+            HeaderParse(e) => write!(f, "while parsing LHA header: {}", e),
             Decompress(e) => write!(f, "while decompressing: {}", e),
-            Checksum(e) => write!(f, "checksum mismatch: {}", e),
+            Checksum(e) => write!(f, "checksum: {}", e),
         }
     }
 }
