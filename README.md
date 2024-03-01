@@ -30,10 +30,44 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-delharc = "0.5"
+delharc = "0.6"
 ```
 
 For more information, please see the [Documentation][Docs Link].
+
+
+No-std
+------
+
+Since version 0.6 `delharc` can be used without the `std` library. In this instance the `alloc`
+external crate will be required instead.
+
+```toml
+[dependencies.delharc]
+version = "0.6"
+default-features = false
+features = ["lh1", "lz"] # select desired features
+```
+
+`delharc` API was originally built around the `std::io` types such as `io::Error` and `io::Read`.
+
+This design choice made it impossible to adapt `delharc` to be used in the absence of the `std::io`
+library without some significant implementation changes.
+
+To work around this problem the `stub_io` module and `error` module was added. `stub_io`
+contains an I/O proxy trait `Read` and a `Take` type which are now used as interfaces for generic
+types throughout the library. Instead of relying on `io::Error` for fallible results `delharc`
+defines its own `error::LhaError` which encapsulates an I/O error type.
+
+With `std` library enabled, `error::LhaError` converts to `io::Error` via the `From` trait and
+`stub_io::Read` is implemented for all types that implement `io::Read`.
+
+For `std` users the difference from previous versions is that methods previously returning
+`io::Result` now return `Result<_, LhaError<io::Error>>`. This might break cases when result
+`Err(error)` from calls to `delharc` methods is returned as is without the `?` or `From` conversion.
+
+Now, when using `default-features = false` the `std` feature needs to be added back along with other
+compression method features.
 
 
 Rust Version
