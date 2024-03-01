@@ -176,11 +176,11 @@ impl LhaHeader {
         }
         path
     }
-    /// Attempt to parse the `filename` field and searches extended data for the directory and an
-    /// alternative file name and returns a `String` with a possible path to a `filename`,
-    /// separated by '/' characters.
+    /// Attempt to parse the `filename` field and search extended data for the directory and an
+    /// alternative file name and return a `String` with a possible path to a `filename`,
+    /// separated by '`/`' characters.
     /// 
-    /// This method works like [`LhaHeader::parse_pathname`] but returns a `String` instead of
+    /// This method is like [`LhaHeader::parse_pathname`] but will return a `String` instead of
     /// `PathBuf` and can be used without `std` feature enabled.
     pub fn parse_pathname_to_str(&self) -> String {
         let mut path = String::new();

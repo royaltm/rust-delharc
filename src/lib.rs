@@ -145,6 +145,7 @@ use std::fs::File;
 /// [LhaDecodeReader] with the first parsed LHA file header, ready to decode the content of the first
 /// archived file.
 ///
+/// # no-std
 /// Available only with `std` feature enabled.
 ///
 /// # Errors

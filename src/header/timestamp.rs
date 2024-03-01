@@ -68,6 +68,8 @@ impl TimestampResult {
     ///
     /// In this instance the `Naive` date and time variant is assumed to be in the `Local` time zone.
     ///
+    /// # no-std
+    ///
     /// This method is only available with `std` feature enabled.
     pub fn to_local(&self) -> Option<DateTime<Local>> {
         match self {

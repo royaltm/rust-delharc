@@ -51,6 +51,7 @@ pub trait Read {
 
 pub(crate) fn discard_to_end<R: Read, const BUF: usize>(rd: &mut R) -> Result<(), R::Error> {
     use core::mem::{self, MaybeUninit};
+    assert!(BUF != 0);
     // Create an uninitialized array of `MaybeUninit`. The `assume_init` is
     // safe because the type we are claiming to have initialized here is a
     // bunch of `MaybeUninit`s, which do not require initialization.

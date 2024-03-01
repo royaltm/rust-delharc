@@ -155,7 +155,7 @@ impl<R: Read> Parser<'_, R> {
 }
 
 impl LhaHeader {
-    /// Attempts to parse the LHA header. Returns `Ok(Some(LhaHeader))` on success. Returns `Ok(None)`
+    /// Attempt to parse the LHA header. Return `Ok(Some(LhaHeader))` on success. Return `Ok(None)`
     /// if the end of archive marker (a `0` byte) was encountered.
     ///
     /// The method validates all length and checksum fields of the header, but does not parse extra
@@ -383,7 +383,7 @@ impl LhaHeader {
         }))
     }
 
-    /// Returns an iterator that will iterate through extra headers, yielding the headers' raw
+    /// Return an iterator that will iterate through extra headers, yielding the headers' raw
     /// data, excluding the next header length field.
     ///
     /// # Note

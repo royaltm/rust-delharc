@@ -34,20 +34,25 @@ pub trait Decoder<R> {
     fn fill_buffer(&mut self, buf: &mut[u8]) -> Result<(), LhaError<Self::Error>>;
 }
 
-/// This type provides a convenient way to parse and decode LHA/LZH files.
+/// `LhaDecodeReader` provides a convenient way to parse and decode LHA/LZH files.
 ///
-/// To read the current archived file's content use the [Read] trait methods on the instance of this type.
-/// After reading the whole file, its checksum should be verified using [LhaDecodeReader::crc_check].
+/// To read the current archived file's content use the [`std::io::Read`] trait methods on the instance
+/// of this type. After reading the whole file (until EOF), the calculated checksum should be verified
+/// using [`LhaDecodeReader::crc_check`].
 ///
-/// To parse and decode the next archive file, invoke [LhaDecodeReader::next_file].
+/// To parse and decode the next archive file, invoke [`LhaDecodeReader::next_file`].
 ///
-/// After parsing the LHA header, a decompressed content of a file can be simply read from the `LhaDecodeReader<R>`,
-/// which decompresses it using a proper decoder, designated in the header, while reading data from the
-/// underlying stream.
+/// After parsing the LHA header, a decompressed content of a file can be simply read from the
+/// `LhaDecodeReader<R>`, which decompresses it using a proper decoder, designated in the header,
+/// while reading data from the underlying stream.
 ///
 /// If the compression method is not supported by the decoder, but otherwise the header has been parsed
-/// successfully, invoke [LhaDecodeReader::is_decoder_supported] to ensure you can actually read the file.
+/// successfully, invoke [`LhaDecodeReader::is_decoder_supported`] to ensure you can actually read the file.
 /// Otherwise, trying to read from an unsupported decoder will result in an error.
+///
+/// # no-std
+/// Without the `std` feature in the absence of `std::io` the crate's [`Read`] trait methods should
+/// be used instead to read the content of the decompressed files.
 #[derive(Debug)]
 pub struct LhaDecodeReader<R> {
     header: LhaHeader,
@@ -134,12 +139,12 @@ impl<R: Read> Default for LhaDecodeReader<R> {
 }
 
 impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
-    /// Creates a new instance of `LhaDecodeReader<R>` after reading and parsing the first header from source.
+    /// Return a new instance of `LhaDecodeReader<R>` after reading and parsing the first header from source.
     ///
-    /// Provide a stream reader.
+    /// Provide a stream reader as `rd`.
     ///
     /// # Errors
-    /// Returns an error if the header could not be read or parsed.
+    /// Return an error if the header could not be read or parsed.
     pub fn new(mut rd: R) -> Result<LhaDecodeReader<R>, LhaDecodeError<R>> {
         let header = match LhaHeader::read(rd.by_ref()).and_then(|h|
                         h.ok_or_else(|| LhaError::HeaderParse("a header is missing"))
@@ -157,10 +162,10 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
             decoder: Some(decoder)
         })
     }
-    /// Attempts to read the first file header from a new source stream and initializes a decoder returning
-    /// `Ok(true)` on success. Returns `Ok(false)` if there are no more headers in the stream.
+    /// Attempt to read the first file header from a new source stream and initialize a decoder returning
+    /// `Ok(true)` on success. Return `Ok(false)` if there are no more headers in the stream.
     ///
-    /// Provide a stream reader.
+    /// Provide a stream reader as `rd`.
     ///
     /// When `Ok` is returned, regardles of the retuned boolean value, the inner reader is being always
     /// replaced with the given `rd`.
@@ -190,12 +195,12 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
         self.output_length = 0;
         Ok(res)
     }
-    /// Assigns externally parsed header and decoder to this instance of `LhaDecodeReader<R>`.
+    /// Assign externally parsed header and decoder to this instance of `LhaDecodeReader<R>`.
     ///
     /// It is up to the caller to make sure the decoder and the header are matching each other.
     ///
-    /// The decoder should be initialized with the reader limited by the [Take] wrapper
-    /// with its limit set to the [LhaHeader::compressed_size] number of bytes.
+    /// The decoder should be initialized with the reader limited by the [`Take`] wrapper
+    /// with its limit set to the [`LhaHeader::compressed_size`] number of bytes.
     ///
     /// This method assumes the file will be read and decoded from its beginning.
     pub fn begin_with_header_and_decoder(&mut self, header: LhaHeader, decoder: DecoderAny<Take<R>>) {
@@ -204,7 +209,7 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
         self.crc.reset();
         self.output_length = 0;
     }
-    /// Attempts to parse the next file's header.
+    /// Attempt to parse the next file's header.
     ///
     /// The remaining content of the previous file is being skipped if the current file's content
     /// has not been read entirely.
@@ -216,10 +221,10 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
     /// Returns an error if the header could not be read or parsed.
     /// In this instance the underlying stream source will be taken and returned with the error.
     ///
-    /// # Panics
+    /// # Panic
     /// Panics if called when the underlying stream reader has been already taken.
     ///
-    /// # No `std`
+    /// # no-std
     /// To skip the remaining file's content this function uses 8 KB stack-allocated buffer
     /// when using with `std` feature enabled. Without `std` the buffer size is 512 bytes.
     /// See also [`LhaDecodeReader::next_file_with_sink`].
@@ -231,10 +236,13 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
     pub fn next_file(&mut self) -> Result<bool, LhaDecodeError<R>> {
         self.next_file_with_sink::<512>()
     }
-    /// Attempts to parse the next file's header.
+    /// Attempt to parse the next file's header.
     ///
     /// Exactly like [`LhaDecodeReader::next_file`] but allows to specify the sink buffer
     /// size as `BUF`.
+    ///
+    /// # Panics
+    /// Panics when `BUF` = `0`.
     pub fn next_file_with_sink<const BUF: usize>(&mut self) -> Result<bool, LhaDecodeError<R>> {
         let mut limited_rd = self.decoder.take().expect("decoder not empty").into_inner();
         if limited_rd.limit() != 0 {
@@ -244,18 +252,18 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
         }
         self.begin_new(limited_rd.into_inner())
     }
-    /// Returns a reference to the last parsed file's [LhaHeader].
+    /// Return a reference to the last parsed file's [LhaHeader].
     pub fn header(&self) -> &LhaHeader {
         &self.header
     }
-    /// Unwraps the underlying stream reader and returns it.
+    /// Unwrap the underlying stream reader and return it.
     ///
     /// # Panics
     /// Panics if the reader has been already taken.
     pub fn into_inner(self) -> R {
         self.decoder.expect("decoder not empty").into_inner().into_inner()
     }
-    /// Takes the inner stream reader value out of the decoder, leaving a none in its place.
+    /// Take the inner stream reader value out of the decoder, leaving a none in its place.
     ///
     /// After this call, reading from this instance will result in a panic.
     pub fn take_inner(&mut self) -> Option<R> {
@@ -264,32 +272,32 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
         self.crc.reset();
         self.decoder.take().map(|decoder| decoder.into_inner().into_inner())
     }
-    /// Returns the number of remaining bytes of the currently decompressed file to be read.
+    /// Return the number of remaining bytes of the currently decompressed file to be read.
     pub fn len(&self) -> u64 {
         self.header.original_size - self.output_length
     }
-    /// Returns `true` if the current file has been finished reading or if the file was empty.
+    /// Return whether the current file has been finished reading or if the file was empty.
     pub fn is_empty(&self) -> bool {
         self.header.original_size == self.output_length
     }
-    /// Returns `true` if an underlying stream reader is present in the decoder.
+    /// Return whether an underlying stream reader is present in the decoder.
     pub fn is_present(&self) -> bool {
         self.decoder.is_some()
     }
-    /// Returns `true` if an underlying stream reader is absent from the decoder.
+    /// Return whether an underlying stream reader is absent from the decoder.
     ///
     /// An attempt to read file's content in this state will result in a panic.
     pub fn is_absent(&self) -> bool {
         self.decoder.is_none()
     }
-    /// Returns `true` if the computed CRC-16 matches the checksum in the header.
+    /// Return whether the computed CRC-16 matches the checksum in the header.
     ///
     /// This should be called after the whole file has been read.
     pub fn crc_is_ok(&self) -> bool {
         self.crc.sum16() == self.header.file_crc
     }
-    /// Returns CRC-16 checksum if the computed checksum matches the one in the header.
-    /// Otherwise returns an error.
+    /// Return CRC-16 checksum if the computed checksum matches the one in the header.
+    /// Otherwise return an [`LhaError::Checksum`] error.
     ///
     /// This should be called after the whole file has been read.
     pub fn crc_check(&self) -> LhaResult<u16, R> {
@@ -300,13 +308,14 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
             Err(LhaError::Checksum("crc16 mismatch"))
         }
     }
-    /// Returns `true` if the current file's compression method is supported.
+    /// Return whether the current file's compression method is supported.
+    ///
     /// If this method returns `false`, trying to read from the decoder will result in an error.
     /// In this instance it is still ok to skip to the next file.
     ///
     /// # Note
-    /// If the variant of compression is [CompressionMethod::Lhd] this method will return `false`.
-    /// In this instance check the result from header's [LhaHeader::is_directory] to determine
+    /// If the variant of compression is [`CompressionMethod::Lhd`] this method will return `false`.
+    /// In this instance check the result from header's [`LhaHeader::is_directory`] to determine
     /// what steps should be taken next.
     pub fn is_decoder_supported(&self) -> bool {
         self.decoder.as_ref().map(|d| d.is_supported()).unwrap_or(false)
