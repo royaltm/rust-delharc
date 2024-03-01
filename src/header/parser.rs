@@ -1,12 +1,8 @@
 use core::num::Wrapping;
 use core::slice;
 use core::fmt::Write;
-#[cfg(feature = "std")]
-use std::path::PathBuf;
-#[cfg(feature = "std")]
-use std::borrow::Cow;
 #[cfg(not(feature = "std"))]
-use alloc::{vec::Vec, boxed::Box, string::String, borrow::Cow};
+use alloc::vec::Vec;
 use crate::error::{LhaError, LhaResult};
 use crate::stub_io::Read;
 use crate::crc::Crc16;
