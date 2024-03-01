@@ -27,11 +27,11 @@ pub trait BitRead {
     /// # Panics
     /// Panics if `n` exceed the bit capacity of `T`.
     fn read_bits<T: UBits>(&mut self, n: u32) -> Result<T, LhaError<Self::Error>>;
-    /// Creates a "by reference" adaptor for this instance of `BitRead`.
-    /// The returned adaptor also implements `BitRead` and will simply borrow this current reader.
-    fn by_ref(&mut self) -> &mut Self {
-        self
-    }
+    // /// Creates a "by reference" adaptor for this instance of `BitRead`.
+    // /// The returned adaptor also implements `BitRead` and will simply borrow this current reader.
+    // fn by_ref(&mut self) -> &mut Self {
+    //     self
+    // }
 }
 
 /// A simple bit-stream reader, wrapped over a readable stream.

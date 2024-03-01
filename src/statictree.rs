@@ -268,7 +268,7 @@ mod tests {
         let mut path = BitStream::new(bits);
         let mut res = Vec::new();
         for _ in 0..9 {
-            res.push(tree.read_entry(path.by_ref()).unwrap());
+            res.push(tree.read_entry(&mut path).unwrap());
         }
         assert_eq!(res, [3, 5, 6, 8, 9, 10, 13, 14, 15]);
 
