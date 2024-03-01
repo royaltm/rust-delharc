@@ -51,10 +51,14 @@ jobs:
         run: |
           cargo build --verbose --no-default-features
           cargo test --verbose --no-default-features
-          cargo build --verbose --no-default-features --features=lz
-          cargo test --verbose --no-default-features --features=lz
-          cargo build --verbose --no-default-features --features=lh1
-          cargo test --verbose --no-default-features --features=lh1
+          cargo build --verbose --no-default-features --features=lz,lh1,lhx
+          cargo test --verbose --no-default-features --features=lz,lh1,lhx
+          cargo build --verbose --no-default-features --features=std
+          cargo test --verbose --no-default-features --features=std
+          cargo build --verbose --no-default-features --features=std,lz
+          cargo test --verbose --no-default-features --features=std,lz
+          cargo build --verbose --no-default-features --features=std,lh1
+          cargo test --verbose --no-default-features --features=std,lh1
           cargo build --verbose --all-features
           cargo test --verbose --all-features
 
