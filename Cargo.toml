@@ -89,3 +89,9 @@ required-features = ["std"]
 [[test]]
 name = "unlha32"
 required-features = ["std"]
+
+[workspace]
+members = [
+  ".",
+  "examples/embedded"
+]
