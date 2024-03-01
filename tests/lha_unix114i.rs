@@ -65,7 +65,6 @@ fn test_lha_unix114i() -> io::Result<()> {
             // }
 
             assert_eq!(header.level, *level);
-            let path = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
             if header.level == 0 && *compr == CompressionMethod::Lhd {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
             }
@@ -75,8 +74,10 @@ fn test_lha_unix114i() -> io::Result<()> {
             assert_eq!(header.compression_method().unwrap(), *compr);
             assert_eq!(header.compressed_size, *size_c);
             assert_eq!(header.original_size, *size_o);
-            assert_eq!(&header.parse_pathname().to_str().unwrap(), &path);
-            assert_eq!(&header.parse_pathname_to_str(), &path);
+            let path1 = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
+            assert_eq!(&header.parse_pathname().to_str().unwrap(), &path1);
+            let path1 = path.replace("*", "/");
+            assert_eq!(&header.parse_pathname_to_str(), &path1);
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
             assert_eq!(header.file_crc, *crc16);
@@ -114,7 +115,6 @@ fn test_lha_unix114i() -> io::Result<()> {
             // }
 
             assert_eq!(header.level, *level);
-            let path = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
             if header.level == 0 && header.compression_method().unwrap() == CompressionMethod::Lhd {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
             }
@@ -124,8 +124,10 @@ fn test_lha_unix114i() -> io::Result<()> {
             assert_eq!(header.compression_method().unwrap(), *compr);
             assert_eq!(header.compressed_size, *size_c);
             assert_eq!(header.original_size, *size_o);
-            assert_eq!(&header.parse_pathname().to_str().unwrap(), &path);
-            assert_eq!(&header.parse_pathname_to_str(), &path);
+            let path1 = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
+            assert_eq!(&header.parse_pathname().to_str().unwrap(), &path1);
+            let path1 = path.replace("*", "/");
+            assert_eq!(&header.parse_pathname_to_str(), &path1);
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
             assert_eq!(header.file_crc, *crc16);

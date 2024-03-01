@@ -35,8 +35,7 @@ fn test_lha_amiga_122() -> io::Result<()> {
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
             assert_eq!(header.level, *level);
-            let path = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
-            if path == "SFXUsage.txt" {
+            if *path == "SFXUsage.txt" {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::empty());
             }
             else {
@@ -45,8 +44,10 @@ fn test_lha_amiga_122() -> io::Result<()> {
             assert_eq!(header.compression_method().unwrap(), *compr);
             assert_eq!(header.compressed_size, *size_c);
             assert_eq!(header.original_size, *size_o);
-            assert_eq!(&header.parse_pathname().to_str().unwrap(), &path);
-            assert_eq!(&header.parse_pathname_to_str(), &path);
+            let path1 = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
+            assert_eq!(&header.parse_pathname().to_str().unwrap(), &path1);
+            let path1 = path.replace("*", "/");
+            assert_eq!(&header.parse_pathname_to_str(), &path1);
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
             assert_eq!(header.file_crc, *crc16);
