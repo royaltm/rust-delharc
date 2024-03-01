@@ -21,6 +21,7 @@ fn test_lzs() -> io::Result<()> {
             assert_eq!(header.level, 0);
             assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             assert_eq!(&header.parse_pathname().to_str().unwrap(), path);
+            assert_eq!(&header.parse_pathname_to_str(), path);
             assert_eq!(OsType::Generic, header.parse_os_type()?);
             assert_eq!(CompressionMethod::Lzs, header.compression_method().unwrap());
             assert_eq!(header.compressed_size, *size_c);
