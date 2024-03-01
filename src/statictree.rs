@@ -46,8 +46,10 @@ When reading, the following bit paths will result in finding the particular leav
 ```
 */
 use core::fmt;
-use std::io;
+use crate::error::LhaError;
 use crate::bitstream::BitRead;
+#[cfg(not(feature = "std"))]
+use alloc::{vec::Vec, string::String};
 
 pub mod entry;
 use entry::*;
@@ -151,7 +153,7 @@ impl HuffTree {
     ///
     /// # Panics
     /// Panics if a tree has not been built or otherwise initialized as a single value tree.
-    pub fn read_entry<R: BitRead>(&self, mut path: R) -> io::Result<u16> {
+    pub fn read_entry<R: BitRead>(&self, mut path: R) -> Result<u16, LhaError<R::Error>> {
         let tree = &self.tree;
         let mut node = &tree[0]; // panics if tree uninitialized
         loop {
@@ -197,6 +199,7 @@ impl fmt::Display for HuffTree {
     }
 }
 
+#[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
     use crate::bitstream::BitStream;

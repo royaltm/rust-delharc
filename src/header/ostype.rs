@@ -1,7 +1,9 @@
-use std::error::Error;
-use std::io;
 use core::fmt;
 use core::convert::TryFrom;
+#[cfg(feature = "std")]
+use std::error::Error;
+#[cfg(feature = "std")]
+use std::io;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnrecognizedOsType(pub u8);
@@ -71,6 +73,7 @@ impl TryFrom<u8> for OsType {
     }
 }
 
+#[cfg(feature = "std")]
 impl Error for UnrecognizedOsType {}
 
 impl fmt::Display for UnrecognizedOsType {
@@ -79,6 +82,7 @@ impl fmt::Display for UnrecognizedOsType {
     }
 }
 
+#[cfg(feature = "std")]
 impl From<UnrecognizedOsType> for io::Error {
     fn from(e: UnrecognizedOsType) -> Self {
         io::Error::new(io::ErrorKind::InvalidData, e)

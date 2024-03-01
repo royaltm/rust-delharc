@@ -1,6 +1,8 @@
 //! # Dynamic Huffman Coding.
-use std::io;
 use core::fmt;
+#[cfg(not(feature = "std"))]
+use alloc::{string::String};
+use crate::error::LhaError;
 use crate::bitstream::BitRead;
 use crate::statictree::entry::*;
 
@@ -436,7 +438,7 @@ impl DynHuffTree {
         }
     }
 
-    pub fn read_entry<R: BitRead>(&mut self, mut path: R) -> io::Result<u16> {
+    pub fn read_entry<R: BitRead>(&mut self, mut path: R) -> Result<u16, LhaError<R::Error>> {
         let nodes = &self.nodes;
         let mut node = &nodes[0];
         loop {
@@ -480,6 +482,7 @@ impl fmt::Display for DynHuffTree {
     }
 }
 
+#[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
     use rand::{Rng, RngCore, thread_rng};
