@@ -21,7 +21,7 @@ pub struct Lz5Decoder<R> {
 
 impl<R: Read> Lz5Decoder<R> {
     pub fn new(reader: R) -> Lz5Decoder<R> {
-        let mut ringbuf = Box::new(RingArrayBuf::default());
+        let mut ringbuf: Box<RingArrayBuf<RING_BUFFER_SIZE>> = Box::default();
 
         // fill 13 times with each byte value (3328)
         for i in 0..=255 {

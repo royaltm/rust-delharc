@@ -123,7 +123,7 @@ impl<R: Read> Parser<'_, R> {
     fn read_limit(&mut self, limit: usize) -> LhaResult<Box<[u8]>, R> {
         let mut buf = Vec::with_capacity(limit);
         self.read_limit_no_checksums(limit, &mut buf)?;
-        self.update_checksums(&mut buf);
+        self.update_checksums(&buf);
         Ok(buf.into_boxed_slice())
     }
 
@@ -310,12 +310,9 @@ impl LhaHeader {
                     }
                 }
                 [EXT_HEADER_MSDOS_SIZE, data @ ..] if raw_header.lha_level >= 2 && data.len() >= 16 => {
-                    match (read_u64(&data[0..8]), read_u64(&data[8..16])) {
-                        (Some(compr), Some(orig)) => {
-                            compressed_size = compr;
-                            original_size = orig;
-                        }
-                        _ => {}
+                    if let (Some(compr), Some(orig)) = (read_u64(&data[0..8]), read_u64(&data[8..16])) {
+                        compressed_size = compr;
+                        original_size = orig;
                     }
                 }
                 _ => {}
@@ -330,17 +327,17 @@ impl LhaHeader {
         }
 
         // validate long header length
-        if long_header_len != 0 {
-            if long_header_len != parser.len as u32 {
-                if raw_header.lha_level == 2 && long_header_len == parser.len as u32 + 1
-                {
-                    // read padding byte
-                    parser.read_u8()?;
-                }
-                else if raw_header.lha_level == 2 && long_header_len + 2 != parser.len as u32 {
-                    // some packers (Osk) don't include self in the header length
-                    return Err(LhaError::HeaderParse("wrong length of headers"))
-                }
+        if long_header_len != 0 &&
+           long_header_len != parser.len as u32
+        {
+            if raw_header.lha_level == 2 && long_header_len == parser.len as u32 + 1
+            {
+                // read padding byte
+                parser.read_u8()?;
+            }
+            else if raw_header.lha_level == 2 && long_header_len + 2 != parser.len as u32 {
+                // some packers (Osk) don't include self in the header length
+                return Err(LhaError::HeaderParse("wrong length of headers"))
             }
         }
 
@@ -470,7 +467,7 @@ pub(super) fn parse_str_nilterm(
     ) -> Cow<str>
 {
     if let Some(index) = data.iter().position(|&c|
-            c < 0x20 || c >= 0x7f ||
+            !(0x20..0x7f).contains(&c) ||
             (!ignore_sep && is_separator(c as char))
         )
     {
@@ -518,7 +515,7 @@ unsafe fn struct_slice_mut<T: Copy>(obj: &mut T) -> &mut [u8] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::{MAIN_SEPARATOR, PathBuf};
+    use std::path::MAIN_SEPARATOR;
 
     fn parse_filename(data: &[u8]) -> Cow<str> {
         parse_str_nilterm(data, false, false)

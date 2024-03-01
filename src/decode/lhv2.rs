@@ -226,7 +226,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         //   bits => 4 -> 1xxx
             bits => {
                 let res: u32 = self.bit_reader.read_bits(bits - 1)?;
-                Ok(res | (1 << bits - 1))
+                Ok(res | (1 << (bits - 1)))
             }
         }
     }

@@ -388,10 +388,7 @@ impl<R: Read> DecoderAny<R> {
     }
     /// Returns `true` if the decoder is able to decode the file's content.
     pub fn is_supported(&self) -> bool {
-        match self {
-            DecoderAny::UnsupportedDecoder(..) => false,
-            _ => true
-        }
+        !matches!(self, DecoderAny::UnsupportedDecoder(..))
     }
 }
 
