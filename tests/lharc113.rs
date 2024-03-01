@@ -30,6 +30,7 @@ fn test_lharc113() -> io::Result<()> {
             assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             let path = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
             assert_eq!(&header.parse_pathname().to_str().unwrap(), &path);
+            assert_eq!(&header.parse_pathname_to_str(), &path);
             assert_eq!(header.parse_os_type()?, OsType::Generic);
             assert_eq!(header.compression_method().unwrap(), *compr);
             assert_eq!(header.compressed_size, *size_c);

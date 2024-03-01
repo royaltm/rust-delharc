@@ -26,6 +26,7 @@ fn test_lha255e() -> io::Result<()> {
             assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             let path = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
             assert_eq!(&header.parse_pathname().to_str().unwrap(), &path);
+            assert_eq!(&header.parse_pathname_to_str(), &path);
             if *level == 0 {
                 assert_eq!(header.parse_os_type()?, OsType::Generic);
             }

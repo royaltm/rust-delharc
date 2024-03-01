@@ -54,6 +54,7 @@ fn test_lhmelt_16536() -> io::Result<()> {
                 let mut fullpath = PathBuf::from(path);
                 fullpath.pop();
                 assert_eq!(&header.parse_pathname().to_str().unwrap(), &fullpath.to_str().unwrap());
+                assert_eq!(&header.parse_pathname_to_str(), &fullpath.to_str().unwrap());
                 let last_modified = format!("{}", header.parse_last_modified());
                 if header.level == 2 {
                     assert_eq!(&last_modified, "2000-01-01 00:00:00 UTC");
@@ -69,6 +70,7 @@ fn test_lhmelt_16536() -> io::Result<()> {
                 assert_eq!(header.compressed_size, *size_c);
                 assert_eq!(header.original_size, *size_o);
                 assert_eq!(&header.parse_pathname().to_str().unwrap(), &path);
+                assert_eq!(&header.parse_pathname_to_str(), &path);
                 let last_modified = format!("{}", header.parse_last_modified());
                 assert_eq!(&last_modified, modif);
                 assert_eq!(header.file_crc, *crc16);

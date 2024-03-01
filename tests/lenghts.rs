@@ -49,6 +49,7 @@ fn test_lengths() -> io::Result<()> {
             assert_eq!(header.level, *level);
             assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             assert_eq!(&header.parse_pathname().to_str().unwrap(), path);
+            assert_eq!(&header.parse_pathname_to_str(), path);
             if *level == 0 {
                 assert_eq!(header.parse_os_type()?, OsType::Generic);
             }

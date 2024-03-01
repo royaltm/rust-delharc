@@ -50,6 +50,7 @@ fn test_lha_x68k_213() -> io::Result<()> {
             assert_eq!(header.compressed_size, *size_c);
             assert_eq!(header.original_size, *size_o);
             assert_eq!(&header.parse_pathname().to_str().unwrap(), &path);
+            assert_eq!(&header.parse_pathname_to_str(), &path);
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
             assert_eq!(header.file_crc, *crc16);
@@ -95,6 +96,7 @@ fn test_lha_x68k_213() -> io::Result<()> {
             assert_eq!(header.compressed_size, *size_c);
             assert_eq!(header.original_size, *size_o);
             assert_eq!(&header.parse_pathname().to_str().unwrap(), &path);
+            assert_eq!(&header.parse_pathname_to_str(), &path);
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
             assert_eq!(header.file_crc, *crc16);

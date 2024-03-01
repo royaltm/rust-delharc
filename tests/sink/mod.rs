@@ -1,3 +1,4 @@
+#[cfg(feature = "std")]
 use std::io;
 use crc_any::{CRCu32, CRCu16};
 
@@ -15,17 +16,31 @@ impl SinkSum {
             crc32: CRCu32::crc32()
         }
     }
-}
 
-impl io::Write for SinkSum {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+    fn update(&mut self, buf: &[u8]) -> usize {
         self.length += buf.len() as u64;
         self.crc16.digest(buf);
         self.crc32.digest(buf);
+        buf.len()
+    }
+}
+
+#[cfg(feature = "std")]
+impl io::Write for SinkSum {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.update(buf);
         Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl SinkSum {
+    pub fn write_all(&mut self, buf: &[u8]) -> Result<usize, ()> {
+        self.update(buf);
+        Ok(buf.len())
     }
 }
