@@ -16,16 +16,76 @@ exclude = [".github", ".gitignore", "tests/*", "examples/*"]
 all-features = true
 
 [features]
-default = ["lh1", "lz"]
+default = ["std", "lh1", "lz"]
+std = ["chrono/std", "chrono/clock"]
 lh1 = []
 lhx = []
 lz = []
 
 [dependencies]
-chrono = "0.4"
-bitflags = "2.3"
+chrono = { version = "0.4", default-features = false }
+bitflags = "2.4"
 memchr = { version = "2", default-features = false }
 
 [dev-dependencies]
-crc-any = "2.4"
+crc-any = { version = "2.4", default-features = false }
 rand = "0.8.5"
+
+[[example]]
+name = "extract"
+required-features = ["std"]
+
+[[test]]
+name = "decode"
+required-features = ["std"]
+[[test]]
+name = "larc333"
+required-features = ["std"]
+[[test]]
+name = "lenghts"
+required-features = ["std"]
+[[test]]
+name = "lha213"
+required-features = ["std"]
+[[test]]
+name = "lha255e"
+required-features = ["std"]
+[[test]]
+name = "lha_amiga_122"
+required-features = ["std"]
+[[test]]
+name = "lha_amiga_212"
+required-features = ["std"]
+[[test]]
+name = "lha_os2_208"
+required-features = ["std"]
+[[test]]
+name = "lha_os9_211c"
+required-features = ["std"]
+[[test]]
+name = "lha_osk_201"
+required-features = ["std"]
+[[test]]
+name = "lha_unix114i"
+required-features = ["std"]
+[[test]]
+name = "lha_x68k_213"
+required-features = ["std"]
+[[test]]
+name = "lharc113"
+required-features = ["std"]
+[[test]]
+name = "lharc_atari_313a"
+required-features = ["std"]
+[[test]]
+name = "lhmelt_16536"
+required-features = ["std"]
+[[test]]
+name = "lzs"
+required-features = ["std"]
+[[test]]
+name = "regression"
+required-features = ["std"]
+[[test]]
+name = "unlha32"
+required-features = ["std"]

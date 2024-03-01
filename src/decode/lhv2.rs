@@ -1,6 +1,8 @@
 use core::num::NonZeroU32;
-use std::io::{self, Read};
-
+#[cfg(not(feature = "std"))]
+use alloc::boxed::Box;
+use crate::error::{LhaResult, LhaError};
+use crate::stub_io::Read;
 use crate::bitstream::*;
 use crate::statictree::*;
 use crate::ringbuf::*;
@@ -71,19 +73,19 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
     }
 
     // reads code length value, usually 0..=7 but might be higher
-    fn read_code_length(&mut self) -> io::Result<u8> {
+    fn read_code_length(&mut self) -> LhaResult<u8, R> {
         let mut len: u8 = self.bit_reader.read_bits(3)?;
         if len == 7 {
             while self.bit_reader.read_bit()? {
                 len = len.checked_add(1).ok_or_else(||
-                    io::Error::new(io::ErrorKind::InvalidData, "code length overflow"))?;
+                    LhaError::Decompress("code length overflow"))?;
             }
         }
         Ok(len)
     }
 
     // skip_range: 0, 1 or 2
-    fn read_code_skip(&mut self, skip_range: u16) -> io::Result<usize> {
+    fn read_code_skip(&mut self, skip_range: u16) -> LhaResult<usize, R> {
         let (bits, increment) = match skip_range {
             0 => return Ok(1),
             1 => (4, 3), // 3..=18
@@ -92,7 +94,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         self.bit_reader.read_bits(bits).map(|skip: usize| skip + increment)
     }
 
-    fn read_temp_tree(&mut self) -> io::Result<()> {
+    fn read_temp_tree(&mut self) -> LhaResult<(), R> {
         let mut code_lengths = [0u8; NUM_TEMP_CODELEN];
 
         // number of codes to read
@@ -107,7 +109,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         }
 
         if num_codes > NUM_TEMP_CODELEN {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "temporary codelen table has invalid size"))
+            return Err(LhaError::Decompress("temporary codelen table has invalid size"))
         }
 
         // read actual lengths
@@ -125,11 +127,11 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         }
 
         self.offset_tree.build_tree(&code_lengths[0..num_codes])
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            .map_err(LhaError::Decompress)?;
         Ok(())
     }
 
-    fn read_command_tree(&mut self) -> io::Result<()> {
+    fn read_command_tree(&mut self) -> LhaResult<(), R> {
         let mut code_lengths = [0u8; NUM_COMMANDS];
 
         // number of codes to read
@@ -144,7 +146,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         }
 
         if num_codes > NUM_COMMANDS {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "commands codelen table has invalid size"))
+            return Err(LhaError::Decompress("commands codelen table has invalid size"))
         }
 
         let mut index = 0;
@@ -167,11 +169,11 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         }
 
         self.command_tree.build_tree(&code_lengths[0..num_codes])
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            .map_err(LhaError::Decompress)?;
         Ok(())
     }
 
-    fn read_offset_tree(&mut self) -> io::Result<()> {
+    fn read_offset_tree(&mut self) -> LhaResult<(), R> {
         debug_assert!(NUM_TEMP_CODELEN >= C::HISTORY_BITS as usize);
         let mut code_lengths = [0u8; NUM_TEMP_CODELEN];
 
@@ -187,7 +189,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         }
 
         if num_codes > C::HISTORY_BITS as usize {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "offset codelen table has invalid size"))
+            return Err(LhaError::Decompress("offset codelen table has invalid size"))
         }
 
         // read actual lengths
@@ -197,11 +199,11 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         }
 
         self.offset_tree.build_tree(&code_lengths[0..num_codes])
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            .map_err(LhaError::Decompress)?;
         Ok(())
     }
 
-    fn begin_new_block(&mut self) -> io::Result<()> {
+    fn begin_new_block(&mut self) -> LhaResult<(), R> {
         self.remaining_commands = self.bit_reader.read_bits(16)?;
         self.read_temp_tree()?;
         self.read_command_tree()?;
@@ -209,12 +211,12 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
     }
 
     #[inline]
-    fn read_command(&mut self) -> io::Result<u16> {
+    fn read_command(&mut self) -> LhaResult<u16, R> {
         self.command_tree.read_entry(&mut self.bit_reader)
     }
 
     #[inline]
-    fn read_offset(&mut self) -> io::Result<u32> {
+    fn read_offset(&mut self) -> LhaResult<u32, R> {
         match self.offset_tree.read_entry(&mut self.bit_reader)?.into() {
         //   bits => 0 ->    0
         //   bits => 1 ->    1
@@ -234,7 +236,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
             target: I,
             offset: usize,
             count: usize
-        ) -> io::Result<()>
+        ) -> LhaResult<(), R>
     {
         let history_iter = self.ringbuf.iter_from_offset(offset);
         let count_after = count - target.len().min(count);
@@ -248,12 +250,16 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
 
 }
 
-impl<C: LhaDecoderConfig, R: Read> Decoder<R> for LhaV2Decoder<C, R> {
+impl<C: LhaDecoderConfig, R: Read> Decoder<R> for LhaV2Decoder<C, R>
+    where R::Error: core::fmt::Debug
+{
+    type Error = R::Error;
+
     fn into_inner(self) -> R {
         self.bit_reader.into_inner()
     }
 
-    fn fill_buffer(&mut self, buf: &mut[u8]) -> io::Result<()> {
+    fn fill_buffer(&mut self, buf: &mut[u8]) -> LhaResult<(), R> {
         let buflen = buf.len();
         let mut target = buf.iter_mut();
         if let Some((offset, count)) = self.copy_progress {
@@ -289,11 +295,13 @@ impl<C: LhaDecoderConfig, R: Read> Decoder<R> for LhaV2Decoder<C, R> {
     }
 }
 
+#[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
     use super::*;
     use super::super::DecoderAny;
     use std::fs;
+    use std::io;
 
     #[test]
     fn lhav2_works() {

@@ -1,8 +1,11 @@
 //! # **LHA** header and related types.
 use core::convert::TryFrom;
+#[cfg(feature = "std")]
 use std::path::PathBuf;
+#[cfg(feature = "std")]
 use std::borrow::Cow;
-
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, string::String, borrow::Cow};
 use chrono::{LocalResult, prelude::*};
 
 mod compression;
@@ -76,18 +79,18 @@ impl Default for LhaHeader {
 }
 
 impl LhaHeader {
-    /// Returns `true` if the archive is an empty directory or a symbolic link.
+    /// Return whether the archive is an empty directory or a symbolic link.
     pub fn is_directory(&self) -> bool {
         self.compression_method().ok()
             .filter(CompressionMethod::is_directory)
             .is_some()
     }
-    /// Attempts to parse the `os_type` field and returns the `OsType` enum on success.
+    /// Attempt to parse the `os_type` field and return the `OsType` enum on success.
     pub fn parse_os_type(&self) -> Result<OsType, UnrecognizedOsType> {
         OsType::try_from(self.os_type)
     }
-    /// Attempts to parse the extended area, extra headers and as a last resort the `last_modified` field
-    /// taking into account the header level, and on success returns an instance of [`DateTime<Utc>`][DateTime]
+    /// Attempt to parse the extended area, extra headers and as a last resort the `last_modified` field
+    /// taking into account the header level, and on success return an instance of [`DateTime<Utc>`][DateTime]
     /// or a [NaiveDateTime] wrapped in an `TimestampResult` enum.
     pub fn parse_last_modified(&self) -> TimestampResult {
         for header in self.iter_extra() {
@@ -120,14 +123,14 @@ impl LhaHeader {
             Utc.timestamp_opt(self.last_modified as i64, 0).into()
         }
     }
-    /// Attempts to parse the `compression` method field and returns the `CompressionMethod` enum on success.
+    /// Attempt to parse the `compression` method field and return the `CompressionMethod` enum on success.
     pub fn compression_method(&self) -> Result<CompressionMethod, UnrecognizedCompressionMethod> {
         CompressionMethod::try_from(&self.compression)
     }
-    /// Attempts to parse the `filename` field and searches extended data for the directory and an
-    /// alternative file name and returns a `PathBuf`.
+    /// Attempt to parse the `filename` field and search extended data for the directory and an
+    /// alternative file name and return a `PathBuf`.
     ///
-    /// The routine converts all non-ASCII or control characters to `%xx` sequences and all system
+    /// The method converts all non-ASCII or control characters to `%xx` sequences and all system
     /// specific directory separator characters to `_` in file names.
     ///
     /// Malicious path components, like `..`, `.` or `//` are stripped from the path names.
@@ -139,6 +142,11 @@ impl LhaHeader {
     /// * This method makes its best effort to return a non-absolute path name, however it is not guaranteed,
     ///   so make sure the path is not absolute before creating a file or a directory.
     /// * If the archive OS is [OsType::Amiga] the file name parsing terminates before the `nul` character.
+    ///
+    /// # no-std
+    ///
+    /// This method is only available with `std` feature enabled.
+    #[cfg(feature = "std")]
     pub fn parse_pathname(&self) -> PathBuf {
         let mut path = PathBuf::new();
         let mut filename = Cow::Borrowed("");
@@ -165,6 +173,44 @@ impl LhaHeader {
         }
         else {
             path.push(filename.as_ref());
+        }
+        path
+    }
+    /// Attempt to parse the `filename` field and searches extended data for the directory and an
+    /// alternative file name and returns a `String` with a possible path to a `filename`,
+    /// separated by '/' characters.
+    /// 
+    /// This method works like [`LhaHeader::parse_pathname`] but returns a `String` instead of
+    /// `PathBuf` and can be used without `std` feature enabled.
+    pub fn parse_pathname_to_str(&self) -> String {
+        let mut path = String::new();
+        let mut filename = Cow::Borrowed("");
+        let nilterm = self.parse_os_type() == Ok(OsType::Amiga);
+        for header in self.iter_extra() {
+            match header {
+                [EXT_HEADER_FILENAME, data @ ..] => {
+                    filename = parse_str_nilterm(data, nilterm, false);
+                },
+                [EXT_HEADER_PATH, data @ ..] => {
+                    parse_pathname_to_str(data, &mut path);
+                }
+                _ => {}
+            }
+        }
+        if filename.is_empty() {
+            let data = if nilterm {
+                split_data_at_nil_or_end(&self.filename).0
+            }
+            else {
+                &self.filename
+            };
+            parse_pathname_to_str(data, &mut path);
+        }
+        else {
+            if !path.is_empty() {
+                path.push('/');
+            }
+            path.push_str(filename.as_ref());
         }
         path
     }

@@ -1,6 +1,9 @@
 use core::slice;
 use core::num::NonZeroU16;
-use std::io::{self, Read};
+#[cfg(not(feature = "std"))]
+use alloc::boxed::Box;
+use crate::error::{LhaResult, LhaError};
+use crate::stub_io::Read;
 use crate::decode::Decoder;
 use crate::ringbuf::*;
 
@@ -60,7 +63,7 @@ impl<R: Read> Lz5Decoder<R> {
             target: I,
             pos: usize,
             count: usize
-        ) -> io::Result<()>
+        ) -> LhaResult<(), R>
     {
         let history_iter = self.ringbuf.iter_from_pos(pos);
         let real_count = target.len().min(count);
@@ -73,12 +76,14 @@ impl<R: Read> Lz5Decoder<R> {
     }
 }
 
-impl<R: Read> Decoder<R> for Lz5Decoder<R> {
+impl<R: Read> Decoder<R> for Lz5Decoder<R> where R::Error: core::fmt::Debug {
+    type Error = R::Error;
+
     fn into_inner(self) -> R {
         self.reader
     }
 
-    fn fill_buffer(&mut self, buf: &mut[u8]) -> io::Result<()> {
+    fn fill_buffer(&mut self, buf: &mut[u8]) -> LhaResult<(), R> {
         let buflen = buf.len();
         let mut target = buf.iter_mut();
         if let Some((pos, count)) = self.copy_progress {
@@ -92,19 +97,22 @@ impl<R: Read> Decoder<R> for Lz5Decoder<R> {
         while let Some(dst) = target.next() {
             if bitmap == 1 {
                 let mut byte = 0u8;
-                self.reader.read_exact(slice::from_mut(&mut byte))?;
+                self.reader.read_exact(slice::from_mut(&mut byte))
+                           .map_err(LhaError::Io)?;
                 bitmap = byte as u16 | 0x0100;
             }
 
             if bitmap & 1 == 1 {
                 let mut value = 0u8;
-                self.reader.read_exact(slice::from_mut(&mut value))?;
+                self.reader.read_exact(slice::from_mut(&mut value))
+                           .map_err(LhaError::Io)?;
                 *dst = value;
                 self.ringbuf.push(value);
             }
             else {
                 let mut cmd = [0u8;2];
-                self.reader.read_exact(&mut cmd)?;
+                self.reader.read_exact(&mut cmd)
+                           .map_err(LhaError::Io)?;
                 let [lo, hi] = cmd;
                 let pos = (((hi & 0xf0) as usize) << 4) | lo as usize;
                 let count = (hi & 0x0f) as usize;

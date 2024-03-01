@@ -113,6 +113,7 @@ impl<const N: usize> RingBuffer for RingArrayBuf<N> {
     }
 }
 
+#[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
     use super::*;
