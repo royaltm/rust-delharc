@@ -1,5 +1,4 @@
 use core::fmt;
-use core::convert::TryFrom;
 #[cfg(feature = "std")]
 use std::error::Error;
 #[cfg(feature = "std")]

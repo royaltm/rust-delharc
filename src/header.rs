@@ -1,5 +1,4 @@
 //! # **LHA** header and related types.
-use core::convert::TryFrom;
 #[cfg(feature = "std")]
 use std::path::PathBuf;
 #[cfg(feature = "std")]
