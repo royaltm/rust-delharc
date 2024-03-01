@@ -352,16 +352,17 @@ impl DynHuffTree {
         }
     }
 
+    #[allow(clippy::manual_swap)]
     #[inline]
     fn promote_to_leader(&mut self, node_index: usize) -> usize {
-        let (node, head) = self.nodes[..node_index as usize + 1].split_last_mut().unwrap();
+        let (node, head) = self.nodes[..node_index + 1].split_last_mut().unwrap();
         let leader_index = self.groups.get_leader_index(node.group);
 
         if leader_index == node_index {
             return node_index
         }
         // swap the new leader with the old one
-        let prev_leader = &mut head[leader_index as usize];
+        let prev_leader = &mut head[leader_index];
         let entry = node.entry;
         node.entry = prev_leader.entry;
         prev_leader.entry = entry;

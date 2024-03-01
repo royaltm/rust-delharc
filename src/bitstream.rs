@@ -77,7 +77,7 @@ impl<R: Read> BitStream<R> {
     fn next_bits(&mut self, n: u32) -> LhaResult<BitBuf, R> {
         debug_assert!(n != 0 && n <= BITBUF_BITSIZE);
         let have_bits = BITBUF_BITSIZE - self.bits_buf.trailing_zeros() - 1;
-        let res = self.bits_buf >> BITBUF_BITSIZE - n;
+        let res = self.bits_buf >> (BITBUF_BITSIZE - n);
 
         if n <= have_bits {
             self.bits_buf <<= n;
@@ -93,14 +93,14 @@ impl<R: Read> BitStream<R> {
         }
         let new_bits: BitBuf = BitBuf::from_be_bytes(buf);
         // clear trailing bits and merge
-        let res = res & res - 1
-                | new_bits >> BITBUF_BITSIZE - missing_bits;
+        let res = res & (res - 1)
+                | new_bits >> (BITBUF_BITSIZE - missing_bits);
         self.bits_buf = if missing_bits == BITBUF_BITSIZE {
             0
         }
         else {
             new_bits << missing_bits
-        } | 1 << BITBUF_BITSIZE - 1 - (bits_read - missing_bits);
+        } | 1 << (BITBUF_BITSIZE - 1 - (bits_read - missing_bits));
         Ok(res)
     }
 

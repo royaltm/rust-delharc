@@ -45,6 +45,7 @@ When reading, the following bit paths will result in finding the particular leav
 11111 -> i
 ```
 */
+use core::cmp::Ordering;
 use core::fmt;
 use crate::error::LhaError;
 use crate::bitstream::BitRead;
@@ -99,7 +100,8 @@ impl HuffTree {
         let mut max_allocated: usize = 1; // start with a single (root) node
         for current_len in 1u8.. {
             // add missing branches
-            for _ in  tree.len()..max_allocated {
+            let max_limit = max_allocated;
+            for _ in  tree.len()..max_limit {
                 match TreeEntry::branch(max_allocated) {
                     Ok(branch) => tree.push(branch),
                     Err(e) => {
@@ -114,12 +116,15 @@ impl HuffTree {
             // fill tree with leaves found in the lengths table at the current length
             let more_leaves = value_lengths.iter().copied().zip(0..)
                               .fold(false, |mut more, (len, value)| {
-                if len == current_len {
-                    tree.push(TreeEntry::leaf(value));
-                }
-                else if len > current_len {
-                    // there are more leaves to process
-                    more = true;
+                match len.cmp(&current_len) {
+                    Ordering::Equal => {
+                        tree.push(TreeEntry::leaf(value));
+                    }
+                    Ordering::Greater => {
+                        // there are more leaves to process
+                        more = true;
+                    }
+                    Ordering::Less => {}
                 }
                 more
             });

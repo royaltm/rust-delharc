@@ -21,7 +21,7 @@ pub struct LzsDecoder<R> {
 impl<R: Read> LzsDecoder<R> {
     pub fn new(rd: R) -> LzsDecoder<R> {
         let bit_reader = BitStream::new(rd);
-        let mut ringbuf = Box::new(RingArrayBuf::default());
+        let mut ringbuf: Box<RingArrayBuf<RING_BUFFER_SIZE>> = Box::default();
         ringbuf.set_cursor(START_OFFSET);
         LzsDecoder {
             bit_reader,
