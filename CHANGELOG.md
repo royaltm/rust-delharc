@@ -1,3 +1,16 @@
+v0.6.0
+* no-std is enabled in the absence of the std feature.
+* Breaking changes for exported types and function signatures:
+  - Generic types and methods depending on std::io::Read now depend on stub_io::Read.
+  - Methods previously returning std::io::Error return LhaError instead.
+  - LhaHeader::read signature argument changed to &mut R.
+* LhaHeader::parse_pathname_to_string added.
+* LhaDecodeReader::next_file_with_sink added.
+* TimestampResult::to_local is only available with std feature.
+* LhaHeader::parse_pathname is only available with std feature.
+* delharc::parse_file is only available with std feature.
+* Deps: bitflags upgraded to 2.4.
+
 v0.5.0
 * Rust edition: 2021
 * An example added to showcase usage of different reader sources.
