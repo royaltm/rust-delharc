@@ -515,7 +515,7 @@ mod tests {
     fn decode_error_works() {
         let rd = io::Cursor::new(vec![0u8;3]);
         let mut err = LhaDecodeReader::new(rd).unwrap_err();
-        assert_eq!(err.to_string(), "LHA decode error: while parsing header: a header is missing");
+        assert_eq!(err.to_string(), "LHA decode error: while parsing LHA header: a header is missing");
         assert_eq!(err.get_ref().get_ref(), &vec![0u8;3]);
         assert_eq!(err.get_mut().get_mut(), &mut vec![0u8;3]);
         let rd = err.into_inner();
