@@ -10,6 +10,8 @@ v0.6.0
 * LhaHeader::parse_pathname is only available with std feature.
 * delharc::parse_file is only available with std feature.
 * Deps: bitflags upgraded to 2.4.
+* extract_nostd example added to showcase usage of nostd.
+* Embedded example added to test compilation of a no-std target.
 
 v0.5.0
 * Rust edition: 2021
