@@ -3,6 +3,7 @@ use core::fmt;
 use core::ops::Index;
 
 /// A ring buffer trait.
+#[allow(dead_code)]
 pub trait RingBuffer: Default + Index<usize, Output=u8> {
     /// The size of the buffer in bytes.
     const BUFFER_SIZE: usize;
