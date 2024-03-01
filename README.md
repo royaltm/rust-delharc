@@ -36,7 +36,7 @@ delharc = "0.6"
 For more information, please see the [Documentation][Docs Link].
 
 
-No-std
+No std
 ------
 
 Since version 0.6 `delharc` can be used without the `std` library. In this instance the `alloc`

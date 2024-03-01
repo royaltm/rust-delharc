@@ -142,7 +142,7 @@ impl LhaHeader {
     ///   so make sure the path is not absolute before creating a file or a directory.
     /// * If the archive OS is [OsType::Amiga] the file name parsing terminates before the `nul` character.
     ///
-    /// # no-std
+    /// # `no_std`
     ///
     /// This method is only available with `std` feature enabled.
     #[cfg(feature = "std")]

@@ -5,7 +5,7 @@ use core::fmt;
 #[cfg(feature = "std")]
 use std::io;
 
-/// This trait is an implementation vessel that bridges the `std` and `no-std` version
+/// This trait is an implementation vessel that bridges the `std` and `no_std` version
 /// of this library.
 ///
 /// With `std` feature enabled this trait is implemented for all types that implement

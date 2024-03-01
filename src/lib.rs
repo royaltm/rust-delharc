@@ -29,7 +29,7 @@ features = ["std", "lh1"] # select desired features
 `lh1` and `lz` features are enabled by **default**.
 
 When using `default-features = false` the `std` feature needs to be added back along with other
-compression method features. Otherwise the library will be compiled in the `no-std` mode.
+compression method features. Otherwise the library will be compiled in the `no_std` mode.
 
 | identifier | decoder            | feature | description
 |------------|--------------------|---------|------------
@@ -47,28 +47,6 @@ compression method features. Otherwise the library will be compiled in the `no-s
 | `-pm0-`    | PassthroughDecoder |         | no compression
 | `-pm1-`    | unsupported        | N/A     | PMarc, 8 Kb sliding window, static huffman
 | `-pm2-`    | unsupported        | N/A     | PMarc, 4 Kb sliding window, static huffman
-
-
-## No-std
-
-With `std` feature enabled, [`error::LhaError`] converts to [`std::io::Error`] via the [`From`] trait
-and [`stub_io::Read`] is implemented for all types that implement [`std::io::Read`].
-
-In this instance to read decompressed files, callers should interface the [`LhaDecodeReader`] using
-[`std::io::Read`] trait methods.
-
-Without the `std` feature enabled `delharc` is compiled without the `std` library. 
-The extern crate `alloc` is still required though. Because [`std::io`] is missing,
-in this instance callers should interface the [`LhaDecodeReader`] using [`stub_io::Read`]
-trait directly. [`stub_io::Read`] is implemented initially for `&[u8]` slices and `Box<R: Read>`
-and can be implemented for other types.
-
-When compiled without `std`: [`stub_io::Read`], [`stub_io::Take`] and `UnexpectedEofError` are
-re-exported directly under the crate root. `UnexpectedEofError` is only available in `no-std`.
-
-```ignore
-use delharc::{LhaDecodeReader, LhaError, LhaResult, Read, UnexpectedEofError};
-```
 
 */
 #![cfg_attr(feature = "std", doc = r##"
@@ -114,6 +92,31 @@ fn extract_to_stdout<P: AsRef<Path>>(
 }
 ```
 "##)]
+/*!
+## No std
+
+With `std` feature enabled, [`error::LhaError`] converts to [`std::io::Error`] via the [`From`] trait
+and [`stub_io::Read`] is implemented for all types that implement [`std::io::Read`].
+
+In this instance to read decompressed files, callers should access the [`LhaDecodeReader`] using
+[`std::io::Read`] trait methods.
+
+Without the `std` feature enabled `delharc` is compiled without the `std` library. 
+The extern crate `alloc` is still required though. Because [`std::io`] is missing,
+in this instance callers should interface the [`LhaDecodeReader`] using [`stub_io::Read`]
+trait directly. [`stub_io::Read`] is implemented initially for `&[u8]` slices and `Box<R: Read>`
+and can be implemented for other types.
+
+When compiled without `std`: [`stub_io::Read`], [`stub_io::Take`] and `UnexpectedEofError` are
+re-exported directly under the crate root. `UnexpectedEofError` is only available in `no_std`.
+
+```ignore
+use delharc::{LhaDecodeReader, LhaError, LhaResult, Read, UnexpectedEofError};
+const DATA: &[u8] = include_bytes!("file.lzh");
+//...
+let lha_reader = LhaDecodeReader::new(DATA).unwrap();
+```
+*/
 // http://archive.gamedev.net/archive/reference/articles/article295.html
 #![cfg_attr(not(feature = "std"), no_std)]
 #[cfg(not(feature = "std"))]
@@ -141,11 +144,11 @@ use std::path::Path;
 use std::fs::File;
 
 #[cfg(feature = "std")]
-/// Attempts to open a file from a filesystem in read-only mode and on success returns an instance of
+/// Attempt to open a file from a filesystem in read-only mode and on success return an instance of
 /// [LhaDecodeReader] with the first parsed LHA file header, ready to decode the content of the first
 /// archived file.
 ///
-/// # no-std
+/// # `no_std`
 /// Available only with `std` feature enabled.
 ///
 /// # Errors

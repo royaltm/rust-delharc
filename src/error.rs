@@ -5,16 +5,20 @@ use crate::stub_io::Read;
 
 pub type LhaResult<T, R> = Result<T, LhaError<<R as Read>::Error>>;
 
+/// `delharc` error type.
+///
+/// With `std` feature enabled `E` is [`std::io::Error`] and
+/// `LhaError` can be converted to [`std::io::Error`] using [`From`] or [`Into`].
 #[derive(Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum LhaError<E> {
-    /// I/O error
+    /// I/O error.
     Io(E),
-    /// Error parsing LHA header
+    /// When parsing LHA header.
     HeaderParse(&'static str),
-    /// Error decompressing file
+    /// When decompressing a file.
     Decompress(&'static str),
-    /// Checksum error
+    /// Checksum mismatch.
     Checksum(&'static str),
 }
 
