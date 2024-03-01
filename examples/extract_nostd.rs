@@ -1,6 +1,7 @@
-#![cfg(not(feature = "std"))]
+#[cfg(not(feature = "std"))]
 use delharc::{LhaError, LhaResult, Read, UnexpectedEofError};
 
+#[cfg(not(feature = "std"))]
 fn extract_to_stdout<R: Read, P: AsRef<str>>(
         mut lha_reader: delharc::LhaDecodeReader<R>,
         matching_path: P
@@ -43,10 +44,12 @@ fn extract_to_stdout<R: Read, P: AsRef<str>>(
     Ok(false)
 }
 
+#[allow(unused_macros)]
 macro_rules! archive_name {
     () => { "tests/lha_amiga_212/lh6.lzh" };
 }
 
+#[cfg(not(feature = "std"))]
 fn main() -> Result<(), LhaError<UnexpectedEofError>> {
     const FILE_MATCH: &str = "gpl-2";
 
@@ -59,4 +62,10 @@ fn main() -> Result<(), LhaError<UnexpectedEofError>> {
     extract_to_stdout(lha_reader, FILE_MATCH)?;
 
     Ok(())
+}
+
+
+#[cfg(feature = "std")]
+fn main() {
+    eprintln!("Re-run with --no-default-features");
 }
