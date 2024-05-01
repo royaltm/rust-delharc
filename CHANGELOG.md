@@ -1,3 +1,6 @@
+v0.6.1
+* fixed a bug in LhaV2Decoder::read_temp_tree that might cause a panic on a random bitstream.
+
 v0.6.0
 * no-std is enabled in the absence of the std feature.
 * Breaking changes for exported types and function signatures:
