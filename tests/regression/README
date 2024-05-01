@@ -46,3 +46,7 @@ comment.lzh         - Archive created on Amiga with a file note embedded in
                       the file name.
                       Sent by @sonnenscheinchen
                       https://github.com/royaltm/rust-delharc/issues/1
+
+clusterfuzz-1.bin   - A generated file that caused panic in LhaV2Decoder.
+                      Sent by @micahsnyder
+                      https://github.com/royaltm/rust-delharc/issues/7
