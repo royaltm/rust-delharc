@@ -121,6 +121,9 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         let skip: usize = self.bit_reader.read_bits(2)?;
         // println!("skip: {:?}", skip);
 
+        if 3 + skip > num_codes {
+            return Err(LhaError::Decompress("temporary codelen table has invalid size"))}
+
         for p in code_lengths[3 + skip..num_codes].iter_mut() {
             *p = self.read_code_length()?;
             // println!("length: {:?}", *p);
@@ -286,7 +289,7 @@ impl<C: LhaDecoderConfig, R: Read> Decoder<R> for LhaV2Decoder<C, R>
                     let index = buflen - target.len() - 1;
                     target = buf[index..].iter_mut();
                     self.copy_from_history(&mut target,
-                                           offset as usize, 
+                                           offset as usize,
                                            (count - 0x100 + 3).into())?;
                 }
             }
