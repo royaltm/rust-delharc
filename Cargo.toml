@@ -24,11 +24,11 @@ lz = []
 
 [dependencies]
 chrono = { version = "0.4", default-features = false }
-bitflags = "2.4"
+bitflags = "2.5"
 memchr = { version = "2", default-features = false }
 
 [dev-dependencies]
-crc-any = { version = "2.4", default-features = false }
+crc-any = { version = "2.5", default-features = false }
 rand = "0.8.5"
 
 [[example]]
