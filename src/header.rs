@@ -221,7 +221,7 @@ impl LhaHeader {
     /// Some archives made on [OsType::Amiga] can have a comment embedded in the filename field
     /// after the `nul` character. If the comment could not be found in extended data, an attempt
     /// is made to extract the comment from the filename if the archive OS supports it.
-    pub fn parse_comment(&self) -> Option<Cow<str>> {
+    pub fn parse_comment(&self) -> Option<Cow<'_, str>> {
         let mut raw_filename = &self.filename[..];
         for header in self.iter_extra() {
             match header {

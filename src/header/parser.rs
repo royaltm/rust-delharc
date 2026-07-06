@@ -476,7 +476,7 @@ fn is_separator(c: char) -> bool {
 
 pub(super) fn parse_str_nilterm(
         data: &[u8], nilterm: bool, ignore_sep: bool
-    ) -> Cow<str>
+    ) -> Cow<'_, str>
 {
     if let Some(index) = data.iter().position(|&c|
             !(0x20..0x7f).contains(&c) ||
