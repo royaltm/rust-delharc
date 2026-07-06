@@ -347,7 +347,8 @@ impl LhaHeader {
                 // read padding byte
                 parser.read_u8()?;
             }
-            else if raw_header.lha_level == 2 && long_header_len as usize != parser.len - 2
+            else if raw_header.lha_level != 2 ||
+                   (raw_header.lha_level == 2 && long_header_len as usize != parser.len - 2)
             {
                 // some packers (Osk) don't include self in the header length
                 return Err(LhaError::HeaderParse("wrong length of headers"))
