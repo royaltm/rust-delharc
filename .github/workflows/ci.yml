@@ -2,10 +2,10 @@ name: Continuous integration
 
 on:
   push:
-    branches: [ master, fafo ]
+    branches: [ master ]
   pull_request:
     branches: [ master ]
-    
+
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
@@ -26,10 +26,10 @@ jobs:
             target: thumbv7em-none-eabihf
           - rust: beta
             target: thumbv7em-none-eabihf
-          # - rust: nightly
-            # coverage: 'send'
-            # components: llvm-tools
-            # target: thumbv7em-none-eabihf
+          - rust: nightly
+            coverage: 'send'
+            components: llvm-tools
+            target: thumbv7em-none-eabihf
     steps:
       - name: Checkout sources
         uses: actions/checkout@v6
