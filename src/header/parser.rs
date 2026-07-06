@@ -61,6 +61,9 @@ impl<'a> Iterator for ExtraHeaderIter<'a> {
     }
 }
 
+/// Allocation max for reading with a limit
+const ALLOCATE_LIMIT_MAX: usize = 8*1024;
+
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
 #[repr(packed)]
@@ -121,7 +124,7 @@ impl<R: Read> Parser<'_, R> {
     }
 
     fn read_limit(&mut self, limit: usize) -> LhaResult<Box<[u8]>, R> {
-        let mut buf = Vec::with_capacity(limit);
+        let mut buf = Vec::new();
         self.read_limit_no_checksums(limit, &mut buf)?;
         self.update_checksums(&buf);
         Ok(buf.into_boxed_slice())
@@ -137,12 +140,21 @@ impl<R: Read> Parser<'_, R> {
         self.crc.digest(buf);
     }
 
-    fn read_limit_no_checksums(&mut self, limit: usize, buf: &mut Vec<u8>) -> LhaResult<(), R> {
-        buf.try_reserve_exact(limit).map_err(|_| LhaError::HeaderParse("memory allocation failed"))?;
-        // TODO: use BorrowedBuf once stabilized
-        let spare = unsafe { core::mem::transmute::<_, &mut [u8]>(&mut buf.spare_capacity_mut()[..limit]) };
-        self.rd.read_exact(spare).map_err(LhaError::Io)?;
-        unsafe { buf.set_len(buf.len() + limit); }
+    fn read_limit_no_checksums(&mut self, mut limit: usize, buf: &mut Vec<u8>) -> LhaResult<(), R> {
+        while limit != 0 {
+            let chunk_size = limit.min(ALLOCATE_LIMIT_MAX);
+            buf.try_reserve_exact(chunk_size).map_err(|_| LhaError::HeaderParse("memory allocation failed"))?;
+            // FIXME: use BorrowedBuf once stabilized
+            let spare_uninit = &mut buf.spare_capacity_mut()[..chunk_size];
+            // FIXME: use slice::assume_init_mut (MRV >= 1.93)
+            // SAFETY: assume read_exact is write-only
+            let spare = unsafe { &mut *(spare_uninit as *mut _ as *mut [u8]) };
+            self.rd.read_exact(spare).map_err(LhaError::Io)?;
+            // SAFETY: assume chunk_size was read into buf
+            // this can't overflow because buf.len() + chunk_size <= buf.capacity()
+            unsafe { buf.set_len(buf.len() + chunk_size); }
+            limit -= chunk_size;
+        }
         // if self.rd.by_ref().take(limit as u64).read_to_end(buf)? != limit {
         //     return Err(LhaError::HeaderParse("file is too short"))
         // }
@@ -184,7 +196,7 @@ impl LhaHeader {
 
         let mut raw_header = LhaRawBaseHeader::default();
         parser.read_exact(unsafe {
-            // safe because LhaRawBaseHeader is packed and contains only byte type members
+            // SAFETY: safe because LhaRawBaseHeader is packed and contains only byte type members
             struct_slice_mut(&mut raw_header)
         })?;
         if raw_header.lha_level > 3 {
@@ -236,7 +248,6 @@ impl LhaHeader {
         // extra headers
         let mut long_header_len: u32 = 0; // a long header length found in level >= 2
         let mut first_header_len: u32 = 0;
-        let mut extra_headers = Vec::new();
         // establish the first extra header length and the long header length
         match raw_header.lha_level {
             1 => {
@@ -262,10 +273,11 @@ impl LhaHeader {
                 return Err(LhaError::HeaderParse("invalid header level checksum"))
             }
         }
-        else if long_header_len < parser.len as u32 + first_header_len {
+        else if (long_header_len.saturating_sub(first_header_len) as usize) < parser.len {
             return Err(LhaError::HeaderParse("wrong header size"))
         }
 
+        let mut extra_headers = Vec::new();
         let mut msdos_attrs = MsDosAttrs::from_bits_retain(raw_header.msdos_attrs as u16);
         let mut original_size = u32::from_le_bytes(raw_header.original_size) as u64;
         let mut compressed_size = u32::from_le_bytes(raw_header.compressed_size) as u64;
@@ -279,11 +291,11 @@ impl LhaHeader {
             }
             // check long header length (level 2, 3)
             if long_header_len != 0 {
-                if (long_header_len as usize) < parser.len + extra_header_len - 2 {
+                if (long_header_len as usize).saturating_sub(extra_header_len - 2) < parser.len {
                     return Err(LhaError::HeaderParse("wrong header size"))
                 }
             }
-            else if compressed_size < (extra_headers.len() + extra_header_len) as u64 {
+            else if compressed_size < (extra_headers.len() as u64) + extra_header_len as u64  {
                 // otherwise check skip size (level 1)
                 return Err(LhaError::HeaderParse("wrong header size"))
             }
@@ -328,14 +340,15 @@ impl LhaHeader {
 
         // validate long header length
         if long_header_len != 0 &&
-           long_header_len != parser.len as u32
+           long_header_len as usize != parser.len
         {
-            if raw_header.lha_level == 2 && long_header_len == parser.len as u32 + 1
+            if raw_header.lha_level == 2 && (long_header_len as usize) - 1 == parser.len
             {
                 // read padding byte
                 parser.read_u8()?;
             }
-            else if raw_header.lha_level == 2 && long_header_len + 2 != parser.len as u32 {
+            else if raw_header.lha_level == 2 && long_header_len as usize != parser.len - 2
+            {
                 // some packers (Osk) don't include self in the header length
                 return Err(LhaError::HeaderParse("wrong length of headers"))
             }
@@ -350,10 +363,8 @@ impl LhaHeader {
 
         // adjust compressed size for level 1
         if raw_header.lha_level == 1 {
-            if extra_headers.len() as u64 > compressed_size {
-                return Err(LhaError::HeaderParse("wrong length of skip size"))
-            }
-            compressed_size -= extra_headers.len() as u64;
+            compressed_size = compressed_size.checked_sub(extra_headers.len() as u64)
+                .ok_or(LhaError::HeaderParse("wrong length of skip size"))?
         }
 
         let compression = raw_header.compression;
