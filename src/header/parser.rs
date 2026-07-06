@@ -529,7 +529,7 @@ mod tests {
     use super::*;
     use std::path::MAIN_SEPARATOR;
 
-    fn parse_filename(data: &[u8]) -> Cow<str> {
+    fn parse_filename(data: &[u8]) -> Cow<'_, str> {
         parse_str_nilterm(data, false, false)
     }
 

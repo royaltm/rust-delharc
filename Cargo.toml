@@ -37,6 +37,10 @@ path = "examples/extract.rs"
 required-features = ["std"]
 
 [[test]]
+name = "allocation"
+path = "tests/allocation.rs"
+required-features = ["std"]
+[[test]]
 name = "decode"
 path = "tests/decode.rs"
 required-features = ["std"]

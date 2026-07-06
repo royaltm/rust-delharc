@@ -613,7 +613,7 @@ mod tests {
         println!("--------------\n{}", tree);
 
         // now with some random bit stream
-        let rnd_stream: &mut (dyn RngCore) = rng;
+        let rnd_stream: &mut dyn RngCore = rng;
         let mut rndstream = BitStream::new(rnd_stream);
         for _ in 0..1_000_000 {
             tree.read_entry(&mut rndstream).unwrap();
