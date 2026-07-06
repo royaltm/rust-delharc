@@ -1,3 +1,11 @@
+v0.6.2
+* Fixed a bug in LhaHeader::read that could cause integer overflow.
+* Fixed a bug in LhaHeader::read that could allocate a huge memory chunk before failing.
+* Added a static assert to prevent compilation on systems with usize < 32-bit.
+* Added missing long_header_len check on lha_level=3 in in LhaHeader::read.
+* Fixed minor warnings.
+* Minimum supported rust version changed to Rust 1.65.
+
 v0.6.1
 * Fixed a bug in LhaV2Decoder::read_temp_tree that might cause a panic on a random bitstream.
 * Deps: bitflags upgraded to 2.5.
