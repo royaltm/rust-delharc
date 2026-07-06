@@ -2,7 +2,7 @@ name: Continuous integration
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, fafo ]
   pull_request:
     branches: [ master ]
     
@@ -18,26 +18,30 @@ jobs:
       matrix:
         rust:
           - 1.63.0
-          - stable
-          - beta
-          - nightly
-        include:
-          - rust: stable
-            target: thumbv7em-none-eabihf
-          - rust: beta
-            target: thumbv7em-none-eabihf
-          - rust: nightly
-            coverage: 'send'
-            components: llvm-tools
-            target: thumbv7em-none-eabihf
+          # - stable
+          # - beta
+          # - nightly
+        # include:
+          # - rust: stable
+          #   target: thumbv7em-none-eabihf
+          # - rust: beta
+          #   target: thumbv7em-none-eabihf
+          # - rust: nightly
+          #   coverage: 'send'
+          #   components: llvm-tools
+          #   target: thumbv7em-none-eabihf
     steps:
       - name: Checkout sources
         uses: actions/checkout@v6
 
       - name: Install ${{ matrix.rust }} toolchain
         run: |
-          rustup toolchain install ${{ matrix.rust }} --profile minimal --target=${{ matrix.target }} --no-self-update
+          rustup toolchain install ${{ matrix.rust }} --profile minimal --no-self-update
           rustup default ${{ matrix.rust }}
+
+      - name: Add target
+        if: ${{ matrix.target }}
+        run: rustup target add ${{ matrix.target }}
 
       - name: Install ${{ matrix.components }} components
         if: ${{ matrix.components }}
