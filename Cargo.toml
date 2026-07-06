@@ -11,7 +11,7 @@ repository = "https://github.com/royaltm/rust-delharc"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 exclude = [".github", ".gitignore", "tests/*", "examples/*"]
-rust-version = "1.63"
+rust-version = "1.65"
 
 [package.metadata.docs.rs]
 all-features = true
