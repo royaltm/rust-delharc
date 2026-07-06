@@ -18,18 +18,18 @@ jobs:
       matrix:
         rust:
           - 1.65.0
-          # - stable
-          # - beta
-          # - nightly
-        # include:
-          # - rust: stable
-          #   target: thumbv7em-none-eabihf
-          # - rust: beta
-          #   target: thumbv7em-none-eabihf
+          - stable
+          - beta
+          - nightly
+        include:
+          - rust: stable
+            target: thumbv7em-none-eabihf
+          - rust: beta
+            target: thumbv7em-none-eabihf
           # - rust: nightly
-          #   coverage: 'send'
-          #   components: llvm-tools
-          #   target: thumbv7em-none-eabihf
+            # coverage: 'send'
+            # components: llvm-tools
+            # target: thumbv7em-none-eabihf
     steps:
       - name: Checkout sources
         uses: actions/checkout@v6
