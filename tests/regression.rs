@@ -68,8 +68,12 @@ const TESTS_CASES: &[(&str, &[(&str, Option<&str>, u64, u64, u16, u32, &str, u8,
     ])
 ];
 
-const CRASH_TESTS: &[&str] = &[
-    "clusterfuzz-1.bin"
+const CRASH_DECOMPRESS: &[(&str, &str)] = &[
+    ("clusterfuzz-1.bin", "temporary codelen table has invalid size"),
+];
+
+const CRASH_HEADER: &[(&str, &str)] = &[
+    ("fuzz-10-1.bin", "LHA decode error: while parsing LHA header: wrong header size")
 ];
 
 #[test]
@@ -117,14 +121,21 @@ fn test_regression() -> io::Result<()> {
         }
     }
 
-    for name in CRASH_TESTS {
+    for (name, error) in CRASH_DECOMPRESS {
         println!("-------------\n{:?}", name);
         let file = fs::File::open(format!("tests/regression/{}", name))?;
         let mut lha_reader = delharc::LhaDecodeReader::new(&file)?;
         assert!(lha_reader.is_decoder_supported());
         let mut sink = SinkSum::new();
         let err = io::copy(&mut lha_reader, &mut sink).unwrap_err();
-        assert_eq!(&err.to_string(), "temporary codelen table has invalid size");
+        assert_eq!(&err.to_string(), error);
+    }
+
+    for (name, error) in CRASH_HEADER {
+        println!("-------------\n{:?}", name);
+        let file = fs::File::open(format!("tests/regression/{}", name))?;
+        let err = delharc::LhaDecodeReader::new(&file).unwrap_err();
+        assert_eq!(&err.to_string(), error);
     }
     Ok(())
 }
