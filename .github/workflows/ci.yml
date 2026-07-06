@@ -32,24 +32,22 @@ jobs:
             target: thumbv7em-none-eabihf
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Install ${{ matrix.rust }} toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain:  ${{ matrix.rust }}
-          components: ${{ matrix.components }}
-          target:     ${{ matrix.target }}
-          override: true
+        run: |
+          rustup toolchain install ${{ matrix.rust }} --profile minimal --target=${{ matrix.target }} --no-self-update
+          rustup default ${{ matrix.rust }}
+
+      - name: Install ${{ matrix.components }} components
+        if: ${{ matrix.components }}
+        run: rustup component add ${{ matrix.components }}
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Install grcov
         if: matrix.coverage == 'send'
-        uses: actions-rs/install@v0.1
-        with:
-          crate: grcov
-          version: latest
-          use-tool-cache: true
+        run: cargo install grcov
 
       - name: Tests
         env:
@@ -98,7 +96,7 @@ jobs:
 
       - name: Upload coverage as artifact
         if: matrix.coverage == 'send'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v7
         with:
           name: lcov.info
           path: ./lcov.info
