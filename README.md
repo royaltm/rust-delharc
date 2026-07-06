@@ -73,7 +73,7 @@ compression method features.
 Rust Version
 ------------
 
-`delharc` requires Rustc version 1.63 or greater due to the stabilized [`array::from_fn`](https://doc.rust-lang.org/std/array/fn.from_fn.html) function in this version.
+`delharc` requires Rustc version 1.65 or greater.
 
 License
 -------
@@ -100,4 +100,4 @@ at your option.
 [Coverage Link]: https://coveralls.io/github/royaltm/rust-delharc?branch=master
 [Coverage img]: https://coveralls.io/repos/github/royaltm/rust-delharc/badge.svg?branch=master
 [rustc version link]: https://github.com/royaltm/rust-delharc#rust-version
-[rustc version img]: https://img.shields.io/badge/rustc-1.63+-lightgray.svg
+[rustc version img]: https://img.shields.io/badge/rustc-1.65+-lightgray.svg
