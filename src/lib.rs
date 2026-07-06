@@ -131,7 +131,8 @@ pub(crate) mod bitstream;
 pub(crate) mod statictree;
 
 // Various parsers assume usize has enough bits and will break on < 32-bits.
-const _: usize = (size_of::<usize>() >= size_of::<u32>()) as usize - 1;
+// FIXME: size_of
+const _: usize = (core::mem::size_of::<usize>() >= core::mem::size_of::<u32>()) as usize - 1;
 
 pub use decode::LhaDecodeReader;
 pub use header::{
