@@ -267,7 +267,7 @@ impl DynHuffTree {
         let mut node_filter = self.nodes.iter().filter(|&n| n.is_leaf());
         let leave_nodes: [(TreeEntry, u16); NUM_LEAVES] = core::array::from_fn(|_| {
             let node = node_filter.next().unwrap();
-            (node.entry, (node.freq + 1) / 2)
+            (node.entry, node.freq.div_ceil(2))
         });
         // an iterator of leaves from last to first
         let mut leaves_riter = leave_nodes.into_iter().rev();
@@ -395,22 +395,20 @@ impl DynHuffTree {
         node.freq += 1;
 
         // node was part of the group with next nodes
-        if let Some(next) = tail.first() {
-            if node.group == next.group {
-                // the next node is now a leader
-                self.groups.set_next_node_as_leader(node.group);
-                if node.freq == prev.freq {
-                    // join group of previous node
-                    node.group = prev.group;
-                }
-                else {
-                    // create node's own group
-                    node.group = self.groups.allocate();
-                    self.groups.set_leader_index(node.group, node_index);
-                }
-
-                return node
+        if let Some(next) = tail.first() && node.group == next.group {
+            // the next node is now a leader
+            self.groups.set_next_node_as_leader(node.group);
+            if node.freq == prev.freq {
+                // join group of previous node
+                node.group = prev.group;
             }
+            else {
+                // create node's own group
+                node.group = self.groups.allocate();
+                self.groups.set_leader_index(node.group, node_index);
+            }
+
+            return node
         }
 
         // node had its own group

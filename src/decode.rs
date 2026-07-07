@@ -245,10 +245,10 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
     /// Panics when `BUF` = `0`.
     pub fn next_file_with_sink<const BUF: usize>(&mut self) -> Result<bool, LhaDecodeError<R>> {
         let mut limited_rd = self.decoder.take().expect("decoder not empty").into_inner();
-        if limited_rd.limit() != 0 {
-            if let Err(e) = discard_to_end::<_, BUF>(&mut limited_rd).map_err(LhaError::Io) {
-                return Err(wrap_err(limited_rd.into_inner(), e))
-            }
+        if limited_rd.limit() != 0 &&
+            let Err(e) = discard_to_end::<_, BUF>(&mut limited_rd).map_err(LhaError::Io)
+        {
+            return Err(wrap_err(limited_rd.into_inner(), e))
         }
         self.begin_new(limited_rd.into_inner())
     }

@@ -344,8 +344,7 @@ impl LhaHeader {
                 // read padding byte
                 parser.read_u8()?;
             }
-            else if raw_header.lha_level != 2 ||
-                   (raw_header.lha_level == 2 && long_header_len as usize != parser.len - 2)
+            else if raw_header.lha_level != 2 || long_header_len as usize != parser.len - 2
             {
                 // some packers (Osk) don't include self in the header length
                 return Err(LhaError::HeaderParse("wrong length of headers"))
@@ -353,10 +352,8 @@ impl LhaHeader {
         }
 
         // validate headers CRC
-        if let Some(crc) = header_crc {
-            if crc != parser.crc.sum16() {
-                return Err(LhaError::HeaderParse("wrong header CRC-16 checksum"))
-            }
+        if let Some(crc) = header_crc && crc != parser.crc.sum16() {
+            return Err(LhaError::HeaderParse("wrong header CRC-16 checksum"))
         }
 
         // adjust compressed size for level 1
