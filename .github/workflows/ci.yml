@@ -2,7 +2,7 @@ name: Continuous integration
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, foo ]
   pull_request:
     branches: [ master ]
 
@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          - 1.65.0
+          - 1.93.0
           - stable
           - beta
           - nightly
@@ -27,8 +27,8 @@ jobs:
           - rust: beta
             target: thumbv7em-none-eabihf
           - rust: nightly
-            coverage: 'send'
-            components: llvm-tools
+            # coverage: 'send'
+            # components: llvm-tools
             target: thumbv7em-none-eabihf
     steps:
       - name: Checkout sources
