@@ -50,3 +50,7 @@ comment.lzh         - Archive created on Amiga with a file note embedded in
 clusterfuzz-1.bin   - A generated file that caused panic in LhaV2Decoder.
                       Sent by @micahsnyder
                       https://github.com/royaltm/rust-delharc/issues/7
+
+fuzz-10-1.bin       - A generated file that caused panic in LhaHeader::read.
+                      Sent by @sylvinus
+                      https://github.com/royaltm/rust-delharc/issues/10
