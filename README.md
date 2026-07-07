@@ -30,7 +30,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-delharc = "0.6"
+delharc = "0.7"
 ```
 
 For more information, please see the [Documentation][Docs Link].
@@ -44,7 +44,7 @@ external crate will be required instead.
 
 ```toml
 [dependencies.delharc]
-version = "0.6"
+version = "0.7"
 default-features = false
 features = ["lh1", "lz"] # select desired features
 ```
@@ -73,7 +73,7 @@ compression method features.
 Rust Version
 ------------
 
-`delharc` requires Rustc version 1.65 or greater.
+`delharc` requires Rustc version 1.85 or greater - edition 2024.
 
 License
 -------
@@ -100,4 +100,4 @@ at your option.
 [Coverage Link]: https://coveralls.io/github/royaltm/rust-delharc?branch=master
 [Coverage img]: https://coveralls.io/repos/github/royaltm/rust-delharc/badge.svg?branch=master
 [rustc version link]: https://github.com/royaltm/rust-delharc#rust-version
-[rustc version img]: https://img.shields.io/badge/rustc-1.65+-lightgray.svg
+[rustc version img]: https://img.shields.io/badge/rustc-1.85+-lightgray.svg

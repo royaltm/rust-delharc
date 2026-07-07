@@ -8,14 +8,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 static PEAK: AtomicUsize = AtomicUsize::new(0);
 struct Track;
 unsafe impl GlobalAlloc for Track {
-    unsafe fn alloc(&self, l: Layout) -> *mut u8 {
+    unsafe fn alloc(&self, l: Layout) -> *mut u8 { unsafe {
         PEAK.fetch_max(l.size(), Ordering::Relaxed);
         if l.size() > 512 * 1024 * 1024 {
             return std::ptr::null_mut();
         }
         System.alloc(l)
-    }
-    unsafe fn dealloc(&self, p: *mut u8, l: Layout) { System.dealloc(p, l) }
+    }}
+    unsafe fn dealloc(&self, p: *mut u8, l: Layout) { unsafe { System.dealloc(p, l) }}
 }
 
 #[global_allocator]
