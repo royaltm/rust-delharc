@@ -1,8 +1,9 @@
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
 use core::num::Wrapping;
 use core::slice;
 use core::fmt::Write;
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+use bytemuck::{NoUninit, AnyBitPattern, bytes_of_mut};
 use crate::error::{LhaError, LhaResult};
 use crate::stub_io::Read;
 use crate::crc::Crc16;
@@ -64,7 +65,7 @@ impl<'a> Iterator for ExtraHeaderIter<'a> {
 /// Allocation max for reading with a limit
 const ALLOCATE_LIMIT_MAX: usize = 8*1024;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, NoUninit, AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 struct LhaRawBaseHeader {
@@ -146,9 +147,8 @@ impl<R: Read> Parser<'_, R> {
             buf.try_reserve_exact(chunk_size).map_err(|_| LhaError::HeaderParse("memory allocation failed"))?;
             // FIXME: use BorrowedBuf once stabilized
             let spare_uninit = &mut buf.spare_capacity_mut()[..chunk_size];
-            // FIXME: use slice::assume_init_mut (MRV >= 1.93)
             // SAFETY: assume read_exact is write-only
-            let spare = unsafe { &mut *(spare_uninit as *mut _ as *mut [u8]) };
+            let spare = unsafe { spare_uninit.assume_init_mut() };
             self.rd.read_exact(spare).map_err(LhaError::Io)?;
             // SAFETY: assume chunk_size was read into buf
             // this can't overflow because buf.len() + chunk_size <= buf.capacity()
@@ -195,10 +195,7 @@ impl LhaHeader {
         parser.csum = Wrapping(0);
 
         let mut raw_header = LhaRawBaseHeader::default();
-        parser.read_exact(unsafe {
-            // SAFETY: safe because LhaRawBaseHeader is packed and contains only byte type members
-            struct_slice_mut(&mut raw_header)
-        })?;
+        parser.read_exact(bytes_of_mut(&mut raw_header))?;
         if raw_header.lha_level > 3 {
             return Err(LhaError::HeaderParse("unknown header level"))
         }
@@ -485,7 +482,8 @@ pub(super) fn parse_str_nilterm(
     {
         let mut out = String::with_capacity(data.len()*3);
         let (head, rest) = data.split_at(index);
-        out.push_str(unsafe { // safe because head was validated
+        // SAFETY: head was validated to contain ASCII-only characters
+        out.push_str(unsafe {
             core::str::from_utf8_unchecked(head)
         });
         for byte in rest.iter() {
@@ -509,19 +507,10 @@ pub(super) fn parse_str_nilterm(
         Cow::Owned(out)
     }
     else {
-        unsafe { // safe because data was validated
+        // SAFETY: data was validated to contain ASCII-only characters
+        unsafe {
             Cow::Borrowed(core::str::from_utf8_unchecked(data))
         }
-    }
-}
-
-/// # Safety
-/// This function can be used safely only with packed structs that solely consist of
-/// `u8` or array of `u8` primitives.
-unsafe fn struct_slice_mut<T: Copy>(obj: &mut T) -> &mut [u8] {
-    let len = core::mem::size_of::<T>() / core::mem::size_of::<u8>();
-    unsafe {
-        core::slice::from_raw_parts_mut(obj as *mut T as *mut u8, len)
     }
 }
 

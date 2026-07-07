@@ -73,7 +73,8 @@ compression method features.
 Rust Version
 ------------
 
-`delharc` requires Rustc version 1.85 or greater - edition 2024.
+`delharc` requires Rustc version 1.93 or greater.
+
 
 License
 -------
@@ -100,4 +101,4 @@ at your option.
 [Coverage Link]: https://coveralls.io/github/royaltm/rust-delharc?branch=master
 [Coverage img]: https://coveralls.io/repos/github/royaltm/rust-delharc/badge.svg?branch=master
 [rustc version link]: https://github.com/royaltm/rust-delharc#rust-version
-[rustc version img]: https://img.shields.io/badge/rustc-1.85+-lightgray.svg
+[rustc version img]: https://img.shields.io/badge/rustc-1.93+-lightgray.svg

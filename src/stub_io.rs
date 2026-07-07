@@ -50,18 +50,14 @@ pub trait Read {
 }
 
 pub(crate) fn discard_to_end<R: Read, const BUF: usize>(rd: &mut R) -> Result<(), R::Error> {
-    use core::mem::{self, MaybeUninit};
+    use core::mem::MaybeUninit;
     assert!(BUF != 0);
-    // Create an uninitialized array of `MaybeUninit`. The `assume_init` is
-    // safe because the type we are claiming to have initialized here is a
-    // bunch of `MaybeUninit`s, which do not require initialization.
-    let mut data: [MaybeUninit<u8>; BUF] = unsafe {
-        MaybeUninit::uninit().assume_init()
-    };
-    let buf = {
-        // TODO: use BorrowedBuf once it stablizes
-        // We never read data and u8 doesn't implement Drop.
-        unsafe { mem::transmute::<_, &mut[u8]>(&mut data[..]) }
+    // FIXME: use BorrowedBuf once it stablizes
+    let mut data = MaybeUninit::<[u8; BUF]>::uninit();
+    let buf: &mut [u8; BUF] = unsafe {
+        // SAFETY: data has not been initialized but is never read,
+        // assuming Read implementation never reads from the buf
+        data.assume_init_mut()
     };
     while 0 != rd.read_all(buf)? {}
     Ok(())

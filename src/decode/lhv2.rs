@@ -308,13 +308,13 @@ mod tests {
 
     #[test]
     fn lhav2_works() {
-        println!("DecoderAny<Empty> {}", core::mem::size_of::<DecoderAny<io::Empty>>());
-        println!("DecoderAny<fs::File> {}", core::mem::size_of::<DecoderAny<fs::File>>());
-        println!("Lh7Decoder<Empty> {}", core::mem::size_of::<Lh7Decoder<io::Empty>>());
-        println!("Lh7Decoder<File> {}", core::mem::size_of::<Lh7Decoder<fs::File>>());
-        println!("BitStream<File> {}", core::mem::size_of::<BitStream<fs::File>>());
-        println!("HuffTree {}", core::mem::size_of::<HuffTree>());
-        println!("Option<(u32, NonZeroU32)> {}", core::mem::size_of::<Option<(u32, NonZeroU32)>>());
-        println!("Box<C::RingBuffer> {}", core::mem::size_of::<Box<<Lh7DecoderCfg as LhaDecoderConfig>::RingBuffer>>());
+        println!("DecoderAny<Empty> {}", size_of::<DecoderAny<io::Empty>>());
+        println!("DecoderAny<fs::File> {}", size_of::<DecoderAny<fs::File>>());
+        println!("Lh7Decoder<Empty> {}", size_of::<Lh7Decoder<io::Empty>>());
+        println!("Lh7Decoder<File> {}", size_of::<Lh7Decoder<fs::File>>());
+        println!("BitStream<File> {}", size_of::<BitStream<fs::File>>());
+        println!("HuffTree {}", size_of::<HuffTree>());
+        println!("Option<(u32, NonZeroU32)> {}", size_of::<Option<(u32, NonZeroU32)>>());
+        println!("Box<C::RingBuffer> {}", size_of::<Box<<Lh7DecoderCfg as LhaDecoderConfig>::RingBuffer>>());
     }
 }

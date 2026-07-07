@@ -136,8 +136,8 @@ mod tests {
 
     #[test]
     fn lhav1_works() {
-        println!("Lh1Decoder<Empty> {}", core::mem::size_of::<Lh1Decoder<io::Empty>>());
-        println!("Lh1Decoder<File> {}", core::mem::size_of::<Lh1Decoder<fs::File>>());
-        println!("DynHuffTree {}", core::mem::size_of::<DynHuffTree>());
+        println!("Lh1Decoder<Empty> {}", size_of::<Lh1Decoder<io::Empty>>());
+        println!("Lh1Decoder<File> {}", size_of::<Lh1Decoder<fs::File>>());
+        println!("DynHuffTree {}", size_of::<DynHuffTree>());
     }
 }
