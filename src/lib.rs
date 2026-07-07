@@ -117,7 +117,7 @@ const DATA: &[u8] = include_bytes!("file.lzh");
 let lha_reader = LhaDecodeReader::new(DATA).unwrap();
 ```
 */
-// http://archive.gamedev.net/archive/reference/articles/article295.html
+// https://web.archive.org/web/20240916153830/https://archive.gamedev.net/archive/reference/articles/article295.html
 #![cfg_attr(not(feature = "std"), no_std)]
 #[cfg(not(feature = "std"))]
 extern crate alloc;

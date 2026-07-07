@@ -1,6 +1,6 @@
 [package]
 name = "delharc-embedded-example"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Rafał Michalski <royaltm75@gmail.com>"]
 edition = "2021"
 description = "A small example of using delharc with a `no_std` target"
@@ -13,5 +13,5 @@ path="embedded.rs"
 [dependencies]
 delharc = { version = "*", path = "../..", default-features = false, features = ["lh1", "lz"] }
 cortex-m-rt = "0.7"
-panic-halt = "0.2"
-embedded-alloc = "0.5"
+panic-halt = "1.0.0"
+embedded-alloc = "0.7"

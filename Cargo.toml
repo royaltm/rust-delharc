@@ -11,7 +11,7 @@ repository = "https://github.com/royaltm/rust-delharc"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 exclude = [".github", ".gitignore", "tests/*", "examples/*"]
-rust-version = "1.85"
+rust-version = "1.87"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -25,12 +25,12 @@ lz = []
 
 [dependencies]
 chrono = { version = "0.4", default-features = false }
-bitflags = "2.5"
+bitflags = "2.13"
 memchr = { version = "2", default-features = false }
 
 [dev-dependencies]
-crc-any = { version = "2.5", default-features = false }
-rand = "0.8.5"
+crc-any = { version = "3", default-features = false }
+rand = "0.10.2"
 
 [[example]]
 name = "extract"

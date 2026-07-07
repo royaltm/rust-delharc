@@ -2,10 +2,9 @@
 #![no_main]
 extern crate alloc;
 use alloc::{format, boxed::Box, vec::Vec};
-use core::mem::MaybeUninit;
 use panic_halt as _;
 use cortex_m_rt::entry;
-use embedded_alloc::Heap;
+use embedded_alloc::LlffHeap as Heap;
 
 use delharc::*;
 
@@ -28,9 +27,9 @@ fn extract_check<R: Read, P: AsRef<str>>(
     where R::Error: core::fmt::Debug
 {
     let mut buf: Box<[u8]> = {
-      let mut vec = Vec::new();
-      vec.resize(UNCOMPRESSED_SIZE, 0u8);
-      vec.into_boxed_slice()
+        let mut vec = Vec::new();
+        vec.resize(UNCOMPRESSED_SIZE, 0u8);
+        vec.into_boxed_slice()
     };
     loop {
         let header = lha_reader.header();
@@ -59,19 +58,15 @@ fn extract_check<R: Read, P: AsRef<str>>(
 
 #[entry]
 fn main() -> ! {
-  {
-      #[no_mangle]
-      static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
-      // FIXME: MRV >= 1.82.0
-      // unsafe { HEAP.init((&raw mut HEAP_MEM) as usize, HEAP_SIZE) }
-      unsafe { HEAP.init(core::ptr::addr_of_mut!(HEAP_MEM) as usize, HEAP_SIZE) }
-  }
+    unsafe {
+        embedded_alloc::init!(HEAP, HEAP_SIZE);
+    }
 
-  let lha_reader = delharc::LhaDecodeReader::new(COMPRESSED_1).unwrap();
-  assert!(extract_check(lha_reader, FILE_MATCH).unwrap());
+    let lha_reader = delharc::LhaDecodeReader::new(COMPRESSED_1).unwrap();
+    assert!(extract_check(lha_reader, FILE_MATCH).unwrap());
 
-  let lha_reader = delharc::LhaDecodeReader::new(COMPRESSED_6).unwrap();
-  assert!(extract_check(lha_reader, FILE_MATCH).unwrap());
+    let lha_reader = delharc::LhaDecodeReader::new(COMPRESSED_6).unwrap();
+    assert!(extract_check(lha_reader, FILE_MATCH).unwrap());
 
-  loop {}
+    loop {}
 }
