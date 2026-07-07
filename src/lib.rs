@@ -21,7 +21,7 @@ You may include or opt out of some of the decoders:
 
 ```toml
 [dependencies.delharc]
-version = "0.6"
+version = "0.7"
 default-features = false
 features = ["std", "lh1"] # select desired features
 ```

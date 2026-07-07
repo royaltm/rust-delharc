@@ -520,7 +520,9 @@ pub(super) fn parse_str_nilterm(
 /// `u8` or array of `u8` primitives.
 unsafe fn struct_slice_mut<T: Copy>(obj: &mut T) -> &mut [u8] {
     let len = core::mem::size_of::<T>() / core::mem::size_of::<u8>();
-    core::slice::from_raw_parts_mut(obj as *mut T as *mut u8, len)
+    unsafe {
+        core::slice::from_raw_parts_mut(obj as *mut T as *mut u8, len)
+    }
 }
 
 #[cfg(feature = "std")]
