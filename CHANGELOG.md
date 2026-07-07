@@ -1,3 +1,11 @@
+v0.7.0
+* Rust edition: 2024.
+* Minimum supported rust version changed to Rust 1.93 (slice::assume_init_mut).
+* Deps: bitflags bumped to 2.13.
+* bytemuck added to dependencies.
+* replaced all uses of transmute with modern functions.
+* clippy suggested changes.
+
 v0.6.2
 * Fixed a bug in LhaHeader::read that could cause integer overflow.
 * Fixed a bug in LhaHeader::read that could allocate a huge memory chunk before failing.
@@ -8,7 +16,7 @@ v0.6.2
 
 v0.6.1
 * Fixed a bug in LhaV2Decoder::read_temp_tree that might cause a panic on a random bitstream.
-* Deps: bitflags upgraded to 2.5.
+* Deps: bitflags bumped to 2.5.
 
 v0.6.0
 * no-std is enabled in the absence of the std feature.
@@ -21,17 +29,17 @@ v0.6.0
 * TimestampResult::to_local is only available with std feature.
 * LhaHeader::parse_pathname is only available with std feature.
 * delharc::parse_file is only available with std feature.
-* Deps: bitflags upgraded to 2.4.
+* Deps: bitflags bumped to 2.4.
 * extract_nostd example added to showcase usage of nostd.
 * Embedded example added to test compilation of a no-std target.
 
 v0.5.0
-* Rust edition: 2021
+* Rust edition: 2021.
 * An example added to showcase usage of different reader sources.
 * RingArrayBuf reworked with const generics.
 * dyntree: unsafe transmute replaced with array::from_fn.
 * Minimum supported rust version changed to Rust 1.63 (array::from_fn).
-* Deps: bitflags upgraded to 2.3.
+* Deps: bitflags updated to 2.3.
 * License files added.
 
 v0.4.0
