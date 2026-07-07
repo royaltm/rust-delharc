@@ -92,6 +92,8 @@ impl fmt::Display for CompressionMethod {
         let strid = self.as_identifier();
         assert!(strid.is_ascii());
         unsafe {
+            // SAFETY: compression identifiers are ASCII-only,
+            // validated with assert above
             core::str::from_utf8_unchecked(strid)
         }.fmt(f)
     }

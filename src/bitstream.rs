@@ -1,10 +1,9 @@
 //! # Bit-stream tools.
-use core::mem;
 use crate::error::{LhaResult, LhaError};
 use crate::stub_io::Read;
 
 type BitBuf = usize;
-const BITBUF_BYTESIZE: usize = mem::size_of::<BitBuf>();
+const BITBUF_BYTESIZE: usize = size_of::<BitBuf>();
 const BITBUF_BITSIZE: u32 = (BITBUF_BYTESIZE * 8) as u32;
 
 /// The trait is implemented for all the types that can receive bits using [BitRead::read_bits].
@@ -152,7 +151,7 @@ impl<R: Read> BitRead for BitStream<R> {
 
 #[inline(always)]
 const fn bitsize<T>() -> u32 {
-    mem::size_of::<T>() as u32 * 8
+    size_of::<T>() as u32 * 8
 }
 
 #[cfg(feature = "std")]
@@ -162,7 +161,7 @@ mod tests {
     use super::*;
     #[test]
     fn bit_stream_works() {
-        assert_eq!(BITBUF_BYTESIZE, mem::size_of::<usize>());
+        assert_eq!(BITBUF_BYTESIZE, size_of::<usize>());
         assert!(BITBUF_BITSIZE >= 32);
         assert_eq!(BITBUF_BITSIZE, BITBUF_BYTESIZE as u32 * 8);
         let mut somebits: &[u8] = &[];
