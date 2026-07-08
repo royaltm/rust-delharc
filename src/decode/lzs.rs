@@ -35,7 +35,7 @@ impl<R: Read> LzsDecoder<R> {
             target: I,
             pos: usize,
             count: usize
-        ) -> LhaResult<(), R>
+        )
     {
         let history_iter = self.ringbuf.iter_from_pos(pos);
         let real_count = target.len().min(count);
@@ -44,7 +44,6 @@ impl<R: Read> LzsDecoder<R> {
         }
         self.copy_progress = NonZeroU16::new((count - real_count) as u16)
                              .map(|count| ((pos + real_count) as u16, count));
-        Ok(())
     }
 }
 
@@ -61,7 +60,7 @@ impl<R: Read> Decoder<R> for LzsDecoder<R> where R::Error: core::fmt::Debug {
         if let Some((pos, count)) = self.copy_progress {
             self.copy_from_history(&mut target,
                                    pos as usize,
-                                   count.get() as usize)?;
+                                   count.get() as usize);
         }
 
         while let Some(dst) = target.next() {
@@ -75,9 +74,39 @@ impl<R: Read> Decoder<R> for LzsDecoder<R> where R::Error: core::fmt::Debug {
                 let count: usize = self.bit_reader.read_bits(4)?;
                 let index = buflen - target.len() - 1;
                 target = buf[index..].iter_mut();
-                self.copy_from_history(&mut target, pos, count + 2)?;
+                self.copy_from_history(&mut target, pos, count + 2);
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(feature = "std")]
+#[cfg(test)]
+mod tests {
+    use std::{io, fs};
+    use super::*;
+
+    #[test]
+    fn lzs_works() {
+        println!("LzsDecoder<Empty> {}", size_of::<LzsDecoder<io::Empty>>());
+        println!("LzsDecoder<fs::File> {}", size_of::<LzsDecoder<fs::File>>());
+        println!("RingArrayBuf<RING_BUFFER_SIZE> {}", size_of::<RingArrayBuf<RING_BUFFER_SIZE>>());
+    }
+
+    #[test]
+    #[ignore = "long tests"]
+    fn lzs_long_tests() {
+        use rand::RngReader;
+        let mut rng = rand::rng();
+        let mut decoder = LzsDecoder::new(RngReader(&mut rng));
+        let mut buf = Vec::new();
+        buf.resize(1024, 0);
+        for n in 0..1000 {
+            println!("-lzs-: {}", n);
+            for i in 1..=1024 {
+                decoder.fill_buffer(&mut buf[0..i]).unwrap()
+            }
+        }        
     }
 }

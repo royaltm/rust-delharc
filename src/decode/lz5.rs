@@ -63,7 +63,7 @@ impl<R: Read> Lz5Decoder<R> {
             target: I,
             pos: usize,
             count: usize
-        ) -> LhaResult<(), R>
+        )
     {
         let history_iter = self.ringbuf.iter_from_pos(pos);
         let real_count = target.len().min(count);
@@ -72,7 +72,6 @@ impl<R: Read> Lz5Decoder<R> {
         }
         self.copy_progress = NonZeroU16::new((count - real_count) as u16)
                              .map(|count| ((pos + real_count) as u16, count));
-        Ok(())
     }
 }
 
@@ -89,7 +88,7 @@ impl<R: Read> Decoder<R> for Lz5Decoder<R> where R::Error: core::fmt::Debug {
         if let Some((pos, count)) = self.copy_progress {
             self.copy_from_history(&mut target,
                                    pos as usize,
-                                   count.get() as usize)?;
+                                   count.get() as usize);
         }
 
         let mut bitmap = self.bitmap;
@@ -118,12 +117,43 @@ impl<R: Read> Decoder<R> for Lz5Decoder<R> where R::Error: core::fmt::Debug {
                 let count = (hi & 0x0f) as usize;
                 let index = buflen - target.len() - 1;
                 target = buf[index..].iter_mut();
-                self.copy_from_history(&mut target, pos, count + 3)?;
+                self.copy_from_history(&mut target, pos, count + 3);
             }
 
             bitmap >>= 1;
         }
         self.bitmap = bitmap;
         Ok(())
+    }
+}
+
+
+#[cfg(feature = "std")]
+#[cfg(test)]
+mod tests {
+    use std::{io, fs};
+    use super::*;
+
+    #[test]
+    fn lz5_works() {
+        println!("Lz5Decoder<Empty> {}", size_of::<Lz5Decoder<io::Empty>>());
+        println!("Lz5Decoder<fs::File> {}", size_of::<Lz5Decoder<fs::File>>());
+        println!("RingArrayBuf<RING_BUFFER_SIZE> {}", size_of::<RingArrayBuf<RING_BUFFER_SIZE>>());
+    }
+
+    #[test]
+    #[ignore = "long tests"]
+    fn lz5_long_tests() {
+        use rand::RngReader;
+        let mut rng = rand::rng();
+        let mut decoder = Lz5Decoder::new(RngReader(&mut rng));
+        let mut buf = Vec::new();
+        buf.resize(1024, 0);
+        for n in 0..1000 {
+            println!("-lz5-: {}", n);
+            for i in 1..=1024 {
+                decoder.fill_buffer(&mut buf[0..i]).unwrap()
+            }
+        }        
     }
 }

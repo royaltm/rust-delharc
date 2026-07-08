@@ -69,6 +69,16 @@ impl HuffTree {
         let tree = Vec::with_capacity(capacity);
         HuffTree { tree }
     }
+    #[allow(dead_code)]
+    /// Return whether the tree is empty (uninitialized).
+    pub fn is_empty(&self) -> bool {
+        self.tree.is_empty()
+    }
+    #[allow(dead_code)]
+    /// Return the number of populated nodes.
+    pub fn len(&self) -> usize {
+        self.tree.len()
+    }
     /// Initializes a `HuffTree` in such a way that any attept to read from it will always
     /// result in the given value, without even reading any position bits.
     pub fn set_single(&mut self, value: u16) {

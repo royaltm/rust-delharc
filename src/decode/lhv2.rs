@@ -122,7 +122,8 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         // println!("skip: {:?}", skip);
 
         if 3 + skip > num_codes {
-            return Err(LhaError::Decompress("temporary codelen table has invalid size"))}
+            return Err(LhaError::Decompress("temporary codelen table has invalid size"))
+        }
 
         for p in code_lengths[3 + skip..num_codes].iter_mut() {
             *p = self.read_code_length()?;
@@ -207,10 +208,12 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
     }
 
     fn begin_new_block(&mut self) -> LhaResult<(), R> {
-        self.remaining_commands = self.bit_reader.read_bits(16)?;
+        let remaining_commands = self.bit_reader.read_bits(16)?;
         self.read_temp_tree()?;
         self.read_command_tree()?;
-        self.read_offset_tree()
+        self.read_offset_tree()?;
+        self.remaining_commands = remaining_commands;
+        Ok(())
     }
 
     #[inline]
@@ -239,7 +242,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
             target: I,
             offset: usize,
             count: usize
-        ) -> LhaResult<(), R>
+        )
     {
         let history_iter = self.ringbuf.iter_from_offset(offset);
         let count_after = count - target.len().min(count);
@@ -248,7 +251,6 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         }
         self.copy_progress = NonZeroU32::new(count_after as u32)
                              .map(|count| (offset as u32, count));
-        Ok(())
     }
 
 }
@@ -268,7 +270,7 @@ impl<C: LhaDecoderConfig, R: Read> Decoder<R> for LhaV2Decoder<C, R>
         if let Some((offset, count)) = self.copy_progress {
             self.copy_from_history(&mut target,
                                    offset as usize,
-                                   count.get() as usize)?;
+                                   count.get() as usize);
         }
 
         while let Some(dst) = target.next() {
@@ -290,7 +292,7 @@ impl<C: LhaDecoderConfig, R: Read> Decoder<R> for LhaV2Decoder<C, R>
                     target = buf[index..].iter_mut();
                     self.copy_from_history(&mut target,
                                            offset as usize,
-                                           (count - 0x100 + 3).into())?;
+                                           (count - 0x100 + 3).into());
                 }
             }
         }
@@ -301,10 +303,9 @@ impl<C: LhaDecoderConfig, R: Read> Decoder<R> for LhaV2Decoder<C, R>
 #[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
+    use std::{io, fs};
     use super::*;
     use super::super::DecoderAny;
-    use std::fs;
-    use std::io;
 
     #[test]
     fn lhav2_works() {
@@ -314,7 +315,51 @@ mod tests {
         println!("Lh7Decoder<File> {}", size_of::<Lh7Decoder<fs::File>>());
         println!("BitStream<File> {}", size_of::<BitStream<fs::File>>());
         println!("HuffTree {}", size_of::<HuffTree>());
+        println!("HuffTree offset tree: {}", size_of::<[entry::TreeEntry;NUM_TEMP_CODELEN * 2]>());
+        println!("HuffTree command tree: {}", size_of::<[entry::TreeEntry;NUM_COMMANDS * 2]>());
         println!("Option<(u32, NonZeroU32)> {}", size_of::<Option<(u32, NonZeroU32)>>());
         println!("Box<C::RingBuffer> {}", size_of::<Box<<Lh7DecoderCfg as LhaDecoderConfig>::RingBuffer>>());
+        println!("Lh5::RingBuffer {}", size_of::<<Lh5DecoderCfg as LhaDecoderConfig>::RingBuffer>());
+        println!("Lh7::RingBuffer {}", size_of::<<Lh7DecoderCfg as LhaDecoderConfig>::RingBuffer>());
+        #[cfg(feature = "lhx")]
+        println!("Lhx::RingBuffer {}", size_of::<<LhxDecoderCfg as LhaDecoderConfig>::RingBuffer>());
+    }
+
+    #[test]
+    #[ignore = "long tests"]
+    fn lhav2_long_tests() {
+        use rand::RngReader;
+        let mut rng = rand::rng();
+        let mut decoder = Lh5Decoder::new(RngReader(&mut rng));
+        let mut buf = Vec::new();
+        buf.resize(1024, 0);
+        for i in 0..1000 {
+            println!("-lh5-: {}", i);
+            let mut err = 0u64;
+            while decoder.read_temp_tree().is_err() {
+                err += 1;
+            }
+            println!("-lh5-: read_temp_tree: {} retries: {}", decoder.offset_tree.len(), err);
+            let mut err = 0u64;
+            while decoder.read_command_tree().is_err() {
+                err += 1;
+            }
+            println!("-lh5-: read_command_tree: {} retries: {}", decoder.command_tree.len(), err);
+            let mut err = 0u64;
+            while decoder.read_offset_tree().is_err() {
+                err += 1;
+            }
+            println!("-lh5-: read_offset_tree: {} retries: {}", decoder.offset_tree.len(), err);
+
+            decoder.remaining_commands = u16::MAX;
+
+            for n in 1..=1024 {
+                let len = n.min(decoder.remaining_commands as usize);
+                decoder.fill_buffer(&mut buf[0..len]).unwrap();
+                if decoder.remaining_commands == 0 {
+                    break
+                }
+            }
+        }        
     }
 }

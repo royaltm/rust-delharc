@@ -52,7 +52,7 @@ impl<R: Read> Lh1Decoder<R> {
             target: I,
             offset: usize,
             count: usize
-        ) -> LhaResult<(), R>
+        )
     {
         let history_iter = self.ringbuf.iter_from_offset(offset);
         let count_after = count - target.len().min(count);
@@ -61,7 +61,6 @@ impl<R: Read> Lh1Decoder<R> {
         }
         self.copy_progress = NonZeroU16::new(count_after as u16)
                              .map(|count| (offset as u16, count));
-        Ok(())
     }
 }
 
@@ -78,7 +77,7 @@ impl<R: Read> Decoder<R> for Lh1Decoder<R> where R::Error: core::fmt::Debug {
         if let Some((offset, count)) = self.copy_progress {
             self.copy_from_history(&mut target,
                                    offset as usize,
-                                   count.get() as usize)?;
+                                   count.get() as usize);
         }
 
         while let Some(dst) = target.next() {
@@ -94,7 +93,7 @@ impl<R: Read> Decoder<R> for Lh1Decoder<R> where R::Error: core::fmt::Debug {
                     target = buf[index..].iter_mut();
                     self.copy_from_history(&mut target,
                                            offset as usize,
-                                           (count - 0x100 + 3).into())?;
+                                           (count - 0x100 + 3).into());
                 }
             }
         }
@@ -130,14 +129,30 @@ fn decode_offset(bits9: u16) -> (u16, u32) {
 #[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
+    use std::{io, fs};
     use super::*;
-    use std::io;
-    use std::fs;
 
     #[test]
     fn lhav1_works() {
         println!("Lh1Decoder<Empty> {}", size_of::<Lh1Decoder<io::Empty>>());
         println!("Lh1Decoder<File> {}", size_of::<Lh1Decoder<fs::File>>());
         println!("DynHuffTree {}", size_of::<DynHuffTree>());
+        println!("RingArrayBuf<RING_BUFFER_SIZE> {}", size_of::<RingArrayBuf<RING_BUFFER_SIZE>>());
+    }
+
+    #[test]
+    #[ignore = "long tests"]
+    fn lhav1_long_tests() {
+        use rand::RngReader;
+        let mut rng = rand::rng();
+        let mut decoder = Lh1Decoder::new(RngReader(&mut rng));
+        let mut buf = Vec::new();
+        buf.resize(1024, 0);
+        for n in 0..1000 {
+            println!("-lh1-: {}", n);
+            for i in 1..=1024 {
+                decoder.fill_buffer(&mut buf[0..i]).unwrap()
+            }
+        }        
     }
 }
