@@ -47,15 +47,15 @@ impl<'a> Iterator for ExtraHeaderIter<'a> {
         if header_length == 0 {
             return None
         }
-        let counter_size = if self.header_len32 { 4 } else { 2 };
         let (res, data) = self.data.split_at(header_length);
-        let (res, len) = res.split_at(header_length - counter_size);
-        let len = if self.header_len32 {
-            read_u32(len).unwrap()
+        let (res, len) = if self.header_len32 {
+            res.split_last_chunk::<4>().map(|(dat, &len)|
+                (dat, u32::from_le_bytes(len)))
         }
         else {
-            read_u16(len).unwrap() as u32
-        };
+            res.split_last_chunk::<2>().map(|(dat, &len)|
+                (dat, u16::from_le_bytes(len).into()))
+        }.unwrap();
         self.header_length = len;
         self.data = data;
         Some(res)
@@ -91,12 +91,7 @@ impl<R: Read> Parser<'_, R> {
         if 0 == self.rd.read_all(slice::from_mut(&mut byte)).map_err(LhaError::Io)? {
             return Ok(None)
         }
-        // self.rd.by_ref().bytes().next().transpose().map(|mb|
-        //     mb.map(|byte| {
-                self.update_checksums_no_wrapping_sum(slice::from_ref(&byte));
-                // byte
-        //     })
-        // )
+        self.update_checksums_no_wrapping_sum(slice::from_ref(&byte));
         Ok(Some(byte))
     }
 
@@ -155,9 +150,6 @@ impl<R: Read> Parser<'_, R> {
             unsafe { buf.set_len(buf.len() + chunk_size); }
             limit -= chunk_size;
         }
-        // if self.rd.by_ref().take(limit as u64).read_to_end(buf)? != limit {
-        //     return Err(LhaError::HeaderParse("file is too short"))
-        // }
         Ok(())
     }
 }
@@ -328,10 +320,10 @@ impl LhaHeader {
             }
             parser.update_checksums_no_wrapping_sum(header);
             extra_header_len = if raw_header.lha_level == 3 {
-                read_u32(&header[header.len() - 4..]).unwrap() as usize
+                u32::from_le_bytes(*header.last_chunk::<4>().unwrap()) as usize
             }
             else {
-                read_u16(&header[header.len() - 2..]).unwrap() as usize
+                u16::from_le_bytes(*header.last_chunk::<2>().unwrap()) as usize
             }
         }
 
@@ -397,24 +389,15 @@ impl LhaHeader {
 }
 
 fn read_u16(slice: &[u8]) -> Option<u16> {
-    match slice {
-        &[lo, hi] => Some(u16::from_le_bytes([lo, hi])),
-        _ => None
-    }
+    slice.as_array::<{size_of::<u16>()}>().copied().map(u16::from_le_bytes)
 }
 
 pub(super) fn read_u32(slice: &[u8]) -> Option<u32> {
-    match slice {
-        &[b0, b1, b2, b3] => Some(u32::from_le_bytes([b0, b1, b2, b3])),
-        _ => None
-    }
+    slice.as_array::<{size_of::<u32>()}>().copied().map(u32::from_le_bytes)
 }
 
 pub(super) fn read_u64(slice: &[u8]) -> Option<u64> {
-    match slice {
-        &[b0, b1, b2, b3, b4, b5, b6, b7] => Some(u64::from_le_bytes([b0, b1, b2, b3, b4, b5, b6, b7])),
-        _ => None
-    }
+    slice.as_array::<{size_of::<u64>()}>().copied().map(u64::from_le_bytes)
 }
 
 fn wrapping_csum(init: Wrapping<u8>, data: &[u8]) -> Wrapping<u8> {
