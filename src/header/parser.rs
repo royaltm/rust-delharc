@@ -407,7 +407,14 @@ fn wrapping_csum(init: Wrapping<u8>, data: &[u8]) -> Wrapping<u8> {
 
 pub(super) fn split_data_at_nil_or_end(data: &[u8]) -> (&[u8], Option<&[u8]>) {
     match memchr::memchr(0, data) {
-        Some(index) => (&data[0..index], Some(&data[index + 1..data.len()])),
+        Some(index) => {
+            #[cfg(not(debug_assertions))]
+            unsafe {
+                // SAFETY: memchr guarantee asserted condition
+                core::hint::assert_unchecked(index < data.len());
+            }
+            (&data[0..index], Some(&data[index + 1..]))
+        }
         None => (data, None)
     }
 }
@@ -416,7 +423,7 @@ pub(super) fn split_data_at_nil_or_end(data: &[u8]) -> (&[u8], Option<&[u8]>) {
 pub(super) fn parse_pathname(data: &[u8], path: &mut PathBuf) {
     path.reserve(data.len());
     // split by all possible path separators
-    for part in data.split(|&c| c == 0xFF || c == b'/' || c == b'\\') {
+    for part in data.split(|&c| matches!(c, 0xFF|b'/'|b'\\')) {
         match part {
             b"."|b".."|[] => {} // ignore malicious and empty paths
             name => path.push(parse_str_nilterm(name, false, false).as_ref())
@@ -427,7 +434,7 @@ pub(super) fn parse_pathname(data: &[u8], path: &mut PathBuf) {
 pub(super) fn parse_pathname_to_str(data: &[u8], path: &mut String) {
     path.reserve(data.len());
     // split by all possible path separators
-    for part in data.split(|&c| c == 0xFF || c == b'/' || c == b'\\') {
+    for part in data.split(|&c| matches!(c, 0xFF|b'/'|b'\\')) {
         match part {
             b"."|b".."|[] => {} // ignore malicious and empty paths
             name => {
@@ -448,7 +455,7 @@ fn is_separator(c: char) -> bool {
 
 #[cfg(not(feature = "std"))]
 fn is_separator(c: char) -> bool {
-    c == '/' || c == '\\'
+    matches!(c, b'/'|b'\\')
 }
 
 pub(super) fn parse_str_nilterm(
