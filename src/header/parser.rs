@@ -455,7 +455,7 @@ fn is_separator(c: char) -> bool {
 
 #[cfg(not(feature = "std"))]
 fn is_separator(c: char) -> bool {
-    matches!(c, b'/'|b'\\')
+    matches!(c, '/'|'\\')
 }
 
 pub(super) fn parse_str_nilterm(
