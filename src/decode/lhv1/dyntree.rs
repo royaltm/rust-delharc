@@ -586,17 +586,27 @@ mod tests {
             }
         }
         validate_tree(&tree);
-        println!("--------------\n{}", tree);
+        println!("-------------- [1]\n{}", tree);
 
         let mut trng = rand::rng();
+
+        // now with some random bit stream
+        let mut rndstream = BitStream::new(RngReader(&mut trng));
+        for _ in 0..1_000_000 {
+            assert!(usize::from(tree.read_entry(&mut rndstream).unwrap()) < NUM_LEAVES);
+        }
+        validate_tree(&tree);
+        println!("-------------- [2]\n{}", tree);
+
         let rng = &mut trng;
+
         // spam tree with random values
         let mut tree = DynHuffTree::new();
         for sample in rng.sample_iter(Uniform::new(0, NUM_LEAVES).unwrap()).take(1_000_000) {
             tree.increment_for_value(sample as u16);
         }
         validate_tree(&tree);
-        println!("--------------\n{}", tree);
+        println!("-------------- [3]\n{}", tree);
 
         // spam tree with some random, and non-uniformly distributed values
         let mut weights = [0u16;NUM_LEAVES];
@@ -608,14 +618,14 @@ mod tests {
             tree.increment_for_value(sample as u16);
         }
         validate_tree(&tree);
-        println!("--------------\n{}", tree);
+        println!("-------------- [4]\n{}", tree);
 
         // now with some random bit stream
         let mut rndstream = BitStream::new(RngReader(rng));
         for _ in 0..1_000_000 {
-            tree.read_entry(&mut rndstream).unwrap();
+            assert!(usize::from(tree.read_entry(&mut rndstream).unwrap()) < NUM_LEAVES);
         }
         validate_tree(&tree);
-        println!("--------------\n{}", tree);
+        println!("-------------- [5]\n{}", tree);
     }
 }
