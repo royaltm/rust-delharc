@@ -98,7 +98,7 @@ impl HuffTree {
         // the number of allocated tree indices
         // the tree size should be equal to the value of this variable
         let mut max_allocated: usize = 1; // start with a single (root) node
-        for current_len in 1u8.. {
+        for current_len in 1u8..=u8::MAX {
             // add missing branches
             let max_limit = max_allocated;
             for _ in  tree.len()..max_limit {
@@ -137,6 +137,7 @@ impl HuffTree {
         }
         // println!("tree missing leaves: {}", max_allocated - tree.len());
         if tree.len() != max_allocated {
+            tree.clear(); // make sure no outstanding branch indices exist
             return Err("missing some leaves")
         }
         // // make sure no outstanding indices exist, perhaps this should be reported as an error
@@ -207,8 +208,9 @@ impl fmt::Display for HuffTree {
 #[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
-    use crate::bitstream::BitStream;
     use std::collections::{HashSet, HashMap};
+    use rand::{RngExt, Rng, RngReader, seq::SliceRandom};
+    use crate::bitstream::BitStream;
     use super::*;
 
     fn validate_tree(tree: &HuffTree, num_leaves: usize) {
@@ -277,7 +279,108 @@ mod tests {
         }
         assert_eq!(res, [3, 5, 6, 8, 9, 10, 13, 14, 15]);
 
-        assert!(tree.build_tree(&[0, 1, 0, 1, 1]).is_err());
-        assert!(tree.build_tree(&[0, 1, 0, 1, 10]).is_err());
+        let mut rng = rand::rng();
+        let mut rndstream = BitStream::new(RngReader(&mut rng));
+        for _ in 0..1_000_000 {
+            match tree.read_entry(&mut rndstream).unwrap() {
+                3|5|6|8|9|10|13|14|15 => {}
+                err => {
+                    panic!("unexpected value returned: {}", err);
+                }
+            }
+        }
+
+        assert_eq!(tree.build_tree(&[]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&[0]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&[0, 0, 0]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&[0, 0, 0, 1]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&[0, 1, 0, 1, 1]).unwrap_err(), "too many leaves");
+        assert_eq!(tree.build_tree(&[0, 1, 0, 1, 10]).unwrap_err(), "too many leaves");
+        assert_eq!(tree.build_tree(&[0, 1, 0, 2, 5]).unwrap_err(), "missing some leaves");
+    }
+
+    #[test]
+    #[ignore = "long tests"]
+    fn hufftree_long_tests() {
+        let mut tree = HuffTree::with_capacity(0);
+
+        // build a random tree lengths with an upper of values
+        fn build_random_lengths(max_values: usize, rng: &mut impl Rng, vec: &mut Vec<u8>) -> usize {
+            vec.clear();
+            let mut max_leaves = 2usize;
+            let mut iter = 1..u8::MAX;
+            for level in iter.by_ref() {
+                let n = vec.len();
+                let remaining = max_values - n;
+                let num_leaves;
+                if let Some(margin) = (max_leaves * 2).checked_sub(remaining)  {
+                    if remaining <= max_leaves {
+                        break
+                    }
+                    num_leaves = margin;
+                }
+                else {
+                    num_leaves = rng.random_range(0..max_leaves);
+                };
+                max_leaves = (max_leaves - num_leaves) * 2;
+                vec.resize(n + num_leaves, level);
+            }
+            vec.resize(vec.len() + max_leaves, iter.next().map(|n| n - 1).unwrap_or(u8::MAX));
+            vec.len()
+        }
+
+        let mut rng = rand::rng();
+        let vec = &mut Vec::new();
+        for nvalues in (2..=10).chain([20,50,100,200,256,0x3FFF]) {
+            for i in 0..(nvalues*2).max(1).min(if nvalues <= 256 { 20 } else { 250 }) {
+                println!("-------------- [{}][{}]", nvalues, i + 1);
+                let nleaves = build_random_lengths(nvalues, &mut rng, vec);
+                println!("leaves: {}", nleaves);
+                if nvalues <= 256 {
+                    assert_eq!(nvalues, nleaves);
+                }
+                tree.build_tree(vec).unwrap();
+                if nvalues < 100 {
+                    println!("{}", tree);
+                }
+                validate_tree(&tree, nleaves);
+                let mut rndstream = BitStream::new(RngReader(&mut rng));
+                for _ in 0..1_000_000 {
+                    let value = tree.read_entry(&mut rndstream).unwrap() as usize;
+                    if value >= nvalues {
+                        panic!("unexpected value returned: {}", value);
+                    }
+                }
+
+                let max_level = vec.iter().copied().max().unwrap();
+                vec.push(rng.random_range(1..=max_level));
+                assert_eq!(tree.build_tree(vec).unwrap_err(), if vec.len() > 0x3FFF {
+                    "too many code lengths"
+                }
+                else {
+                    "too many leaves"
+                });
+                vec.pop();
+                let last = vec.pop().unwrap();
+                assert_eq!(tree.build_tree(vec).unwrap_err(), "missing some leaves");
+                vec.push(last);
+
+                let nleaves = vec.len();
+                vec.resize(0x3FFF, 0);
+                vec.shuffle(&mut rng);
+                tree.build_tree(vec).unwrap();
+                if nvalues < 100 {
+                    println!("{}", tree);
+                }
+                validate_tree(&tree, nleaves);
+                let mut rndstream = BitStream::new(RngReader(&mut rng));
+                for _ in 0..1_000_000 {
+                    let value = tree.read_entry(&mut rndstream).unwrap() as usize;
+                    if value >= vec.len() || vec[value] == 0 {
+                        panic!("unexpected value returned: {}", value);
+                    }
+                }
+            }
+        }
     }
 }

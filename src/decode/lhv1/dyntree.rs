@@ -484,10 +484,10 @@ impl fmt::Display for DynHuffTree {
 #[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
+    use std::collections::{HashSet, HashMap};
     use rand::{RngExt, RngReader};
     use rand::distr::{Uniform, weighted::WeightedIndex};
     use crate::bitstream::BitStream;
-    use std::collections::{HashSet, HashMap};
     use super::*;
 
     fn validate_tree(tree: &DynHuffTree) {
