@@ -1,3 +1,4 @@
+#![cfg(feature = "std")]
 use std::io::{Write, Read, Seek, SeekFrom};
 use std::{io, fs};
 use delharc::header::*;

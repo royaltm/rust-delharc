@@ -1,3 +1,4 @@
+#![cfg(feature = "std")]
 use std::{io, fs};
 use delharc::header::*;
 

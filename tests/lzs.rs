@@ -1,4 +1,4 @@
-#![cfg(feature = "lz")]
+#![cfg(all(feature = "std", feature = "lz"))]
 use std::io;
 use delharc::header::*;
 

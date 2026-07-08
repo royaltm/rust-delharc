@@ -1,3 +1,4 @@
+#![cfg(feature = "std")]
 use std::{io::{self, Seek, SeekFrom}, fs};
 use delharc::header::*;
 
