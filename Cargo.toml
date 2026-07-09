@@ -22,6 +22,8 @@ std = ["chrono/std", "chrono/clock"]
 lh1 = []
 lhx = []
 lz = []
+# expose some implementation details
+extend = []
 
 [dependencies]
 chrono = { version = "0.4", default-features = false }

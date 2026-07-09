@@ -48,6 +48,13 @@ compression method features. Otherwise the library will be compiled in the `no_s
 | `-pm1-`    | unsupported        | N/A     | PMarc, 8 Kb sliding window, static huffman
 | `-pm2-`    | unsupported        | N/A     | PMarc, 4 Kb sliding window, static huffman
 
+The `extend` feature exposes library implementation details, allowing users to access directly
+bitstreams, ring buffers or a huffman tree implementations, with the caveat that they may change
+in the future releases of `delharc`.
+
+For example, [`LhaV2Decoder`] is a generic LHArc version 2 decoder, which allows creating decoders
+with custom sliding window sizes, using the [`LhaDecoderConfig`] trait for configuration.
+
 */
 #![cfg_attr(feature = "std", doc = r##"
 ## Example
@@ -126,9 +133,20 @@ mod error;
 pub mod stub_io;
 pub mod decode;
 pub mod header;
-pub(crate) mod ringbuf;
-pub(crate) mod bitstream;
-pub(crate) mod statictree;
+
+#[cfg(not(feature = "extend"))]
+mod ringbuf;
+#[cfg(not(feature = "extend"))]
+mod bitstream;
+#[cfg(not(feature = "extend"))]
+mod statictree;
+
+#[cfg(feature = "extend")]
+pub mod ringbuf;
+#[cfg(feature = "extend")]
+pub mod bitstream;
+#[cfg(feature = "extend")]
+pub mod statictree;
 
 // Various parsers assume usize has enough bits and will break on < 32-bits.
 const _: usize = (size_of::<usize>() >= size_of::<u32>()) as usize - 1;
