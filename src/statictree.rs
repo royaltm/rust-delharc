@@ -45,6 +45,7 @@ When reading, the following bit paths will result in finding the particular leav
 11111 -> i
 ```
 */
+#![allow(dead_code)]
 #[cfg(test)]
 use core::fmt;
 use core::cmp::Ordering;
@@ -64,12 +65,49 @@ pub struct HuffTree {
 }
 
 impl HuffTree {
+    /// Creates a new and empty [`HuffTree`] without allocating anything.
+    ///
+    /// Any attempt to read from a new tree will result in a panic.
+    pub fn new() -> Self {
+        let tree = Vec::new();
+        HuffTree { tree }
+    }
     /// Creates a new and empty `HuffTree` with the reserved node capacity.
     ///
-    /// Any attempt to read from a new tree will result in panic.
+    /// Any attempt to read from a new tree will result in a panic.
     pub fn with_capacity(capacity: usize) -> Self {
         let tree = Vec::with_capacity(capacity);
         HuffTree { tree }
+    }
+    /// Attempt to reserve enough memory to build a tree from the given array of lengths.
+    ///
+    /// See [`Self::build_tree`] for details.
+    ///
+    /// This method does not validate the `value_lengths`. [`Self::build_tree`] may still
+    /// fail after this method succeeds.
+    pub fn try_reserve(&mut self, value_lengths: &[u8]) -> Result<(), &'static str> {
+        if value_lengths.len() > TreeEntry::MAX_INDEX / 2 {
+            return Err("too many code lengths");
+        }
+        let leaves: usize = value_lengths.iter().filter(|&&n| n != 0).count();
+        if leaves == 0 {
+            return Ok(())
+        }
+        let required_size = leaves * 2 - 1;
+        if let Some(reserve) = required_size.checked_sub(self.tree.len())
+            && reserve != 0
+        {
+            self.tree.try_reserve_exact(reserve).map_err(|_| "not enough memory")
+        }
+        else {
+            Ok(())
+        }
+    }
+    /// Clears the tree from all nodes.
+    ///
+    /// Any attempt to read from tree after a call to this function will result in a panic.
+    pub fn clear(&mut self) {
+        self.tree.clear();
     }
     /// Initializes a `HuffTree` in such a way that any attept to read from it will always
     /// result in the given value, without even reading any position bits.
@@ -85,9 +123,9 @@ impl HuffTree {
     /// * Entries containing `0` are being ignored.
     /// * If too many entries contain the same `length`, exceeding the given `length` capacity, an error
     ///   is being returned.
-    /// * If the size of the argument slice is larger than or equal to the [TreeEntry::MAX_INDEX] / 2,
+    /// * If the size of the argument slice is larger than or equal to the [`TreeEntry::MAX_INDEX`] / 2,
     ///   an error is being returned.
-    /// * If the number of created nodes would exceed [TreeEntry::MAX_INDEX], an error is being returned.
+    /// * If the number of created nodes would exceed [`TreeEntry::MAX_INDEX`], an error is being returned.
     /// * An error is returned if a built tree is incomplete.
     pub fn build_tree(&mut self, value_lengths: &[u8]) -> Result<(), &'static str> {
         let tree = &mut self.tree;
@@ -158,7 +196,7 @@ impl HuffTree {
     /// If a branch is encountered a bit of value `0` indicates that the left node should be followed,
     /// and `1` to take the path to the right.
     ///
-    /// If a tree has been initialized with [HuffTree::set_single] this method will always return the
+    /// If a tree has been initialized with [`HuffTree::set_single`] this method will always return the
     /// single `value`, without reading any bits from the stream.
     ///
     /// # Panics
@@ -181,20 +219,21 @@ impl HuffTree {
             }
         }
     }
-    #[allow(dead_code)]
     /// Return whether the tree is empty (uninitialized).
     pub fn is_empty(&self) -> bool {
         self.tree.is_empty()
     }
-    #[allow(dead_code)]
     /// Return the number of populated nodes.
     pub fn len(&self) -> usize {
         self.tree.len()
     }
-    #[allow(dead_code)]
     /// Return a reference to a collection of tree nodes
     pub fn inspect(&self) -> &[TreeEntry] {
         &self.tree
+    }
+    /// Shrinks the capacity of the tree as much as possible.
+    pub fn shrink_to_fit(&mut self) {
+        self.tree.shrink_to_fit()
     }
 }
 
