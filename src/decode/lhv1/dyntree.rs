@@ -1,6 +1,6 @@
 //! # Dynamic Huffman Coding.
 use core::fmt;
-#[cfg(not(feature = "std"))]
+#[cfg(all(test, not(feature = "std")))]
 use alloc::{string::String};
 use crate::error::LhaError;
 use crate::bitstream::BitRead;
@@ -457,6 +457,7 @@ impl DynHuffTree {
     }
 }
 
+#[cfg(test)]
 impl fmt::Display for DynHuffTree {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 
