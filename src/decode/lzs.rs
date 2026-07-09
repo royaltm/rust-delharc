@@ -92,6 +92,7 @@ mod tests {
         println!("LzsDecoder<Empty> {}", size_of::<LzsDecoder<io::Empty>>());
         println!("LzsDecoder<fs::File> {}", size_of::<LzsDecoder<fs::File>>());
         println!("RingArrayBuf<RING_BUFFER_SIZE> {}", size_of::<RingArrayBuf<RING_BUFFER_SIZE>>());
+        let _ = LzsDecoder::new(io::empty());
     }
 
     #[test]

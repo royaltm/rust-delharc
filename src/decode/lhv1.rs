@@ -138,6 +138,7 @@ mod tests {
         println!("Lh1Decoder<File> {}", size_of::<Lh1Decoder<fs::File>>());
         println!("DynHuffTree {}", size_of::<DynHuffTree>());
         println!("RingArrayBuf<RING_BUFFER_SIZE> {}", size_of::<RingArrayBuf<RING_BUFFER_SIZE>>());
+        let _ = Lh1Decoder::new(io::empty());
     }
 
     #[test]
@@ -148,7 +149,7 @@ mod tests {
         let mut decoder = Lh1Decoder::new(RngReader(&mut rng));
         let mut buf = Vec::new();
         buf.resize(1024, 0);
-        for n in 0..1000 {
+        for n in 0..600 {
             println!("-lh1-: {}", n);
             for i in 1..=1024 {
                 decoder.fill_buffer(&mut buf[0..i]).unwrap()

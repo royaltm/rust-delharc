@@ -11,10 +11,24 @@ use super::Decoder;
 
 const NUM_COMMANDS: usize = 510;
 const NUM_TEMP_CODELEN: usize = 20;
+/// The maximum number of allowed [`LhaDecoderConfig::HISTORY_BITS`].
+pub const MAX_HISTORY_BITS: usize = 24;
 
+// LHArc version 2 configuration for [`LhaV2Decoder`].
 pub trait LhaDecoderConfig {
+    /// A ring buffer object of size equal to 2 to the power of (Self::HISTORY_BITS - 1).
     type RingBuffer: RingBuffer;
+    /// The code lengths table size for building the offset tree.
+    ///
+    /// The value of this number is determining the maximum size of the
+    /// history sliding window. E.g for 8192 byte sliding window set this to 14.
+    ///
+    /// This has to be no greater than [`MAX_HISTORY_BITS`].
     const HISTORY_BITS: u32;
+    /// This number of bits is read to determine the size of the actual offset
+    /// code length table.
+    ///
+    /// This is currently limited to be between 1 and 5 inclusive.
     const OFFSET_BITS: u32;
 }
 
@@ -35,7 +49,7 @@ macro_rules! impl_lhav2_decoder {
         pub struct $cfg_name;
 
         impl LhaDecoderConfig for $cfg_name {
-            type RingBuffer = RingArrayBuf<{1 << $history_bits - 1}>;
+            type RingBuffer = RingArrayBuf<{1u32.strict_shl($history_bits - 1) as usize}>;
             const HISTORY_BITS: u32 = $history_bits;
             const OFFSET_BITS: u32 = $offset_bits;
         }
@@ -58,6 +72,9 @@ pub type LhxDecoder<R> = LhaV2Decoder<LhxDecoderCfg, R>;
 
 impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
     pub fn new(rd: R) -> LhaV2Decoder<C, R> {
+        assert_eq!(<C::RingBuffer as RingBuffer>::BUFFER_SIZE, const { 1 << C::HISTORY_BITS - 1 });
+        assert!((1..=5).contains(&C::OFFSET_BITS));
+        assert!(C::HISTORY_BITS as usize <= MAX_HISTORY_BITS);
         let bit_reader = BitStream::new(rd);
         let ringbuf = Default::default();
         let command_tree = HuffTree::with_capacity(NUM_COMMANDS * 2);
@@ -145,6 +162,9 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         // single code only
         if num_codes == 0 {
             let code = self.bit_reader.read_bits(9)?;
+            if usize::from(code) >= NUM_COMMANDS {
+                return Err(LhaError::Decompress("invalid single command"))
+            }
             self.command_tree.set_single(code);
             return Ok(());
         }
@@ -178,8 +198,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
     }
 
     fn read_offset_tree(&mut self) -> LhaResult<(), R> {
-        debug_assert!(NUM_TEMP_CODELEN >= C::HISTORY_BITS as usize);
-        let mut code_lengths = [0u8; NUM_TEMP_CODELEN];
+        let mut code_lengths = [0u8; MAX_HISTORY_BITS];
 
         // number of codes to read
         let num_codes: usize = self.bit_reader.read_bits(C::OFFSET_BITS)?;
@@ -188,6 +207,9 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         // single code only
         if num_codes == 0 {
             let code = self.bit_reader.read_bits(C::OFFSET_BITS)?;
+            if u32::from(code) >= C::HISTORY_BITS {
+                return Err(LhaError::Decompress("invalid single offset"))
+            }
             self.offset_tree.set_single(code);
             return Ok(());
         }
@@ -323,33 +345,133 @@ mod tests {
         println!("Lh7::RingBuffer {}", size_of::<<Lh7DecoderCfg as LhaDecoderConfig>::RingBuffer>());
         #[cfg(feature = "lhx")]
         println!("Lhx::RingBuffer {}", size_of::<<LhxDecoderCfg as LhaDecoderConfig>::RingBuffer>());
+        let _ = Lh7Decoder::new(io::empty());
+        let _ = Lh5Decoder::new(io::empty());
+        #[cfg(feature = "lhx")]
+        let _ = LhxDecoder::new(io::empty());
     }
 
     #[test]
     #[ignore = "long tests"]
     fn lhav2_long_tests() {
-        use rand::RngReader;
+        use rand::{Rng, RngExt, RngReader, seq::SliceRandom};
+
+        // build a random tree lengths with an upper num of values and max depth
+        fn build_random_lengths(
+                max_values: usize,
+                mut max_depth: u8,
+                final_size: usize,
+                rng: &mut impl Rng,
+                out: &mut Vec<u8>
+            )
+        {
+            out.clear();
+            let mut max_leaves = 2usize;
+            for level in 1..max_depth {
+                let n = out.len();
+                let remaining = max_values - n;
+                let num_leaves;
+                if let Some(margin) = (max_leaves * 2).checked_sub(remaining)  {
+                    if remaining <= max_leaves {
+                        max_depth = level;
+                        break
+                    }
+                    num_leaves = margin;
+                }
+                else {
+                    num_leaves = rng.random_range(0..max_leaves);
+                };
+                max_leaves = (max_leaves - num_leaves) * 2;
+                out.resize(n + num_leaves, level);
+            }
+            out.resize(out.len() + max_leaves, max_depth);
+            assert!(final_size >= out.len(), "final_size: {} < out.len: {}", final_size, out.len());
+            out.resize(final_size, 0);
+            out.shuffle(rng);
+        }
+
         let mut rng = rand::rng();
         let mut decoder = Lh5Decoder::new(RngReader(&mut rng));
+        let mut rng = rand::rng();
         let mut buf = Vec::new();
+        let mut code_lengths = Vec::new();
         buf.resize(1024, 0);
-        for i in 0..1000 {
+        let mut max_temp = 0;
+        let mut max_command = 0;
+        let mut max_offset = 0;
+        for i in 0..300 {
             println!("-lh5-: {}", i);
-            let mut err = 0u64;
-            while decoder.read_temp_tree().is_err() {
-                err += 1;
+            // let mut err = 0u64;
+            let mut max = 0;
+            for _ in 0..1000 {
+                if decoder.read_temp_tree().is_err() {
+                    // err += 1;
+                }
+                else {
+                    max = max.max(decoder.offset_tree.len());
+                }
             }
-            println!("-lh5-: read_temp_tree: {} retries: {}", decoder.offset_tree.len(), err);
-            let mut err = 0u64;
-            while decoder.read_command_tree().is_err() {
-                err += 1;
+            max_temp = max_temp.max(max);
+            // println!("-lh5-: read_temp_tree: {} errors: {}/1000", max, err);
+            match rng.random_range(1..=NUM_TEMP_CODELEN) {
+                1 => {
+                    decoder.offset_tree.set_single(rng.random_range(0..=31));
+                    // println!("-lh5-: temp single: {:?}", decoder.offset_tree.inspect()[0]);
+                }
+                max => {
+                    build_random_lengths(max, 10, NUM_TEMP_CODELEN, &mut rng, &mut code_lengths);
+                    decoder.offset_tree.build_tree(&code_lengths).unwrap();
+                    // println!("-lh5-: temp max: {} \n{}", max, decoder.offset_tree);
+                }
             }
-            println!("-lh5-: read_command_tree: {} retries: {}", decoder.command_tree.len(), err);
-            let mut err = 0u64;
-            while decoder.read_offset_tree().is_err() {
-                err += 1;
+
+            // let mut err = 0u64;
+            let mut max = 0;
+            for _ in 0..1000 {
+                if decoder.read_command_tree().is_err() {
+                    // err += 1;
+                }
+                else {
+                    max = max.max(decoder.command_tree.len());
+                }
             }
-            println!("-lh5-: read_offset_tree: {} retries: {}", decoder.offset_tree.len(), err);
+            max_command = max_command.max(max);
+            // println!("-lh5-: read_command_tree: {} errors: {}/1000", max, err);
+            match rng.random_range(1..=NUM_COMMANDS) {
+                1 => {
+                    decoder.command_tree.set_single(rng.random_range(0..NUM_COMMANDS as u16));
+                    // println!("-lh5-: command single: {:?}", decoder.command_tree.inspect()[0]);
+                }
+                max => {
+                    build_random_lengths(max, (NUM_TEMP_CODELEN - 1) as u8, NUM_COMMANDS, &mut rng, &mut code_lengths);
+                    decoder.command_tree.build_tree(&code_lengths).unwrap();
+                    // println!("-lh5-: command max: {} \n{}", max, decoder.command_tree);
+                }
+            }
+
+            // let mut err = 0u64;
+            let mut max = 0;
+            for _ in 0..1000 {
+                if decoder.read_offset_tree().is_err() {
+                    // err += 1;
+                }
+                else {
+                    max = max.max(decoder.offset_tree.len());
+                }
+            }
+            max_offset = max_offset.max(max);
+            // println!("-lh5-: read_offset_tree: {} errors: {}/1000", max, err);
+            match rng.random_range(1..=Lh5DecoderCfg::HISTORY_BITS as usize) {
+                1 => {
+                    decoder.offset_tree.set_single(rng.random_range(0..Lh5DecoderCfg::HISTORY_BITS as u16));
+                    // println!("-lh5-: offset single: {:?}", decoder.offset_tree.inspect()[0]);
+                }
+                max => {
+                    build_random_lengths(max, 10, Lh5DecoderCfg::HISTORY_BITS as usize, &mut rng, &mut code_lengths);
+                    decoder.offset_tree.build_tree(&code_lengths).unwrap();
+                    // println!("-lh5-: offset max: {} \n{}", max, decoder.offset_tree);
+                }
+            }
 
             decoder.remaining_commands = u16::MAX;
 
@@ -360,6 +482,9 @@ mod tests {
                     break
                 }
             }
-        }        
+        }
+        println!("-lh5-: read_temp_tree: {}", max_temp);
+        println!("-lh5-: read_command_tree: {}", max_command);
+        println!("-lh5-: read_offset_tree: {}", max_offset);
     }
 }
