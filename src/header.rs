@@ -146,6 +146,7 @@ impl LhaHeader {
     ///
     /// This method is only available with `std` feature enabled.
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     pub fn parse_pathname(&self) -> PathBuf {
         let mut path = PathBuf::new();
         let mut filename = Cow::Borrowed("");
@@ -218,7 +219,7 @@ impl LhaHeader {
     /// The routine converts all non-ASCII or control characters to `%xx` sequences.
     ///
     /// # Notes
-    /// Some archives made on [OsType::Amiga] can have a comment embedded in the filename field
+    /// Some archives made on [`OsType::Amiga`] can have a comment embedded in the filename field
     /// after the `nul` character. If the comment could not be found in extended data, an attempt
     /// is made to extract the comment from the filename if the archive OS supports it.
     pub fn parse_comment(&self) -> Option<Cow<'_, str>> {

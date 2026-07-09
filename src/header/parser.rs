@@ -164,7 +164,7 @@ impl LhaHeader {
     /// * The ["MS-DOS Attributes"][EXT_HEADER_MSDOS_ATTRS] header for reading MS-DOS attributes.
     /// * The ["MS-DOS Size"][EXT_HEADER_MSDOS_SIZE] header for reading 64-bit file size.
     ///
-    /// All extra data is available as raw bytes and extra headers can be iterated with [LhaHeader::iter_extra].
+    /// All extra data is available as raw bytes and extra headers can be iterated with [`LhaHeader::iter_extra`].
     ///
     /// Instance methods can be further called on the parsed `LhaHeader` struct to attempt to parse the
     /// name and path of the file or other file's meta-data.

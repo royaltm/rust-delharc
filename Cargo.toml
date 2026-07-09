@@ -15,6 +15,7 @@ rust-version = "1.93"
 
 [package.metadata.docs.rs]
 all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["std", "lh1", "lz"]

@@ -48,13 +48,6 @@ compression method features. Otherwise the library will be compiled in the `no_s
 | `-pm1-`    | unsupported        | N/A     | PMarc, 8 Kb sliding window, static huffman
 | `-pm2-`    | unsupported        | N/A     | PMarc, 4 Kb sliding window, static huffman
 
-The `extend` feature exposes library implementation details, allowing users to access directly
-bitstreams, ring buffers or a huffman tree implementations, with the caveat that they may change
-in the future releases of `delharc`.
-
-For example, [`LhaV2Decoder`] is a generic LHArc version 2 decoder, which allows creating decoders
-with custom sliding window sizes, using the [`LhaDecoderConfig`] trait for configuration.
-
 */
 #![cfg_attr(feature = "std", doc = r##"
 ## Example
@@ -123,9 +116,24 @@ const DATA: &[u8] = include_bytes!("file.lzh");
 //...
 let lha_reader = LhaDecodeReader::new(DATA).unwrap();
 ```
+
+## Extending `delharc`
+
+The `extend` feature exposes library implementation details, allowing users to access directly
+bitstreams, ring buffers or a huffman tree implementations, with the caveat that they may change
+in the future releases of `delharc`.
+
+For example, [`LhaV2Decoder`](crate::decode::LhaV2Decoder) is a generic LHArc version 2 decoder,
+which allows creating decoders with custom sliding window sizes, using the
+[`LhaDecoderConfig`](crate::decode::LhaDecoderConfig) trait for configuration.
+
+The `extend` feature is not enable by default.
+
 */
 // https://web.archive.org/web/20240916153830/https://archive.gamedev.net/archive/reference/articles/article295.html
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 pub mod crc;
@@ -142,10 +150,13 @@ mod bitstream;
 mod statictree;
 
 #[cfg(feature = "extend")]
+#[cfg_attr(docsrs, doc(cfg(feature = "extend")))]
 pub mod ringbuf;
 #[cfg(feature = "extend")]
+#[cfg_attr(docsrs, doc(cfg(feature = "extend")))]
 pub mod bitstream;
 #[cfg(feature = "extend")]
+#[cfg_attr(docsrs, doc(cfg(feature = "extend")))]
 pub mod statictree;
 
 // Various parsers assume usize has enough bits and will break on < 32-bits.
@@ -157,6 +168,7 @@ pub use header::{
 };
 pub use error::{LhaError, LhaResult};
 #[cfg(not(feature = "std"))]
+#[cfg_attr(docsrs, doc(cfg(not(feature = "std"))))]
 pub use stub_io::{Read, Take, UnexpectedEofError};
 
 #[cfg(feature = "std")]

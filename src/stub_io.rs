@@ -150,6 +150,7 @@ impl<R: io::Read> Read for R {
 
 /// An error when reading from slice without `std`.
 #[cfg(not(feature = "std"))]
+#[cfg_attr(docsrs, doc(cfg(not(feature = "std"))))]
 #[derive(Debug)]
 pub struct UnexpectedEofError;
 

@@ -14,9 +14,9 @@ const NUM_TEMP_CODELEN: usize = 20;
 /// The maximum number of allowed [`LhaDecoderConfig::HISTORY_BITS`].
 pub const MAX_HISTORY_BITS: usize = 24;
 
-// LHArc version 2 configuration for [`LhaV2Decoder`].
+/// LHArc version 2 configuration for [`LhaV2Decoder`].
 pub trait LhaDecoderConfig {
-    /// A ring buffer object of size equal to 2 to the power of (Self::HISTORY_BITS - 1).
+    /// A ring buffer object of size equal to 2 to the power of ([`Self::HISTORY_BITS`] - 1).
     type RingBuffer: RingBuffer;
     /// The code lengths table size for building the offset tree.
     ///
@@ -45,9 +45,6 @@ pub struct LhaV2Decoder<C: LhaDecoderConfig, R> {
 
 macro_rules! impl_lhav2_decoder {
     ($cfg_name:ident, HISTORY_BITS=$history_bits:literal, OFFSET_BITS=$offset_bits:literal) => {
-        #[derive(Debug)]
-        pub struct $cfg_name;
-
         impl LhaDecoderConfig for $cfg_name {
             type RingBuffer = RingArrayBuf<{1u32.strict_shl($history_bits - 1) as usize}>;
             const HISTORY_BITS: u32 = $history_bits;
@@ -55,6 +52,15 @@ macro_rules! impl_lhav2_decoder {
         }
     };
 }
+
+#[derive(Debug)]
+pub struct Lh5DecoderCfg;
+#[derive(Debug)]
+pub struct Lh7DecoderCfg;
+#[cfg(feature = "lhx")]
+#[cfg_attr(docsrs, doc(cfg(feature = "lhx")))]
+#[derive(Debug)]
+pub struct LhxDecoderCfg;
 
 impl_lhav2_decoder!(Lh5DecoderCfg, HISTORY_BITS=14, OFFSET_BITS=4);
 impl_lhav2_decoder!(Lh7DecoderCfg, HISTORY_BITS=17, OFFSET_BITS=5);
@@ -67,8 +73,8 @@ pub type Lh5Decoder<R> = LhaV2Decoder<Lh5DecoderCfg, R>;
 pub type Lh7Decoder<R> = LhaV2Decoder<Lh7DecoderCfg, R>;
 /// A decoder for `-lhx-` compression methods.
 #[cfg(feature = "lhx")]
+#[cfg_attr(docsrs, doc(cfg(feature = "lhx")))]
 pub type LhxDecoder<R> = LhaV2Decoder<LhxDecoderCfg, R>;
-
 
 impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
     pub fn new(rd: R) -> LhaV2Decoder<C, R> {

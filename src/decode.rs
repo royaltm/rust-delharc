@@ -15,10 +15,13 @@ mod lhv1;
 mod lhv2;
 
 #[cfg(feature = "lz")]
+#[cfg_attr(docsrs, doc(cfg(feature = "lz")))]
 pub use lzs::*;
 #[cfg(feature = "lz")]
+#[cfg_attr(docsrs, doc(cfg(feature = "lz")))]
 pub use lz5::*;
 #[cfg(feature = "lh1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "lh1")))]
 pub use lhv1::*;
 pub use lhv2::*;
 
@@ -85,22 +88,27 @@ pub struct LhaDecodeError<R: Read> {
     source: LhaError<R::Error>
 }
 
+/// A decoder enum allowing to work with multiple decoders, using a single object.
 #[non_exhaustive]
 #[derive(Debug)]
 pub enum DecoderAny<R> {
     PassthroughDecoder(PassthroughDecoder<R>),
     UnsupportedDecoder(UnsupportedDecoder<R>),
     #[cfg(feature = "lz")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "lz")))]
     LzsDecoder(LzsDecoder<R>),
     #[cfg(feature = "lz")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "lz")))]
     Lz5Decoder(Lz5Decoder<R>),
     #[cfg(feature = "lh1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "lh1")))]
     Lh1Decoder(Lh1Decoder<R>),
     Lh4Decoder(Lh5Decoder<R>),
     Lh5Decoder(Lh5Decoder<R>),
     Lh6Decoder(Lh7Decoder<R>),
     Lh7Decoder(Lh7Decoder<R>),
     #[cfg(feature = "lhx")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "lhx")))]
     LhxDecoder(LhxDecoder<R>),
 }
 
@@ -110,16 +118,20 @@ macro_rules! decoder_any_dispatch {
             DecoderAny::PassthroughDecoder($($spec)*) => $expr,
             DecoderAny::UnsupportedDecoder($($spec)*) => $expr,
             #[cfg(feature = "lz")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "lz")))]
             DecoderAny::LzsDecoder($($spec)*) => $expr,
             #[cfg(feature = "lz")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "lz")))]
             DecoderAny::Lz5Decoder($($spec)*) => $expr,
             #[cfg(feature = "lh1")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "lh1")))]
             DecoderAny::Lh1Decoder($($spec)*) => $expr,
             DecoderAny::Lh4Decoder($($spec)*)|
             DecoderAny::Lh5Decoder($($spec)*) => $expr,
             DecoderAny::Lh6Decoder($($spec)*)|
             DecoderAny::Lh7Decoder($($spec)*) => $expr,
             #[cfg(feature = "lhx")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "lhx")))]
             DecoderAny::LhxDecoder($($spec)*) => $expr,
         }
     };
@@ -372,16 +384,20 @@ impl<R: Read> DecoderAny<R> {
             CompressionMethod::Lz4|
             CompressionMethod::Lh0 => DecoderAny::PassthroughDecoder(PassthroughDecoder::new(rd)),
             #[cfg(feature = "lz")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "lz")))]
             CompressionMethod::Lzs => DecoderAny::LzsDecoder(LzsDecoder::new(rd)),
             #[cfg(feature = "lz")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "lz")))]
             CompressionMethod::Lz5 => DecoderAny::Lz5Decoder(Lz5Decoder::new(rd)),
             #[cfg(feature = "lh1")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "lh1")))]
             CompressionMethod::Lh1 => DecoderAny::Lh1Decoder(Lh1Decoder::new(rd)),
             CompressionMethod::Lh4 => DecoderAny::Lh4Decoder(Lh5Decoder::new(rd)),
             CompressionMethod::Lh5 => DecoderAny::Lh5Decoder(Lh5Decoder::new(rd)),
             CompressionMethod::Lh6 => DecoderAny::Lh6Decoder(Lh7Decoder::new(rd)),
             CompressionMethod::Lh7 => DecoderAny::Lh7Decoder(Lh7Decoder::new(rd)),
             #[cfg(feature = "lhx")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "lhx")))]
             CompressionMethod::Lhx => DecoderAny::LhxDecoder(LhxDecoder::new(rd)),
             _ => DecoderAny::UnsupportedDecoder(UnsupportedDecoder::new(rd))
         }
