@@ -60,10 +60,12 @@ impl TreeEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::mem;
+
     #[test]
     fn tree_entry_works() {
-        assert_eq!(mem::size_of::<TreeEntry>(), 2);
+        assert!(TreeEntry::branch(0x8000).is_err());
+        assert!(TreeEntry::branch(0x7FFF).is_ok());
+        assert_eq!(size_of::<TreeEntry>(), 2);
         assert_eq!(LEAF_BIT, 0x8000);
         let mut leaf0 = TreeEntry::leaf(0);
         assert!(leaf0.is_leaf());

@@ -105,3 +105,40 @@ impl From<UnrecognizedCompressionMethod> for io::Error {
         io::Error::new(io::ErrorKind::InvalidData, e)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[cfg(not(feature = "std"))]
+    use alloc::string::ToString;
+    use super::*;
+
+    #[test]
+    fn header_compression_works() {
+        let methods = [
+            (b"-lhd-", true),
+            (b"-lzs-", false),
+            (b"-lz4-", false),
+            (b"-lz5-", false),
+            (b"-lh0-", false),
+            (b"-lh1-", false),
+            (b"-lh4-", false),
+            (b"-lh5-", false),
+            (b"-lh6-", false),
+            (b"-lh7-", false),
+            (b"-lhx-", false),
+            (b"-pm0-", false),
+            (b"-pm1-", false),
+            (b"-pm2-", false),
+        ];
+        for (m, is_dir) in methods {
+            let cm = CompressionMethod::try_from(m).unwrap();
+            assert_eq!(cm.as_identifier(), m);
+            assert_eq!(cm.is_directory(), is_dir);
+            assert_eq!(cm.to_string().as_str(), <str>::from_utf8(m).unwrap());
+        }
+        let err = CompressionMethod::try_from(b"-xxx-").unwrap_err();
+        assert!(err.to_string().starts_with("Unrecognized compression method: "));
+        #[cfg(feature = "std")]
+        assert!(std::io::Error::from(err).to_string().starts_with("Unrecognized compression method: "));
+    }
+}

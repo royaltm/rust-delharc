@@ -83,3 +83,43 @@ impl From<UnrecognizedOsType> for io::Error {
         io::Error::new(io::ErrorKind::InvalidData, e)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[cfg(not(feature = "std"))]
+    use alloc::string::ToString;
+    use super::*;
+
+    #[test]
+    fn ostype_works() {
+        let oses = [
+            0x00,
+            b'M',
+            b'w',
+            b'W',
+            b'U',
+            b'2',
+            b'm',
+            b'A',
+            b'a',
+            b'J',
+            b'C',
+            b'F',
+            b'R',
+            b'T',
+            b'9',
+            b'K',
+            b'3',
+            b'H',
+            b'X',
+        ];
+        for osbyte in oses {
+            let os = OsType::try_from(osbyte).unwrap();
+            assert_eq!(u8::from(os), osbyte);
+        }
+        let err = OsType::try_from(0xff).unwrap_err();
+        assert!(err.to_string().starts_with("Unrecognized OS type: "));
+        #[cfg(feature = "std")]
+        assert!(std::io::Error::from(err).to_string().starts_with("Unrecognized OS type: "));
+    }
+}

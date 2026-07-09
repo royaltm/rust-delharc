@@ -57,6 +57,7 @@ fn test_lhmelt_16536() -> io::Result<()> {
                 let fullpath = &fullpath.to_str().unwrap();
                 assert_eq!(&header.parse_pathname().to_str().unwrap(), fullpath);
                 assert_eq!(&header.parse_pathname_to_str(), &fullpath.replace(&std::path::MAIN_SEPARATOR.to_string(), "/"));
+                assert!(header.parse_comment().is_none());
                 let last_modified = format!("{}", header.parse_last_modified());
                 if header.level == 2 {
                     assert_eq!(&last_modified, "2000-01-01 00:00:00 UTC");
