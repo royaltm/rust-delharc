@@ -367,7 +367,7 @@ impl DynHuffTree {
         node.entry = prev_leader.entry;
         prev_leader.entry = entry;
         // update old leader
-        match node.entry.as_type() {
+        match node.entry.as_node() {
             NodeType::Leaf(value) => {
                 self.leaves.set_leaf_node_index(value, node_index);
             }
@@ -376,7 +376,7 @@ impl DynHuffTree {
             }
         }
         // update new leader
-        match entry.as_type() {
+        match entry.as_node() {
             NodeType::Leaf(value) => {
                 self.leaves.set_leaf_node_index(value, leader_index);
             }
@@ -441,7 +441,7 @@ impl DynHuffTree {
         let nodes = &self.nodes;
         let mut node = &nodes[0];
         loop {
-            match node.entry.as_type() {
+            match node.entry.as_node() {
                 NodeType::Leaf(value) => {
                     self.increment_for_value(value);
                     return Ok(value)
@@ -463,7 +463,7 @@ impl fmt::Display for DynHuffTree {
 
         fn fmt_step(nodes: &[TreeNode], index: usize, f: &mut fmt::Formatter<'_>, prefix: &mut String) -> fmt::Result {
             let node = nodes[index];
-            match node.entry.as_type() {
+            match node.entry.as_node() {
                 NodeType::Leaf(code) => writeln!(f, "{} -> {} f: {} g: {}", prefix, code, node.freq, node.group)?,
                 NodeType::Branch(index) => {
                     prefix.push('0');
@@ -501,7 +501,7 @@ mod tests {
         assert!(!tree.nodes[0].is_leaf());
         assert_eq!(tree.nodes[0].parent, 0);
         for (index, node) in tree.nodes.iter().enumerate() {
-            match node.entry.as_type() {
+            match node.entry.as_node() {
                 NodeType::Leaf(value) => {
                     // all leaves should be unique
                     assert!((value as usize) < NUM_LEAVES);
@@ -561,7 +561,7 @@ mod tests {
         }
         // all leaves should be reachable and on the unique path
         fn into_branch(nodes: &[TreeNode], index: usize, leaves: &mut HashSet<u16>) {
-            match nodes[index].entry.as_type() {
+            match nodes[index].entry.as_node() {
                 NodeType::Leaf(code) => {
                     assert!(leaves.insert(code));
                 }

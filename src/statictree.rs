@@ -205,7 +205,7 @@ impl HuffTree {
         let tree = &self.tree;
         let mut node = &tree[0]; // panics if tree uninitialized
         loop {
-            match node.as_type() {
+            match node.as_node() {
                 NodeType::Leaf(code) => return Ok(code),
                 NodeType::Branch(index) => {
                     let index = index as usize + path.read_bits::<usize>(1)?;
@@ -242,7 +242,7 @@ impl fmt::Display for HuffTree {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 
         fn fmt_step(tree: &Vec<TreeEntry>, index: usize, f: &mut fmt::Formatter<'_>, prefix: &mut String) -> fmt::Result {
-            match tree[index].as_type() {
+            match tree[index].as_node() {
                 NodeType::Leaf(code) => writeln!(f, "{} -> {}", prefix, code)?,
                 NodeType::Branch(index) => {
                     prefix.push('0');
@@ -276,7 +276,7 @@ mod tests {
         let mut leaves: HashMap<u16, usize> = HashMap::with_capacity(num_leaves);
         let mut children: HashSet<u16> = HashSet::with_capacity(tree.tree.len());
         for (index, node) in tree.tree.iter().enumerate() {
-            match node.as_type() {
+            match node.as_node() {
                 NodeType::Leaf(value) => {
                     // all leaves should be unique
                     assert!(leaves.insert(value, index).is_none());
@@ -297,7 +297,7 @@ mod tests {
         assert_eq!(leaves.len(), num_leaves);
         // all leaves should be reachable and on the unique path
         fn into_branch(nodes: &[TreeEntry], index: usize, leaves: &mut HashSet<u16>) {
-            match nodes[index].as_type() {
+            match nodes[index].as_node() {
                 NodeType::Leaf(code) => {
                     assert!(leaves.insert(code));
                 }
@@ -347,10 +347,24 @@ mod tests {
         }
         assert_eq!(res, [0,1,2,3,4,5,6,7,11,12]);
 
-        tree.build_tree(&[0, 0, 0, 1, 0, 3, 3, 0, 4, 4, 5, 0, 0, 5, 5, 5]).unwrap();
+        assert!(!tree.is_empty());
+        assert_ne!(tree.len(), 0);
+        assert_ne!(tree.tree.capacity(), 0);
+        tree.clear();
+        assert!(tree.is_empty());
+        assert_ne!(tree.tree.capacity(), 0);
+        tree.shrink_to_fit();
+        assert_eq!(tree.len(), 0);
+        assert_eq!(tree.tree.capacity(), 0);
+        let lengths = [0, 0, 0, 1, 0, 3, 3, 0, 4, 4, 5, 0, 0, 5, 5, 5];
+        tree.try_reserve(&lengths).unwrap();
+        assert_eq!(tree.len(), 0);
+        assert_eq!(tree.tree.capacity(), 9 + 8);
+        tree.build_tree(&lengths).unwrap();
         println!("{}", tree);
         validate_tree(&tree, 9);
-        assert_eq!(tree.tree.len(), 9 + 8);
+        assert_eq!(tree.len(), 9 + 8);
+        assert_eq!(tree.tree.capacity(), 9 + 8);
         let bits: &[u8] = &[0b01001011, 0b10011011, 0b11001110, 0b11111011, 0b11100000];
         let mut path = BitStream::new(bits);
         let mut res = Vec::new();
