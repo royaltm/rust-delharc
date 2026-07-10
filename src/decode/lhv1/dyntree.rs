@@ -1,5 +1,5 @@
 //! # Dynamic Huffman Coding.
-use core::fmt;
+use core::{fmt, mem};
 #[cfg(all(test, not(feature = "std")))]
 use alloc::{string::String};
 use crate::error::LhaError;
@@ -330,7 +330,8 @@ impl DynHuffTree {
         for (node, index) in self.nodes[1..].iter_mut().zip(1..) {
             if node.freq == freq {
                 node.group = group;
-            } else {
+            }
+            else {
                 freq = node.freq;
                 group = self.groups.allocate();
                 node.group = group;
@@ -344,15 +345,14 @@ impl DynHuffTree {
         let child_index = child_index as usize;
         debug_assert!(parent_index < NUM_NODES);
         #[cfg(debug_assertions)]
-        let child_nodes = &mut self.nodes[child_index - 1..child_index + 1];
+        let child_nodes = &mut self.nodes[child_index - 1..=child_index];
         #[cfg(not(debug_assertions))]
-        let child_nodes = unsafe { self.nodes.get_unchecked_mut(child_index - 1..child_index + 1) };
+        let child_nodes = unsafe { self.nodes.get_unchecked_mut(child_index - 1..=child_index) };
         for child in child_nodes.iter_mut() {
             child.parent = parent_index as u16;
         }
     }
 
-    #[allow(clippy::manual_swap)]
     #[inline]
     fn promote_to_leader(&mut self, node_index: usize) -> usize {
         let (node, head) = self.nodes[..node_index + 1].split_last_mut().unwrap();
@@ -362,10 +362,9 @@ impl DynHuffTree {
             return node_index
         }
         // swap the new leader with the old one
-        let prev_leader = &mut head[leader_index];
-        let entry = node.entry;
-        node.entry = prev_leader.entry;
-        prev_leader.entry = entry;
+        let leader = &mut head[leader_index];
+        mem::swap(&mut node.entry, &mut leader.entry);
+        let leader_node = leader.entry.as_node();
         // update old leader
         match node.entry.as_node() {
             NodeType::Leaf(value) => {
@@ -376,7 +375,7 @@ impl DynHuffTree {
             }
         }
         // update new leader
-        match entry.as_node() {
+        match leader_node {
             NodeType::Leaf(value) => {
                 self.leaves.set_leaf_node_index(value, leader_index);
             }
@@ -580,7 +579,7 @@ mod tests {
     fn dyntree_works() {
         let mut tree = DynHuffTree::new();
         validate_tree(&tree);
-        println!("{}", tree);
+        println!("{:?}\n{}", tree, tree);
         for i in 0..NUM_LEAVES {
             for _ in 0..i {
                 tree.increment_for_value(i as u16);
