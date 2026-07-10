@@ -84,8 +84,10 @@ jobs:
           RUSTFLAGS: "-Cinstrument-coverage"
         run: |
           cargo build --no-default-features --features=lh1,lz,lhx
+          cargo run --example extract --no-default-features --features=lh1,lz,lhx
           cargo test --no-default-features --features=lh1,lz,lhx
           cargo build --all-features
+          cargo run --example extract --all-features
           cargo test --all-features
           cargo test --all-features -- --ignored
           grcov . \
