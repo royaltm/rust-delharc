@@ -1,7 +1,5 @@
 use core::fmt;
 #[cfg(feature = "std")]
-use std::error::Error;
-#[cfg(feature = "std")]
 use std::io;
 
 #[non_exhaustive]
@@ -78,8 +76,7 @@ impl CompressionMethod {
     }
 }
 
-#[cfg(feature = "std")]
-impl Error for UnrecognizedCompressionMethod {}
+impl core::error::Error for UnrecognizedCompressionMethod {}
 
 impl fmt::Display for UnrecognizedCompressionMethod {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

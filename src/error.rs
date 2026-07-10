@@ -34,9 +34,8 @@ impl<E: fmt::Display> fmt::Display for LhaError<E> {
     }
 }
 
-#[cfg(feature = "std")]
-impl<E: std::error::Error + 'static> std::error::Error for LhaError<E> {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl<E: core::error::Error + 'static> core::error::Error for LhaError<E> {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         use LhaError::*;
         match self {
             Io(e) => Some(e),

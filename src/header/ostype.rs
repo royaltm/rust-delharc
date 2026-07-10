@@ -1,7 +1,5 @@
 use core::fmt;
 #[cfg(feature = "std")]
-use std::error::Error;
-#[cfg(feature = "std")]
 use std::io;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,8 +66,7 @@ impl TryFrom<u8> for OsType {
     }
 }
 
-#[cfg(feature = "std")]
-impl Error for UnrecognizedOsType {}
+impl core::error::Error for UnrecognizedOsType {}
 
 impl fmt::Display for UnrecognizedOsType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

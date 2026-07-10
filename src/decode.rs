@@ -474,11 +474,10 @@ impl<R: Read> LhaDecodeError<R> {
     }
 }
 
-#[cfg(feature = "std")]
-impl<R: Read> std::error::Error for LhaDecodeError<R>
-    where LhaError<R::Error>: std::error::Error + 'static
+impl<R: Read> core::error::Error for LhaDecodeError<R>
+    where LhaError<R::Error>: core::error::Error + 'static
 {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         Some(&self.source)
     }
 }
