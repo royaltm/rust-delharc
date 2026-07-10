@@ -79,21 +79,15 @@ impl HuffTree {
         let tree = Vec::with_capacity(capacity);
         HuffTree { tree }
     }
-    /// Attempt to reserve enough memory to build a tree from the given array of lengths.
-    ///
-    /// See [`Self::build_tree`] for details.
-    ///
-    /// This method does not validate the `value_lengths`. [`Self::build_tree`] may still
-    /// fail after this method succeeds.
-    pub fn try_reserve(&mut self, value_lengths: &[u8]) -> Result<(), &'static str> {
-        if value_lengths.len() > TreeEntry::MAX_INDEX / 2 {
-            return Err("too many code lengths");
+    /// Attempt to reserve enough memory to build a tree from the given number of leaves.
+    pub fn try_reserve(&mut self, num_leaves: usize) -> Result<(), &'static str> {
+        if num_leaves > TreeEntry::MAX_INDEX / 2 {
+            return Err("too many leaves");
         }
-        let leaves: usize = value_lengths.iter().filter(|&&n| n != 0).count();
-        if leaves == 0 {
+        if num_leaves == 0 {
             return Ok(())
         }
-        let required_size = leaves * 2 - 1;
+        let required_size = num_leaves * 2 - 1;
         if let Some(reserve) = required_size.checked_sub(self.tree.len())
             && reserve != 0
         {
@@ -241,7 +235,7 @@ impl HuffTree {
 impl fmt::Display for HuffTree {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 
-        fn fmt_step(tree: &Vec<TreeEntry>, index: usize, f: &mut fmt::Formatter<'_>, prefix: &mut String) -> fmt::Result {
+        fn fmt_step(tree: &[TreeEntry], index: usize, f: &mut fmt::Formatter<'_>, prefix: &mut String) -> fmt::Result {
             match tree[index].as_node() {
                 NodeType::Leaf(code) => writeln!(f, "{} -> {}", prefix, code)?,
                 NodeType::Branch(index) => {
@@ -314,7 +308,7 @@ mod tests {
 
     #[test]
     fn hufftree_works() {
-        let mut tree = HuffTree::with_capacity(0);
+        let mut tree = HuffTree::new();
         println!("{}", tree);
         tree.set_single(42);
         validate_tree(&tree, 1);
@@ -356,8 +350,11 @@ mod tests {
         tree.shrink_to_fit();
         assert_eq!(tree.len(), 0);
         assert_eq!(tree.tree.capacity(), 0);
+        tree.try_reserve(0).unwrap();
+        assert_eq!(tree.len(), 0);
+        assert_eq!(tree.tree.capacity(), 0);
         let lengths = [0, 0, 0, 1, 0, 3, 3, 0, 4, 4, 5, 0, 0, 5, 5, 5];
-        tree.try_reserve(&lengths).unwrap();
+        tree.try_reserve(9).unwrap();
         assert_eq!(tree.len(), 0);
         assert_eq!(tree.tree.capacity(), 9 + 8);
         tree.build_tree(&lengths).unwrap();
@@ -376,12 +373,8 @@ mod tests {
         let mut rng = rand::rng();
         let mut rndstream = BitStream::new(RngReader(&mut rng));
         for _ in 0..1_000_000 {
-            match tree.read_entry(&mut rndstream).unwrap() {
-                3|5|6|8|9|10|13|14|15 => {}
-                err => {
-                    panic!("unexpected value returned: {}", err);
-                }
-            }
+            let value = tree.read_entry(&mut rndstream).unwrap();
+            assert!(matches!(value, 3|5|6|8|9|10|13|14|15), "unexpected value returned: {}", value);
         }
 
         assert_eq!(tree.build_tree(&[]).unwrap_err(), "missing some leaves");
@@ -410,6 +403,7 @@ mod tests {
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
         let code_length = vec![0u8; 0x4000];
+        assert_eq!(tree.try_reserve(0x4000).unwrap_err(), "too many leaves");
         assert_eq!(tree.build_tree(&code_length).unwrap_err(), "too many code lengths");
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
@@ -418,7 +412,7 @@ mod tests {
     #[test]
     #[ignore = "long tests"]
     fn hufftree_long_tests() {
-        let mut tree = HuffTree::with_capacity(0);
+        let mut tree = HuffTree::with_capacity(32768);
 
         // build a random tree lengths with an upper num of values
         fn build_random_lengths(max_values: usize, rng: &mut impl Rng, out: &mut Vec<u8>) -> usize {
@@ -465,9 +459,7 @@ mod tests {
                 let mut rndstream = BitStream::new(RngReader(&mut rng));
                 for _ in 0..1_000_000 {
                     let value = tree.read_entry(&mut rndstream).unwrap() as usize;
-                    if value >= nvalues {
-                        panic!("unexpected value returned: {}", value);
-                    }
+                    assert!(value < nvalues, "unexpected value returned: {}", value);
                 }
 
                 let max_level = vec.iter().copied().max().unwrap();
@@ -494,9 +486,7 @@ mod tests {
                 let mut rndstream = BitStream::new(RngReader(&mut rng));
                 for _ in 0..1_000_000 {
                     let value = tree.read_entry(&mut rndstream).unwrap() as usize;
-                    if value >= vec.len() || vec[value] == 0 {
-                        panic!("unexpected value returned: {}", value);
-                    }
+                    assert!(value < vec.len() && vec[value] != 0, "unexpected value returned: {}", value);
                 }
             }
         }
