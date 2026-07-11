@@ -1,5 +1,7 @@
+// use core::num::NonZeroU16;
+use bytemuck::{AnyBitPattern, NoUninit};
 /// A packed tree entry object
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, NoUninit, AnyBitPattern)]
 #[repr(transparent)]
 pub struct TreeEntry(u16);
 

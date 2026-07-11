@@ -25,7 +25,7 @@ impl<R: Read> Lh1Decoder<R> {
     pub fn new(rd: R) -> Lh1Decoder<R> {
         let bit_reader = BitStream::new(rd);
         let ringbuf = Default::default();
-        let command_tree = Box::new(DynHuffTree::new());
+        let command_tree = DynHuffTree::new();
         Lh1Decoder {
             bit_reader,
             ringbuf,

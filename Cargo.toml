@@ -30,7 +30,7 @@ extend = []
 chrono = { version = "0.4", default-features = false }
 bitflags = "2.13"
 memchr = { version = "2", default-features = false }
-bytemuck = { version = "1.25", features = ["derive"] }
+bytemuck = { version = "1.25", features = ["derive", "min_const_generics", "extern_crate_alloc", "align_offset"] }
 
 [dev-dependencies]
 crc-any = { version = "3", default-features = false }

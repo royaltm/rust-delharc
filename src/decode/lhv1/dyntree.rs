@@ -2,14 +2,15 @@
 use core::{fmt, mem};
 #[cfg(all(test, not(feature = "std")))]
 use alloc::{string::String};
+use bytemuck::{AnyBitPattern, NoUninit, Zeroable, cast_slice_mut, allocation::try_zeroed_box};
 use crate::error::LhaError;
 use crate::bitstream::BitRead;
 use crate::statictree::entry::*;
 
-#[derive(Clone)]
+#[derive(Clone, Zeroable)]
 pub struct DynHuffTree {
     nodes: [TreeNode; NUM_NODES],
-    leaves: LeaveIndex,
+    leaves: LeavesIndex,
     groups: Groups,
 }
 
@@ -17,17 +18,36 @@ const REORDER_LIMIT: u16 = 32 * 1024;
 const NUM_LEAVES: usize = 314;
 const NUM_NODES: usize = NUM_LEAVES * 2 - 1;
 
-#[derive(Clone)]
-struct Groups {
-    ngroups: u16,
-    groups: [u16; NUM_NODES], // there will be no more groups than tree nodes
-    leaders: [u16; NUM_NODES], // leaders[group] -> node_index
+/// An object used for rebuilding a tree
+#[derive(Clone, Copy, NoUninit, AnyBitPattern)]
+#[repr(C)]
+struct LeafNode {
+    entry: TreeEntry,
+    freq: u16
 }
 
-#[derive(Clone)]
-struct LeaveIndex([u16; NUM_LEAVES]); // leaves[leaf_value] -> node_index
+/// Interleaved properties for groups and leaders arrays
+#[derive(Debug, Clone, Copy, NoUninit, AnyBitPattern)]
+#[repr(C)]
+struct GroupOrLeader {
+    group: u16,
+    leader: u16
+}
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Zeroable)]
+#[repr(C)]
+struct Groups {
+    ngroups: u16,
+     // there will be no more groups than tree nodes
+    groups_leaders: [GroupOrLeader; NUM_NODES], // groups_leaders[group].leader -> node_index
+}
+
+#[derive(Clone, Copy, Zeroable)]
+#[repr(transparent)]
+struct LeavesIndex([u16; NUM_LEAVES]); // leaves[leaf_value] -> node_index
+
+#[derive(Debug, Clone, Copy, Zeroable)]
+#[repr(C)]
 struct TreeNode {
     /// a leaf or a branch
     entry: TreeEntry,
@@ -39,17 +59,17 @@ struct TreeNode {
     group: u16,
 }
 
-impl Default for TreeNode {
-    /// Creates an invalid node (a branch pointing to the root) by default.
-    fn default() -> TreeNode {
-        TreeNode {
-            entry: TreeEntry::branch(0).unwrap(),
-            freq: 0,
-            parent: 0,
-            group: 0
-        }
-    }
-}
+// impl Default for TreeNode {
+//     /// Creates an invalid node (a branch pointing to the root) by default.
+//     fn default() -> TreeNode {
+//         TreeNode {
+//             entry: TreeEntry::branch(0).unwrap(),
+//             freq: 0,
+//             parent: 0,
+//             group: 0
+//         }
+//     }
+// }
 
 impl fmt::Debug for DynHuffTree {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -65,32 +85,34 @@ impl fmt::Debug for Groups {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Groups")
          .field("ngroups", &self.ngroups)
-         .field("groups", &&self.groups[..])
-         .field("leaders", &&self.leaders[..])
+         .field("groups_leaders", &&self.groups_leaders[..])
          .finish()
     }
 }
 
 impl Groups {
-    fn new() -> Self {
-        let groups = [0u16; NUM_NODES];
-        let mut res = Groups { ngroups: 0, groups, leaders: groups };
-        res.reset();
-        res
-    }
+    // #[inline]
+    // fn new() -> Self {
+    //     Groups {
+    //         ngroups: 0,
+    //         groups_leaders: core::array::from_fn(|group|
+    //             GroupOrLeader { group: group as u16, leader: 0 })
+    //     }
+    // }
 
+    #[inline]
     fn reset(&mut self) {
         self.ngroups = 0;
-        for (p, n) in self.groups.iter_mut().zip(0u16..) {
-            *p = n;
+        for (gl, n) in self.groups_leaders.iter_mut().zip(0u16..) {
+            gl.group = n;
         }
     }
 
     #[inline]
     fn allocate(&mut self) -> u16 {
         let ngroups = self.ngroups;
-        let res = match self.groups.get(ngroups as usize) {
-            Some(&group) => group,
+        let res = match self.groups_leaders.get(ngroups as usize) {
+            Some(gl) => gl.group,
             #[cfg(debug_assertions)]
             None => unreachable!(),
             #[cfg(not(debug_assertions))]
@@ -103,8 +125,8 @@ impl Groups {
     #[inline]
     fn free(&mut self, group: u16) {
         let ngroups = self.ngroups - 1;
-        match self.groups.get_mut(ngroups as usize) {
-            Some(p) => *p = group,
+        match self.groups_leaders.get_mut(ngroups as usize) {
+            Some(gl) => gl.group = group,
             #[cfg(debug_assertions)]
             None => unreachable!(),
             #[cfg(not(debug_assertions))]
@@ -116,8 +138,8 @@ impl Groups {
     #[inline]
     fn set_leader_index(&mut self, group: u16, node_index: usize) {
         debug_assert!(node_index < NUM_NODES);
-        match self.leaders.get_mut(group as usize) {
-            Some(l) => *l = node_index as u16,
+        match self.groups_leaders.get_mut(group as usize) {
+            Some(gl) => gl.leader = node_index as u16,
             #[cfg(debug_assertions)]
             None => unreachable!(),
             #[cfg(not(debug_assertions))]
@@ -127,8 +149,8 @@ impl Groups {
 
     #[inline]
     fn get_leader_index(&self, group: u16) -> usize {
-        match self.leaders.get(group as usize) {
-            Some(&index) => index as usize,
+        match self.groups_leaders.get(group as usize) {
+            Some(gl) => gl.leader as usize,
             #[cfg(debug_assertions)]
             None => unreachable!(),
             #[cfg(not(debug_assertions))]
@@ -138,10 +160,10 @@ impl Groups {
 
     #[inline]
     fn set_next_node_as_leader(&mut self, group: u16) {
-        match self.leaders.get_mut(group as usize) {
-            Some(l) => {
-                debug_assert!((*l as usize) < NUM_NODES - 1);
-                *l += 1;
+        match self.groups_leaders.get_mut(group as usize) {
+            Some(gl) => {
+                debug_assert!((gl.leader as usize) < NUM_NODES - 1);
+                gl.leader += 1;
             }
             #[cfg(debug_assertions)]
             None => unreachable!(),
@@ -151,7 +173,14 @@ impl Groups {
     }
 }
 
-impl LeaveIndex {
+impl LeavesIndex {
+    #[inline]
+    fn initialize(&mut self) {
+        for (p, value) in self.0.iter_mut().zip(1u16..) {
+            *p = const { NUM_NODES as u16 } - value;
+        }
+    }
+
     #[inline]
     fn set_leaf_node_index(&mut self, value: u16, node_index: usize) {
         debug_assert!(node_index < NUM_NODES);
@@ -179,6 +208,7 @@ impl LeaveIndex {
 impl TreeNode {
     fn new_leaf(value: u16, group: u16) -> Self {
         debug_assert!((value as usize) < NUM_LEAVES);
+        debug_assert!((group as usize) < NUM_NODES);
         let entry = TreeEntry::leaf(value);
         let freq = 1;
         let parent = 0;
@@ -187,6 +217,8 @@ impl TreeNode {
 
     fn new_branch(child_index: usize, freq: u16, group: u16) -> Self {
         debug_assert!(child_index < NUM_NODES);
+        debug_assert!((group as usize) < NUM_NODES);
+        debug_assert!((2..=NUM_LEAVES).contains(&(freq as usize)));
         let entry = TreeEntry::branch(child_index).unwrap();
         let parent = 0;
         TreeNode { entry, freq, parent, group }
@@ -206,15 +238,19 @@ impl TreeNode {
 }
 
 impl DynHuffTree {
-    pub fn new() -> Self {
-        let mut groups = Groups::new();
-        let mut nodes = [TreeNode::default(); NUM_NODES];
-        let leaves: [u16; NUM_LEAVES] = core::array::from_fn(|value| {
-            (NUM_NODES - 1) as u16 - value as u16
-        });
+    pub fn new() -> Box<Self> {
+        // Allocate an invalid, but otherwise memory safe tree directly on the heap
+        // to avoid large stack allocation.
+        let mut tree = try_zeroed_box::<DynHuffTree>().expect("not enough memory for a dynamic tree");
+        let groups = &mut tree.groups;
+        let nodes = &mut tree.nodes;
+
+        // Deferred initialization:
+        tree.leaves.initialize();
+        groups.reset();
 
         let mut last_group = groups.allocate();
-
+        // Initialize leaves:
         for (node, value) in nodes[NUM_NODES - NUM_LEAVES..NUM_NODES]
                              .iter_mut().rev()
                              .zip(0..)
@@ -222,55 +258,49 @@ impl DynHuffTree {
             *node = TreeNode::new_leaf(value, last_group);
         }
 
-        let mut tail_len = NUM_LEAVES;
-        let mut rest = &mut nodes[..];
+        // Initialize branches:
         let mut last_freq = 0;
 
-        while tail_len > 1 {
-            let rest_len = rest.len();
-            let parent_len = tail_len / 2;
-            let (head, children) = rest.split_at_mut(rest_len - parent_len * 2);
-            let head_end = head.len() - (tail_len & 1);
-            for ((child_nodes, child_index),
-                 (index, parent_node)) in children.rchunks_exact_mut(2)
-                                                    .zip((0..rest_len).rev().step_by(2)
-                                                  ).zip(head[..head_end].iter_mut()
-                                                    .enumerate().rev())
-            {
-                let mut freq = 0;
-                for child in child_nodes.iter_mut() {
-                    freq += child.freq;
-                    child.parent = index as u16;
-                }
-                if freq != last_freq {
-                    groups.set_leader_index(last_group, index + 1);
-                    last_freq = freq;
-                    last_group = groups.allocate();
-                }
-                *parent_node = TreeNode::new_branch(child_index, freq, last_group);
+        for child_index in (2..NUM_NODES).rev().step_by(2) {
+            let index = child_index / 2 - 1;
+            // fortunately the rust optimizer can see that child_index is in 2..NUM_NODES
+            // and thus also index < NUM_NODES
+            let child_nodes = &mut nodes[child_index - 1..=child_index];
+            let mut freq = 0;
+            for child in child_nodes.iter_mut() {
+                freq += child.freq;
+                child.parent = index as u16;
             }
-            tail_len -= parent_len;
-            rest = head;
+            if freq != last_freq {
+                groups.set_leader_index(last_group, index + 1);
+                last_freq = freq;
+                last_group = groups.allocate();
+            }
+            nodes[index] = TreeNode::new_branch(child_index, freq, last_group);
         }
-
-        DynHuffTree {
-            nodes,
-            leaves: LeaveIndex(leaves),
-            groups,
-        }
+        tree
     }
 
     #[inline(never)]
     fn rebuild_tree(&mut self) {
+        // use groups.groups_leaders slice as a temporary leaf storage,
+        // groups along with leaders are fully rebuilt below
+        assert_eq!(size_of::<LeafNode>(), size_of::<GroupOrLeader>());
+        let leaf_nodes: &mut [LeafNode] = cast_slice_mut(&mut self.groups.groups_leaders[..NUM_LEAVES]);
+        debug_assert_eq!(leaf_nodes.len(), NUM_LEAVES);
         // move leave entries away maintaining order and dampen down frequency
         // we can't use leaf index, as the current order of leaves should be preserved
         let mut node_filter = self.nodes.iter().filter(|&n| n.is_leaf());
-        let leave_nodes: [(TreeEntry, u16); NUM_LEAVES] = core::array::from_fn(|_| {
-            let node = node_filter.next().unwrap();
-            (node.entry, node.freq.div_ceil(2))
-        });
+        for leaf in leaf_nodes.iter_mut() {
+            let node = node_filter.next().unwrap(); // there shall be NUM_LEAVES leaves
+            *leaf = LeafNode { entry: node.entry, freq: node.freq.div_ceil(2) };
+        }
+        // let leaf_nodes: [LeafNode; NUM_LEAVES] = core::array::from_fn(|_| {
+        //     let node = node_filter.next().unwrap();
+        //     LeafNode { entry: node.entry, freq: node.freq.div_ceil(2) }
+        // });
         // an iterator of leaves from last to first
-        let mut leaves_riter = leave_nodes.into_iter().rev();
+        let mut leaves_riter = leaf_nodes.iter().rev();
         // maybe get a next leaf
         let mut next_leaf = leaves_riter.next();
         let mut target_len = NUM_NODES;
@@ -281,7 +311,7 @@ impl DynHuffTree {
             let num_children = child_index + 1 - target_len;
             if num_children < 2 {
                 for node in nodes[..target_len].iter_mut().rev().take(2 - num_children) {
-                    let (entry, freq) = next_leaf.unwrap();
+                    let &LeafNode { entry, freq } = next_leaf.unwrap();
                     target_len -= 1;
                     self.leaves.set_leaf_node_index(entry.as_value(), target_len);
                     node.entry = entry;
@@ -296,7 +326,7 @@ impl DynHuffTree {
             let mut target_mut = head.iter_mut().rev();
 
             // 2. copy more leaves until frequency is less
-            while let Some((entry, freq)) = next_leaf {
+            while let Some(&LeafNode { entry, freq }) = next_leaf {
                 if branch_freq < freq {
                     break;
                 }
