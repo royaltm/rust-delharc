@@ -60,7 +60,7 @@ impl TreeEntry {
     pub(crate) fn set_as_branch(&mut self, child_index: usize) {
         self.0 = (child_index as u16) & !LEAF_BIT;
     }
-
+    /// Return a node value regardless of the node type
     #[cfg(feature = "lh1")]
     #[inline]
     pub(crate) fn as_value(self) -> u16 {

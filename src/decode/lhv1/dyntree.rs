@@ -283,81 +283,86 @@ impl DynHuffTree {
 
     #[inline(never)]
     fn rebuild_tree(&mut self) {
-        // use groups.groups_leaders slice as a temporary leaf storage,
+        // use groups.groups_leaders slice as a temporary leaves storage,
         // groups along with leaders are fully rebuilt below
         assert_eq!(size_of::<LeafNode>(), size_of::<GroupOrLeader>());
         let leaf_nodes: &mut [LeafNode] = cast_slice_mut(&mut self.groups.groups_leaders[..NUM_LEAVES]);
         debug_assert_eq!(leaf_nodes.len(), NUM_LEAVES);
-        // move leave entries away maintaining order and dampen down frequency
+        // move leaf entries away, maintaining order and dampen down frequency
         // we can't use leaf index, as the current order of leaves should be preserved
-        let mut node_filter = self.nodes.iter().filter(|&n| n.is_leaf());
+        // copy leaves back to front
+        let mut node_filter = self.nodes.iter().rev().filter(|&n| n.is_leaf());
         for leaf in leaf_nodes.iter_mut() {
             let node = node_filter.next().unwrap(); // there shall be NUM_LEAVES leaves
             *leaf = LeafNode { entry: node.entry, freq: node.freq.div_ceil(2) };
         }
-        // let leaf_nodes: [LeafNode; NUM_LEAVES] = core::array::from_fn(|_| {
-        //     let node = node_filter.next().unwrap();
-        //     LeafNode { entry: node.entry, freq: node.freq.div_ceil(2) }
-        // });
+        debug_assert!(node_filter.next().is_none());
         // an iterator of leaves from last to first
-        let mut leaves_riter = leaf_nodes.iter().rev();
-        // maybe get a next leaf
-        let mut next_leaf = leaves_riter.next();
-        let mut target_len = NUM_NODES;
-        let mut nodes = &mut self.nodes[..];
-        while nodes.len() > 2 {
-            let child_index = nodes.len() - 1;
-            // 1. copy at least 2 more leaves if not enough children
-            let num_children = child_index + 1 - target_len;
-            if num_children < 2 {
-                for node in nodes[..target_len].iter_mut().rev().take(2 - num_children) {
-                    let &LeafNode { entry, freq } = next_leaf.unwrap();
-                    target_len -= 1;
-                    self.leaves.set_leaf_node_index(entry.as_value(), target_len);
-                    node.entry = entry;
-                    node.freq = freq;
-                    next_leaf = leaves_riter.next();
+        let mut leaves_riter = leaf_nodes.iter();
+        // Rebuilding nodes:
+        let mut target_index = NUM_NODES - 1; // last target slot
+        let mut child_index = NUM_NODES - 1; // last child slot
+        let nodes = &mut self.nodes;
+        let mut branch_freq = 0u16; // 0 = no frequency calculated
+        'leaves: loop {
+            let next_leaf = leaves_riter.next();
+            loop {
+                if target_index >= NUM_NODES {
+                    // this is ending condition, optimizes out slice boundary check
+                    break 'leaves
+                }
+                #[cfg(not(debug_assertions))]
+                unsafe {
+                    // SAFETY: child_index starts at NUM_NODES - 1
+                    //         child_index is decreased by 2 only after
+                    //         asserting that child_index >= target_index + 2
+                    //         thus child_index can never overflow
+                    // this hint together with an assert helps eliminate slice boundary checks
+                    core::hint::assert_unchecked(child_index < NUM_NODES);
+                }
+                let node = &mut nodes[target_index];
+                if let Some(leaf) = next_leaf &&
+                   (leaf.freq <= branch_freq || (child_index - target_index) < 2)
+                {
+                    // 1. copy leaves to have at least 2 outstanding or if leaves have <= frequency
+                    self.leaves.set_leaf_node_index(leaf.entry.as_value(), target_index);
+                    node.entry = leaf.entry;
+                    node.freq = leaf.freq;
+                    target_index -= 1; // next target, this shall never overflow under normal conditions
+                    continue 'leaves
+                }
+                else {
+                    // ensure sanity of leaves, this also prevents child_index from overflowing on sub
+                    assert!(child_index >= target_index + 2);
+                    if branch_freq == 0 {
+                        // 2. calculate branch frequency from last 2 children and maybe copy more leaves
+                        branch_freq = nodes[child_index - 1..=child_index].iter().map(|n| n.freq).sum();
+                    }
+                    else {
+                        // 3. insert branch
+                        node.make_branch(child_index);
+                        node.freq = branch_freq;
+                        branch_freq = 0; // next branch
+                        for n in nodes[child_index - 1..=child_index].iter_mut() {
+                            n.parent = target_index as u16; // link parent
+                        }
+                        // this shall not overflow, see assertion above 
+                        child_index -= 2; // next 2 children
+                        target_index = target_index.wrapping_sub(1); // next target or end on overflow
+                    }
                 }
             }
-
-            let (head, children) = nodes.split_at_mut(target_len);
-
-            let branch_freq = children.iter().rev().take(2).map(|n| n.freq).sum();
-            let mut target_mut = head.iter_mut().rev();
-
-            // 2. copy more leaves until frequency is less
-            while let Some(&LeafNode { entry, freq }) = next_leaf {
-                if branch_freq < freq {
-                    break;
-                }
-                let node = target_mut.next().unwrap();
-                self.leaves.set_leaf_node_index(entry.as_value(), target_mut.len());
-                node.entry = entry;
-                node.freq = freq;
-                next_leaf = leaves_riter.next();
-            }
-
-            // 3. insert branch
-            let node = target_mut.next().unwrap();
-            node.make_branch(child_index);
-            node.freq = branch_freq;
-            target_len = target_mut.len();
-            for p in children.iter_mut().rev().take(2) {
-                p.parent = target_len as u16;
-            }
-
-            // 4. repeat until root
-            nodes = &mut nodes[..child_index - 1];
         }
+        debug_assert_eq!(leaves_riter.len(), 0);
 
         // rebuild groups
         self.groups.reset();
         let mut group = self.groups.allocate();
-        let mut freq = self.nodes[0].freq;
-        self.nodes[0].group = group;
+        let mut freq = nodes[0].freq;
+        nodes[0].group = group;
         self.groups.set_leader_index(group, 0);
 
-        for (node, index) in self.nodes[1..].iter_mut().zip(1..) {
+        for (node, index) in nodes[1..].iter_mut().zip(1..) {
             if node.freq == freq {
                 node.group = group;
             }
