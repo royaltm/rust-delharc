@@ -78,7 +78,7 @@ pub type LhxDecoder<R> = LhaV2Decoder<LhxDecoderCfg, R>;
 
 impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
     pub fn new(rd: R) -> LhaV2Decoder<C, R> {
-        assert_eq!(<C::RingBuffer as RingBuffer>::BUFFER_SIZE, const { 1 << C::HISTORY_BITS - 1 });
+        assert_eq!(<C::RingBuffer as RingBuffer>::BUFFER_SIZE, const { 1 << (C::HISTORY_BITS - 1) });
         assert!((1..=5).contains(&C::OFFSET_BITS));
         assert!(C::HISTORY_BITS as usize <= MAX_HISTORY_BITS);
         let bit_reader = BitStream::new(rd);

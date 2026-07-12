@@ -58,23 +58,32 @@ use alloc::string::String;
 pub mod entry;
 use entry::*;
 
-/// A static Huffman tree.
+/// A static Huffman Tree.
 #[derive(Debug, Clone)]
 pub struct HuffTree {
     tree: Vec<TreeEntry>
+}
+
+impl Default for HuffTree {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HuffTree {
     /// Creates a new and empty [`HuffTree`] without allocating anything.
     ///
     /// Any attempt to read from a new tree will result in a panic.
+    #[inline]
     pub fn new() -> Self {
         let tree = Vec::new();
         HuffTree { tree }
     }
-    /// Creates a new and empty `HuffTree` with the reserved node capacity.
+    /// Creates a new and empty [`HuffTree`] with the reserved node capacity.
     ///
     /// Any attempt to read from a new tree will result in a panic.
+    #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         let tree = Vec::with_capacity(capacity);
         HuffTree { tree }
