@@ -25,6 +25,9 @@ lhx = []
 lz = []
 # expose some implementation details
 extend = []
+# remove assertions that eliminate some boundary checks
+# this only affects code if debug_assertions are disabled
+no-unsafe-assertions = []
 
 [dependencies]
 chrono = { version = "0.4", default-features = false }

@@ -1,7 +1,7 @@
 //! # Dynamic Huffman Coding.
-use core::{fmt, mem};
 #[cfg(all(test, not(feature = "std")))]
 use alloc::{string::String};
+use core::{fmt, mem};
 use bytemuck::{AnyBitPattern, NoUninit, Zeroable, cast_slice_mut, allocation::try_zeroed_box};
 use crate::error::LhaError;
 use crate::bitstream::BitRead;
@@ -59,6 +59,56 @@ struct TreeNode {
     group: u16,
 }
 
+macro_rules! unsafe_assert_leaf_value_in_range {
+    ($value:ident) => {
+        #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
+        unsafe {
+            core::hint::assert_unchecked($value < const { NUM_LEAVES as u16 })
+        }
+        debug_assert!($value < const { NUM_LEAVES as u16 })
+    };
+}
+
+macro_rules! unsafe_assert_child_index_in_range {
+    ($child_index:ident) => {
+        #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
+        unsafe {
+            core::hint::assert_unchecked(usize::from($child_index) > 0 && usize::from($child_index) < NUM_NODES)
+        }
+        debug_assert!(usize::from($child_index) > 0 && usize::from($child_index) < NUM_NODES)
+    };
+}
+
+macro_rules! unsafe_assert_group_in_range {
+    ($group:ident) => {
+        #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
+        unsafe {
+            core::hint::assert_unchecked($group < const { NUM_NODES as u16 })
+        }
+        debug_assert!($group < const { NUM_NODES as u16 })
+    };
+}
+
+macro_rules! unsafe_assert_group_can_allocate {
+    ($groups:expr) => {
+        #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
+        unsafe {
+            core::hint::assert_unchecked($groups.ngroups < const { NUM_NODES as u16 })
+        }
+        debug_assert!($groups.ngroups < const { NUM_NODES as u16 })
+    };
+}
+
+macro_rules! unsafe_assert_group_can_free {
+    ($groups:expr) => {
+        #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
+        unsafe {
+            core::hint::assert_unchecked($groups.ngroups > 0 && $groups.ngroups <= const { NUM_NODES as u16 })
+        }
+        debug_assert!($groups.ngroups > 0 && $groups.ngroups <= const { NUM_NODES as u16 })
+    };
+}
+
 // impl Default for TreeNode {
 //     /// Creates an invalid node (a branch pointing to the root) by default.
 //     fn default() -> TreeNode {
@@ -111,126 +161,79 @@ impl Groups {
     #[inline]
     fn allocate(&mut self) -> u16 {
         let ngroups = self.ngroups;
-        let res = match self.groups_leaders.get(ngroups as usize) {
-            Some(gl) => gl.group,
-            #[cfg(debug_assertions)]
-            None => unreachable!(),
-            #[cfg(not(debug_assertions))]
-            None => unsafe { core::hint::unreachable_unchecked() }
-        };
+        let res = self.groups_leaders[usize::from(ngroups)].group;
         self.ngroups = ngroups + 1;
         res
     }
 
     #[inline]
     fn free(&mut self, group: u16) {
+        debug_assert!(group < NUM_NODES as u16);
         let ngroups = self.ngroups - 1;
-        match self.groups_leaders.get_mut(ngroups as usize) {
-            Some(gl) => gl.group = group,
-            #[cfg(debug_assertions)]
-            None => unreachable!(),
-            #[cfg(not(debug_assertions))]
-            None => unsafe { core::hint::unreachable_unchecked() }
-        };
+        self.groups_leaders[usize::from(ngroups)].group = group;
         self.ngroups = ngroups;
     }
 
     #[inline]
     fn set_leader_index(&mut self, group: u16, node_index: usize) {
         debug_assert!(node_index < NUM_NODES);
-        match self.groups_leaders.get_mut(group as usize) {
-            Some(gl) => gl.leader = node_index as u16,
-            #[cfg(debug_assertions)]
-            None => unreachable!(),
-            #[cfg(not(debug_assertions))]
-            None => unsafe { core::hint::unreachable_unchecked() }
-        };
+        self.groups_leaders[usize::from(group)].leader = node_index as u16;
     }
 
     #[inline]
     fn get_leader_index(&self, group: u16) -> usize {
-        match self.groups_leaders.get(group as usize) {
-            Some(gl) => gl.leader as usize,
-            #[cfg(debug_assertions)]
-            None => unreachable!(),
-            #[cfg(not(debug_assertions))]
-            None => unsafe { core::hint::unreachable_unchecked() }
-        }
+        usize::from(self.groups_leaders[usize::from(group)].leader)
     }
 
     #[inline]
     fn set_next_node_as_leader(&mut self, group: u16) {
-        match self.groups_leaders.get_mut(group as usize) {
-            Some(gl) => {
-                debug_assert!((gl.leader as usize) < NUM_NODES - 1);
-                gl.leader += 1;
-            }
-            #[cfg(debug_assertions)]
-            None => unreachable!(),
-            #[cfg(not(debug_assertions))]
-            None => unsafe { core::hint::unreachable_unchecked() }
-        };
+        let gl = &mut self.groups_leaders[usize::from(group)];
+        debug_assert!((usize::from(gl.leader)) < NUM_NODES - 1);
+        gl.leader += 1;
     }
 }
 
 impl LeavesIndex {
     #[inline]
-    fn initialize(&mut self) {
-        for (p, value) in self.0.iter_mut().zip(1u16..) {
-            *p = const { NUM_NODES as u16 } - value;
-        }
-    }
-
-    #[inline]
     fn set_leaf_node_index(&mut self, value: u16, node_index: usize) {
         debug_assert!(node_index < NUM_NODES);
-        match self.0.get_mut(value as usize) {
-            Some(l) => *l = node_index as u16,
-            #[cfg(debug_assertions)]
-            None => unreachable!(),
-            #[cfg(not(debug_assertions))]
-            None => unsafe { core::hint::unreachable_unchecked() }
-        };
+        self.0[usize::from(value)] = node_index as u16;
     }
 
     #[inline]
     fn get_leaf_node_index(&self, value: u16) -> usize {
-        match self.0.get(value as usize) {
-            Some(&index) => index as usize,
-            #[cfg(debug_assertions)]
-            None => unreachable!(),
-            #[cfg(not(debug_assertions))]
-            None => unsafe { core::hint::unreachable_unchecked() }
-        }
+        usize::from(self.0[usize::from(value)])
     }
 }
 
 impl TreeNode {
+    #[inline]
     fn new_leaf(value: u16, group: u16) -> Self {
-        debug_assert!((value as usize) < NUM_LEAVES);
-        debug_assert!((group as usize) < NUM_NODES);
+        debug_assert!(usize::from(value) < NUM_LEAVES);
+        debug_assert!(usize::from(group) < NUM_NODES);
         let entry = TreeEntry::leaf(value);
         let freq = 1;
         let parent = 0;
         TreeNode { entry, freq, parent, group }
     }
 
+    #[inline]
     fn new_branch(child_index: usize, freq: u16, group: u16) -> Self {
         debug_assert!(child_index < NUM_NODES);
-        debug_assert!((group as usize) < NUM_NODES);
-        debug_assert!((2..=NUM_LEAVES).contains(&(freq as usize)));
+        debug_assert!(usize::from(group) < NUM_NODES);
+        debug_assert!((2..=NUM_LEAVES).contains(&usize::from(freq)));
         let entry = TreeEntry::branch(child_index).unwrap();
         let parent = 0;
         TreeNode { entry, freq, parent, group }
     }
 
-    #[inline(always)]
+    #[inline]
     fn make_branch(&mut self, child_index: usize) {
         debug_assert!(child_index < NUM_NODES);
         self.entry.set_as_branch(child_index);
     }
 
-    #[inline(always)]
+    #[inline]
     fn is_leaf(&self) -> bool {
         self.entry.is_leaf()
     }
@@ -238,6 +241,7 @@ impl TreeNode {
 }
 
 impl DynHuffTree {
+    /// Create a new boxed [`DynHuffTree`], ready to read entries from.
     pub fn new() -> Box<Self> {
         // Allocate an invalid, but otherwise memory safe tree directly on the heap
         // to avoid large stack allocation.
@@ -245,10 +249,14 @@ impl DynHuffTree {
         let groups = &mut tree.groups;
         let nodes = &mut tree.nodes;
 
-        // Deferred initialization:
-        tree.leaves.initialize();
+        // Initialize leaves index:
+        for (leaves_index, value) in tree.leaves.0.iter_mut().zip(0u16..) {
+            *leaves_index = const { NUM_NODES as u16 - 1 } - value;
+        }
+        // Initialize groups:
         groups.reset();
 
+        unsafe_assert_group_can_allocate!(groups);
         let mut last_group = groups.allocate();
         // Initialize leaves:
         for (node, value) in nodes[NUM_NODES - NUM_LEAVES..NUM_NODES]
@@ -272,8 +280,10 @@ impl DynHuffTree {
                 child.parent = index as u16;
             }
             if freq != last_freq {
+                unsafe_assert_group_in_range!(last_group);
                 groups.set_leader_index(last_group, index + 1);
                 last_freq = freq;
+                unsafe_assert_group_can_allocate!(groups);
                 last_group = groups.allocate();
             }
             nodes[index] = TreeNode::new_branch(child_index, freq, last_group);
@@ -311,7 +321,7 @@ impl DynHuffTree {
                     // this is ending condition, optimizes out slice boundary check
                     break 'leaves
                 }
-                #[cfg(not(debug_assertions))]
+                #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
                 unsafe {
                     // SAFETY: child_index starts at NUM_NODES - 1
                     //         child_index is decreased by 2 only after
@@ -320,12 +330,16 @@ impl DynHuffTree {
                     // this hint together with an assert helps eliminate slice boundary checks
                     core::hint::assert_unchecked(child_index < NUM_NODES);
                 }
+                debug_assert!(child_index < NUM_NODES);
                 let node = &mut nodes[target_index];
                 if let Some(leaf) = next_leaf &&
                    (leaf.freq <= branch_freq || (child_index - target_index) < 2)
                 {
                     // 1. copy leaves to have at least 2 outstanding or if leaves have <= frequency
-                    self.leaves.set_leaf_node_index(leaf.entry.as_value(), target_index);
+                    let value = leaf.entry.as_value();
+                    // SAFETY: leaf value must be valid
+                    unsafe_assert_leaf_value_in_range!(value);
+                    self.leaves.set_leaf_node_index(value, target_index);
                     node.entry = leaf.entry;
                     node.freq = leaf.freq;
                     target_index -= 1; // next target, this shall never overflow under normal conditions
@@ -356,11 +370,14 @@ impl DynHuffTree {
         debug_assert_eq!(leaves_riter.len(), 0);
 
         // rebuild groups
-        self.groups.reset();
-        let mut group = self.groups.allocate();
+        let groups = &mut self.groups;
+        groups.reset();
         let mut freq = nodes[0].freq;
+        unsafe_assert_group_can_allocate!(groups);
+        let mut group = groups.allocate();
+        unsafe_assert_group_in_range!(group);
         nodes[0].group = group;
-        self.groups.set_leader_index(group, 0);
+        groups.set_leader_index(group, 0);
 
         for (node, index) in nodes[1..].iter_mut().zip(1..) {
             if node.freq == freq {
@@ -368,21 +385,20 @@ impl DynHuffTree {
             }
             else {
                 freq = node.freq;
-                group = self.groups.allocate();
+                unsafe_assert_group_can_allocate!(groups);
+                group = groups.allocate();
+                unsafe_assert_group_in_range!(group);
                 node.group = group;
-                self.groups.set_leader_index(group, index);
+                groups.set_leader_index(group, index);
             }
         }
     }
 
     #[inline]
     fn set_as_parent(&mut self, child_index: u16, parent_index: usize) {
-        let child_index = child_index as usize;
         debug_assert!(parent_index < NUM_NODES);
-        #[cfg(debug_assertions)]
+        let child_index = usize::from(child_index);
         let child_nodes = &mut self.nodes[child_index - 1..=child_index];
-        #[cfg(not(debug_assertions))]
-        let child_nodes = unsafe { self.nodes.get_unchecked_mut(child_index - 1..=child_index) };
         for child in child_nodes.iter_mut() {
             child.parent = parent_index as u16;
         }
@@ -390,31 +406,47 @@ impl DynHuffTree {
 
     #[inline]
     fn promote_to_leader(&mut self, node_index: usize) -> usize {
-        let (node, head) = self.nodes[..node_index + 1].split_last_mut().unwrap();
-        let leader_index = self.groups.get_leader_index(node.group);
-
-        if leader_index == node_index {
-            return node_index
+        let (node, head) = self.nodes[..=node_index].split_last_mut().unwrap();
+        let leader_index = {
+            let group = node.group;
+            unsafe_assert_group_in_range!(group);
+            self.groups.get_leader_index(group)
+        };
+        assert!(head.len() == node_index); // trivial to prove compile-time
+        let leader = if leader_index < head.len() {
+            &mut head[leader_index] // no boundary check here
         }
+        else {
+            assert!(leader_index == node_index); // group leader can only be <= node_index
+            return node_index
+        };
         // swap the new leader with the old one
-        let leader = &mut head[leader_index];
-        mem::swap(&mut node.entry, &mut leader.entry);
-        let leader_node = leader.entry.as_node();
+        let prev_entry = leader.entry;
+        let node_entry = mem::replace(&mut node.entry, prev_entry);
+        leader.entry = node_entry;
         // update old leader
-        match node.entry.as_node() {
+        match prev_entry.as_node() {
             NodeType::Leaf(value) => {
+                // SAFETY: leaf value must be valid
+                unsafe_assert_leaf_value_in_range!(value);
                 self.leaves.set_leaf_node_index(value, node_index);
             }
             NodeType::Branch(child_index) => {
+                // SAFETY: branch child_index must be valid
+                unsafe_assert_child_index_in_range!(child_index);
                 self.set_as_parent(child_index, node_index);
             }
         }
         // update new leader
-        match leader_node {
+        match node_entry.as_node() {
             NodeType::Leaf(value) => {
+                // SAFETY: leaf value must be valid
+                unsafe_assert_leaf_value_in_range!(value);
                 self.leaves.set_leaf_node_index(value, leader_index);
             }
             NodeType::Branch(child_index) => {
+                // SAFETY: branch child_index must be valid
+                unsafe_assert_child_index_in_range!(child_index);
                 self.set_as_parent(child_index, leader_index);
             }
         }
@@ -428,18 +460,25 @@ impl DynHuffTree {
 
         node.freq += 1;
 
+        let groups = &mut self.groups;
+
         // node was part of the group with next nodes
         if let Some(next) = tail.first() && node.group == next.group {
             // the next node is now a leader
-            self.groups.set_next_node_as_leader(node.group);
+            let group = node.group;
+            unsafe_assert_group_in_range!(group);
+            groups.set_next_node_as_leader(group);
             if node.freq == prev.freq {
                 // join group of previous node
                 node.group = prev.group;
             }
             else {
                 // create node's own group
-                node.group = self.groups.allocate();
-                self.groups.set_leader_index(node.group, node_index);
+                unsafe_assert_group_can_allocate!(groups);
+                let group = groups.allocate();
+                unsafe_assert_group_in_range!(group);
+                node.group = group;
+                groups.set_leader_index(group, node_index);
             }
 
             return node
@@ -447,7 +486,8 @@ impl DynHuffTree {
 
         // node had its own group
         if node.freq == prev.freq {
-            self.groups.free(node.group);
+            unsafe_assert_group_can_free!(groups);
+            groups.free(node.group);
             // join group of previous node
             node.group = prev.group;
         }
@@ -466,25 +506,36 @@ impl DynHuffTree {
         let mut node_index = self.leaves.get_leaf_node_index(value);
         // walk up from leaf and re-arrange nodes
         while node_index != 0 {
+            unsafe_assert_child_index_in_range!(node_index);
             node_index = self.promote_to_leader(node_index);
-            node_index = self.increment_frequency(node_index).parent as usize;
+            unsafe_assert_child_index_in_range!(node_index);
+            node_index = usize::from(self.increment_frequency(node_index).parent);
         }
     }
 
+    /// Read an entry value from the dynamic tree.
+    ///
+    /// The returned entry values are in the range: `0..314`.
     pub fn read_entry<R: BitRead>(&mut self, mut path: R) -> Result<u16, LhaError<R::Error>> {
         let nodes = &self.nodes;
         let mut node = &nodes[0];
         loop {
             match node.entry.as_node() {
                 NodeType::Leaf(value) => {
+                    unsafe_assert_leaf_value_in_range!(value);
                     self.increment_for_value(value);
                     return Ok(value)
                 }
                 NodeType::Branch(index) => {
-                    let index = index as usize - path.read_bits::<usize>(1)?;
-                    debug_assert!(index < nodes.len());
-                    node = unsafe { nodes.get_unchecked(index) };
-                    // safe because tree was initialized in a sane way
+                    let is_one = path.read_bit()?;
+                    let index = usize::from(index);
+                    unsafe_assert_child_index_in_range!(index);
+                    node = if is_one {
+                        &nodes[index - 1]
+                    }
+                    else {
+                        &nodes[index]
+                    };
                 }
             }
         }
@@ -590,6 +641,7 @@ mod tests {
         }
         // all leaves should be present
         assert_eq!(leaves.len(), NUM_LEAVES);
+        // validate leaves index
         for (&value, &index) in leaves.iter() {
             assert_eq!(tree.leaves.get_leaf_node_index(value), index);
         }
