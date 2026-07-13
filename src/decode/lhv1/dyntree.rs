@@ -59,53 +59,43 @@ struct TreeNode {
     group: u16,
 }
 
-macro_rules! unsafe_assert_leaf_value_in_range {
-    ($value:ident) => {
+macro_rules! unsafe_assert {
+    ($expr:expr) => {
         #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
         unsafe {
-            core::hint::assert_unchecked($value < const { NUM_LEAVES as u16 })
+            core::hint::assert_unchecked($expr)
         }
-        debug_assert!($value < const { NUM_LEAVES as u16 })
+        debug_assert!($expr)
+    };
+}
+
+macro_rules! unsafe_assert_leaf_value_in_range {
+    ($value:ident) => {
+        unsafe_assert!($value < const { NUM_LEAVES as u16 })
     };
 }
 
 macro_rules! unsafe_assert_child_index_in_range {
     ($child_index:ident) => {
-        #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
-        unsafe {
-            core::hint::assert_unchecked(usize::from($child_index) > 0 && usize::from($child_index) < NUM_NODES)
-        }
-        debug_assert!(usize::from($child_index) > 0 && usize::from($child_index) < NUM_NODES)
+        unsafe_assert!(usize::from($child_index) > 0 && usize::from($child_index) < NUM_NODES)
     };
 }
 
 macro_rules! unsafe_assert_group_in_range {
     ($group:ident) => {
-        #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
-        unsafe {
-            core::hint::assert_unchecked($group < const { NUM_NODES as u16 })
-        }
-        debug_assert!($group < const { NUM_NODES as u16 })
+        unsafe_assert!($group < const { NUM_NODES as u16 })
     };
 }
 
 macro_rules! unsafe_assert_group_can_allocate {
     ($groups:expr) => {
-        #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
-        unsafe {
-            core::hint::assert_unchecked($groups.ngroups < const { NUM_NODES as u16 })
-        }
-        debug_assert!($groups.ngroups < const { NUM_NODES as u16 })
+        unsafe_assert!($groups.ngroups < const { NUM_NODES as u16 })
     };
 }
 
 macro_rules! unsafe_assert_group_can_free {
     ($groups:expr) => {
-        #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
-        unsafe {
-            core::hint::assert_unchecked($groups.ngroups > 0 && $groups.ngroups <= const { NUM_NODES as u16 })
-        }
-        debug_assert!($groups.ngroups > 0 && $groups.ngroups <= const { NUM_NODES as u16 })
+        unsafe_assert!($groups.ngroups > 0 && $groups.ngroups <= const { NUM_NODES as u16 })
     };
 }
 
@@ -113,7 +103,7 @@ macro_rules! unsafe_assert_group_can_free {
 //     /// Creates an invalid node (a branch pointing to the root) by default.
 //     fn default() -> TreeNode {
 //         TreeNode {
-//             entry: TreeEntry::branch(0).unwrap(),
+//             entry: TreeEntry::branch(0),
 //             freq: 0,
 //             parent: 0,
 //             group: 0
@@ -222,7 +212,7 @@ impl TreeNode {
         debug_assert!(child_index < NUM_NODES);
         debug_assert!(usize::from(group) < NUM_NODES);
         debug_assert!((2..=NUM_LEAVES).contains(&usize::from(freq)));
-        let entry = TreeEntry::branch(child_index).unwrap();
+        let entry = TreeEntry::branch(child_index);
         let parent = 0;
         TreeNode { entry, freq, parent, group }
     }
@@ -321,16 +311,12 @@ impl DynHuffTree {
                     // this is ending condition, optimizes out slice boundary check
                     break 'leaves
                 }
-                #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
-                unsafe {
-                    // SAFETY: child_index starts at NUM_NODES - 1
-                    //         child_index is decreased by 2 only after
-                    //         asserting that child_index >= target_index + 2
-                    //         thus child_index can never overflow
-                    // this hint together with an assert helps eliminate slice boundary checks
-                    core::hint::assert_unchecked(child_index < NUM_NODES);
-                }
-                debug_assert!(child_index < NUM_NODES);
+                // SAFETY: child_index starts at NUM_NODES - 1
+                //         child_index is decreased by 2 only after
+                //         asserting that child_index >= target_index + 2
+                //         thus child_index can never overflow
+                // this hint together with an assert helps eliminate slice boundary checks
+                unsafe_assert!(child_index < NUM_NODES);
                 let node = &mut nodes[target_index];
                 if let Some(leaf) = next_leaf &&
                    (leaf.freq <= branch_freq || (child_index - target_index) < 2)

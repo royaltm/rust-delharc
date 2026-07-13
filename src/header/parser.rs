@@ -388,14 +388,17 @@ impl LhaHeader {
     }
 }
 
-fn read_u16(slice: &[u8]) -> Option<u16> {
+#[inline]
+pub(super) fn read_u16(slice: &[u8]) -> Option<u16> {
     slice.as_array::<{size_of::<u16>()}>().copied().map(u16::from_le_bytes)
 }
 
+#[inline]
 pub(super) fn read_u32(slice: &[u8]) -> Option<u32> {
     slice.as_array::<{size_of::<u32>()}>().copied().map(u32::from_le_bytes)
 }
 
+#[inline]
 pub(super) fn read_u64(slice: &[u8]) -> Option<u64> {
     slice.as_array::<{size_of::<u64>()}>().copied().map(u64::from_le_bytes)
 }
@@ -408,7 +411,7 @@ fn wrapping_csum(init: Wrapping<u8>, data: &[u8]) -> Wrapping<u8> {
 pub(super) fn split_data_at_nil_or_end(data: &[u8]) -> (&[u8], Option<&[u8]>) {
     match memchr::memchr(0, data) {
         Some(index) => {
-            #[cfg(not(debug_assertions))]
+            #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
             unsafe {
                 // SAFETY: memchr guarantee asserted condition
                 core::hint::assert_unchecked(index < data.len());

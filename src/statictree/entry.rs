@@ -28,11 +28,8 @@ impl TreeEntry {
 
     /// Create a tree entry as a branch with the given child index
     #[inline]
-    pub fn branch(child_index: usize) -> Result<TreeEntry, &'static str> {
-        if child_index > Self::MAX_INDEX {
-            return Err("tree index out of range");
-        }
-        Ok(TreeEntry(child_index as u16))
+    pub fn branch(child_index: usize) -> TreeEntry {
+        TreeEntry((child_index as u16) & !LEAF_BIT)
     }
 
     /// Convert self to a node type enum
@@ -61,7 +58,6 @@ impl TreeEntry {
         self.0 = (child_index as u16) & !LEAF_BIT;
     }
     /// Return a node value regardless of the node type
-    #[cfg(feature = "lh1")]
     #[inline]
     pub(crate) fn as_value(self) -> u16 {
         self.0 & !LEAF_BIT
@@ -74,37 +70,30 @@ mod tests {
 
     #[test]
     fn tree_entry_works() {
-        assert!(TreeEntry::branch(0x8000).is_err());
-        assert!(TreeEntry::branch(0x7FFF).is_ok());
+        assert!(!TreeEntry::branch(0x7FFF).is_leaf());
         assert_eq!(size_of::<TreeEntry>(), 2);
         assert_eq!(LEAF_BIT, 0x8000);
         let leaf0 = TreeEntry::leaf(0);
         assert!(leaf0.is_leaf());
         assert_eq!(leaf0, TreeEntry::leaf(0x8000));
-        #[cfg(feature = "lh1")]
         assert_eq!(leaf0.as_value(), 0);
         assert_eq!(leaf0.as_node(), NodeType::Leaf(0));
         let leaf1 = TreeEntry::leaf(1);
         assert!(leaf1.is_leaf());
         assert_eq!(leaf1, TreeEntry::leaf(0x8001));
-        #[cfg(feature = "lh1")]
         assert_eq!(leaf1.as_value(), 1);
         assert_eq!(leaf1.as_node(), NodeType::Leaf(1));
-        let branch0 = TreeEntry::branch(0).unwrap();
-        let branch1 = TreeEntry::branch(0x7fff).unwrap();
+        let branch0 = TreeEntry::branch(0);
+        let branch1 = TreeEntry::branch(0x7fff);
         assert!(!branch0.is_leaf());
-        #[cfg(feature = "lh1")]
         assert_eq!(branch0.as_value(), 0);
         assert_eq!(branch0.as_node(), NodeType::Branch(0));
         assert!(!branch1.is_leaf());
-        #[cfg(feature = "lh1")]
         assert_eq!(branch1.as_value(), 0x7fff);
         assert_eq!(branch1.as_node(), NodeType::Branch(0x7fff));
-        assert!(TreeEntry::branch(0x8000).is_err());
-        assert_eq!(leaf0.as_node(), NodeType::Leaf(0));
-        assert_eq!(leaf1.as_node(), NodeType::Leaf(1));
         assert_eq!(branch0.as_node(), NodeType::Branch(0));
         assert_eq!(branch1.as_node(), NodeType::Branch(0x7fff));
+        assert_eq!(TreeEntry::branch(0x8000).as_node(), NodeType::Branch(0));
 
         #[cfg(feature = "lh1")]
         {
