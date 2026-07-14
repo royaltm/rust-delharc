@@ -66,6 +66,38 @@ impl TryFrom<u8> for OsType {
     }
 }
 
+impl From<OsType> for &'static str {
+    fn from(ostype: OsType) -> &'static str {
+        match ostype {
+            OsType::Generic => "-",
+            OsType::MsDos => "MS-DOS",
+            OsType::Win95 => "Win-95",
+            OsType::WinNt => "Win-NT",
+            OsType::Unix => "UNIX",
+            OsType::Os2 => "OS/2",
+            OsType::MacOs => "Mac",
+            OsType::Amiga => "Amiga",
+            OsType::Atari => "Atari",
+            OsType::Java => "Java",
+            OsType::Cpm => "CP/M",
+            OsType::FlexOs => "FLEX",
+            OsType::Runser => "Runser",
+            OsType::TownsOs => "TownsOS",
+            OsType::Os9 => "OS-9",
+            OsType::Osk => "OS/68K",
+            OsType::Os386 => "OS/386",
+            OsType::Human68k => "Human68K",
+            OsType::Xosk => "XOSK",
+        }
+    }
+}
+
+impl fmt::Display for OsType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        <&str>::from(*self).fmt(f)
+    }
+}
+
 impl core::error::Error for UnrecognizedOsType {}
 
 impl fmt::Display for UnrecognizedOsType {
