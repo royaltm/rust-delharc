@@ -1,3 +1,25 @@
+v0.8.0
+* implement `core::error::Error` for error types.
+* exmples: integrate examples into a single file.
+* remove links to integration tests and examples form manifest file, this might have been confusing some OS packagers hence neither tests nor examples are included in the cargo package.
+* Fixed LhaV2Decoder::begin_new_block to set remaining_commands only after successful tree decoding.
+* Changed copy_from_history function signature, which prevciously returned a result which was always Ok.
+* More unit tests added to improve coverage.
+* `extend` feature introduced exposing ring buffers, static Huffman Tree and bit-stream functions.
+* `extend` feature allows users to build custom `LhaV2Decoder` flavours.
+* `no-unsafe-assertions` feature introduced, which remove unsafe assertions that eliminate boundary checks in critical functions; it only affects code if debug_assertions are disabled.
+* lhv1/dyntree: more tests added.
+* lhv1/dyntree: refactored to avoid large stack allocations, simplified the new and rebuild_tree methods.
+* lhv1/dyntree: refactored to use unsafe assertions instead of unsafe slice access, which can be disabled with `no-unsafe-assertions` feature.
+* statictree: more tests added, long randomized tests introduced.
+* statictree fix: replace iterating open-ended ranges with an inclusive range to be able to yield MAX value.
+* statictree fix: ensure tree is cleared on any building error
+* statictree and dyntree: removed Display implementation when not testing.
+* Added long randomized tests for all decoders.
+* `CompressionMethod::is_compressed` method added and `is_directory` method takes self by value now.
+* `LhaHeader` derives `PartialEq` and `Eq`.
+* clippy suggested changes.
+
 v0.7.0
 * Rust edition: 2024.
 * Minimum supported rust version changed to Rust 1.93 (slice::assume_init_mut).
