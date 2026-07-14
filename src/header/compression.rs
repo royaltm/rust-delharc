@@ -49,13 +49,22 @@ impl TryFrom<&[u8;5]> for CompressionMethod {
 }
 
 impl CompressionMethod {
-    pub fn is_directory(&self) -> bool {
-        if let CompressionMethod::Lhd = self {
-            return true
-        }
-        false
+    /// Return whether the compression method indicates a directory entry
+    #[inline]
+    pub fn is_directory(self) -> bool {
+        matches!(self, CompressionMethod::Lhd)
     }
 
+    /// Return whether the compression method actually compresses data
+    #[inline]
+    pub fn is_compressed(self) -> bool {
+        !matches!(self, CompressionMethod::Lhd|
+                        CompressionMethod::Lz4|
+                        CompressionMethod::Lh0|
+                        CompressionMethod::Pm0)
+    }
+
+    /// Return the signature of the compression method
     pub fn as_identifier(self) -> &'static [u8;5] {
         match self {
             CompressionMethod::Lhd => b"-lhd-",
@@ -112,25 +121,26 @@ mod tests {
     #[test]
     fn header_compression_works() {
         let methods = [
-            (b"-lhd-", true),
-            (b"-lzs-", false),
-            (b"-lz4-", false),
-            (b"-lz5-", false),
-            (b"-lh0-", false),
-            (b"-lh1-", false),
-            (b"-lh4-", false),
-            (b"-lh5-", false),
-            (b"-lh6-", false),
-            (b"-lh7-", false),
-            (b"-lhx-", false),
-            (b"-pm0-", false),
-            (b"-pm1-", false),
-            (b"-pm2-", false),
+            (b"-lhd-", true,  false),
+            (b"-lzs-", false, true),
+            (b"-lz4-", false, false),
+            (b"-lz5-", false, true),
+            (b"-lh0-", false, false),
+            (b"-lh1-", false, true),
+            (b"-lh4-", false, true),
+            (b"-lh5-", false, true),
+            (b"-lh6-", false, true),
+            (b"-lh7-", false, true),
+            (b"-lhx-", false, true),
+            (b"-pm0-", false, false),
+            (b"-pm1-", false, true),
+            (b"-pm2-", false, true),
         ];
-        for (m, is_dir) in methods {
+        for (m, is_dir, is_comp) in methods {
             let cm = CompressionMethod::try_from(m).unwrap();
             assert_eq!(cm.as_identifier(), m);
             assert_eq!(cm.is_directory(), is_dir);
+            assert_eq!(cm.is_compressed(), is_comp);
             assert_eq!(cm.to_string().as_str(), <str>::from_utf8(m).unwrap());
         }
         let err = CompressionMethod::try_from(b"-xxx-").unwrap_err();

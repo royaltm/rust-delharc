@@ -1,10 +1,11 @@
 //! # Decoding algorithms.
-use core::fmt;
-use crate::error::{LhaResult, LhaError};
-use crate::stub_io::{Read, Take, discard_to_end};
-
-use crate::crc::Crc16;
-use crate::header::{CompressionMethod, LhaHeader};
+use core::{error, fmt};
+use crate::{
+    crc::Crc16,
+    error::{LhaResult, LhaError},
+    header::{CompressionMethod, LhaHeader},
+    stub_io::{Read, Take, discard_to_end},
+};
 
 #[cfg(feature = "lz")]
 mod lzs;
@@ -27,7 +28,7 @@ pub use lhv2::*;
 
 /// The trait implemented by decoders.
 pub trait Decoder<R> {
-    type Error: fmt::Debug;
+    type Error: error::Error;
     /// Unwraps and returns the inner reader.
     fn into_inner(self) -> R;
     /// Fills the whole `buf` with decoded data.
@@ -150,8 +151,9 @@ impl<R: Read> Default for LhaDecodeReader<R> {
     } 
 }
 
-impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
-    /// Return a new instance of `LhaDecodeReader<R>` after reading and parsing the first header from source.
+impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
+    /// Return a new instance of `LhaDecodeReader<R>` after reading and parsing the first header from
+    /// the stream.
     ///
     /// Provide a stream reader as `rd`.
     ///
@@ -209,7 +211,7 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
     }
     /// Assign externally parsed header and decoder to this instance of `LhaDecodeReader<R>`.
     ///
-    /// It is up to the caller to make sure the decoder and the header are matching each other.
+    /// It is up to the caller to make sure the decoder matches the header.
     ///
     /// The decoder should be initialized with the reader limited by the [`Take`] wrapper
     /// with its limit set to the [`LhaHeader::compressed_size`] number of bytes.
@@ -268,6 +270,11 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
     pub fn header(&self) -> &LhaHeader {
         &self.header
     }
+    /// Unwrap and return the inner [`LhaHeader`] and optionally a decoder object
+    /// if present.
+    pub fn into_parts(self) -> (LhaHeader, Option<DecoderAny<Take<R>>>) {
+        (self.header, self.decoder)
+    }
     /// Unwrap the underlying stream reader and return it.
     ///
     /// # Panics
@@ -275,14 +282,20 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
     pub fn into_inner(self) -> R {
         self.decoder.expect("decoder not empty").into_inner().into_inner()
     }
-    /// Take the inner stream reader value out of the decoder, leaving a none in its place.
+    /// Take the inner decoder object out of the decoder, leaving a none in its place.
     ///
     /// After this call, reading from this instance will result in a panic.
-    pub fn take_inner(&mut self) -> Option<R> {
+    pub fn take_decoder(&mut self) -> Option<DecoderAny<Take<R>>> {
         self.header.original_size = 0;
         self.output_length = 0;
         self.crc.reset();
-        self.decoder.take().map(|decoder| decoder.into_inner().into_inner())
+        self.decoder.take()
+    }
+    /// Take the inner stream reader object out of the decoder, leaving a none in its place.
+    ///
+    /// After this call, reading from this instance will result in a panic.
+    pub fn take_inner(&mut self) -> Option<R> {
+        self.take_decoder().map(|decoder| decoder.into_inner().into_inner())
     }
     /// Return the number of remaining bytes of the currently decompressed file to be read.
     pub fn len(&self) -> u64 {
@@ -311,7 +324,8 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: fmt::Debug {
     /// Return CRC-16 checksum if the computed checksum matches the one in the header.
     /// Otherwise return an [`LhaError::Checksum`] error.
     ///
-    /// This should be called after the whole file has been read.
+    /// # Note
+    /// This method should be called only **AFTER** the whole file has been read.
     pub fn crc_check(&self) -> LhaResult<u16, R> {
         if self.crc_is_ok() {
             Ok(self.header.file_crc)
@@ -347,7 +361,7 @@ impl<R: Read<Error=std::io::Error>> std::io::Read for LhaDecodeReader<R> {
 }
 
 #[cfg(not(feature = "std"))]
-impl<R: Read> Read for LhaDecodeReader<R> where R::Error: fmt::Debug {
+impl<R: Read> Read for LhaDecodeReader<R> where R::Error: error::Error {
     type Error = LhaError<R::Error>;
 
     fn unexpected_eof() -> Self::Error {
@@ -408,7 +422,7 @@ impl<R: Read> DecoderAny<R> {
     }
 }
 
-impl<R: Read> Decoder<R> for DecoderAny<R> where R::Error: fmt::Debug {
+impl<R: Read> Decoder<R> for DecoderAny<R> where R::Error: error::Error {
     type Error = R::Error;
 
     fn into_inner(self) -> R {
@@ -427,7 +441,7 @@ impl<R: Read> PassthroughDecoder<R> {
     }
 }
 
-impl<R: Read> Decoder<R> for PassthroughDecoder<R> where R::Error: fmt::Debug {
+impl<R: Read> Decoder<R> for PassthroughDecoder<R> where R::Error: error::Error {
     type Error = R::Error;
 
     fn into_inner(self) -> R {
@@ -446,7 +460,7 @@ impl<R: Read> UnsupportedDecoder<R> {
     }
 }
 
-impl<R: Read> Decoder<R> for UnsupportedDecoder<R> where R::Error: fmt::Debug {
+impl<R: Read> Decoder<R> for UnsupportedDecoder<R> where R::Error: error::Error {
     type Error = R::Error;
 
     fn into_inner(self) -> R {
@@ -524,6 +538,7 @@ fn wrap_err<R: Read>(read: R, source: LhaError<R::Error>) -> LhaDecodeError<R> {
 #[cfg(test)]
 mod tests {
     use std::io;
+    use crate::OsType;
     use super::*;
 
     #[test]
@@ -536,5 +551,93 @@ mod tests {
         let rd = err.into_inner();
         assert_eq!(rd.position(), 1);
         assert_eq!(rd.into_inner(), vec![0u8;3]);
+    }
+
+    #[test]
+    fn decode_works() {
+        static HEADER_0: &[u8] = {
+            b"\x1F\xC3-lh0-\0\0\0\0\0\0\0\0\xCA\x83\xE7\x2C\x20\x00\x09test\\test\0\0"
+        };
+
+        let mut data = HEADER_0;
+        let reader = LhaDecodeReader::new(&mut data).unwrap();
+        assert!(reader.is_present());
+
+        let (header, decoder) = reader.into_parts();
+        let decoder = decoder.unwrap();
+        assert!(decoder.is_supported());
+        assert!(matches!(decoder, DecoderAny::PassthroughDecoder(..)));
+        let data = decoder.into_inner().into_inner();
+        assert!(data.is_empty());
+        assert_eq!(header.level, 0);
+        assert_eq!(header.original_size, 0);
+        assert_eq!(header.compressed_size, 0);
+        assert_eq!(header.parse_os_type().unwrap(), OsType::Generic);
+        assert!(!header.compression_method().unwrap().is_compressed());
+        assert_eq!(header.parse_pathname_to_str(), "test/test");
+        assert_eq!(header.file_crc, 0);
+
+        static HEADER_1: &[u8] = {
+            b"\x1D\xFF-lh0-\x0D\0\0\0\0\0\0\0\xCA\x83\xE7\x2C\x20\x01\x04test\0\0J\x05\x00\x00\x40\x7F\x08\x00\x02test\xFF\0\0"
+        };
+        println!("{:02x?}", HEADER_1);
+        let mut data = HEADER_1;
+        let mut reader = LhaDecodeReader::new(&mut data).unwrap();
+        assert!(reader.is_present());
+        assert!(!reader.is_absent());
+        {
+            let header = reader.header();
+            assert_eq!(header.level, 1);
+            assert_eq!(header.original_size, 0);
+            assert_eq!(header.compressed_size, 0);
+            assert_eq!(header.parse_os_type().unwrap(), OsType::Java);
+            assert!(!header.compression_method().unwrap().is_compressed());
+            assert_eq!(header.parse_pathname_to_str(), "test/test");
+            assert_eq!(header.file_crc, 0);
+        }
+        let decoder = reader.take_decoder().unwrap();
+        assert!(decoder.is_supported());
+        assert!(matches!(decoder, DecoderAny::PassthroughDecoder(..)));
+        let data = decoder.into_inner().into_inner();
+        assert!(data.is_empty());
+        let decoder = DecoderAny::new_from_header(&header, data);
+        assert!(!reader.is_present());
+        assert!(reader.is_absent());
+        reader.begin_with_header_and_decoder(header.clone(), decoder);
+        assert_eq!(&header, reader.header());
+        assert_eq!(reader.header().level, 0);
+
+        static HEADER_1A: &[u8] = {
+            static INNER: [[u8; 16];11] = [
+                *b"\x19\x85-lh0-\x8A\0\0\0\0\0\0\0\xBC",
+                *b"\x54\xF1\x2C\x20\x01\x00\0\0\x4A\x05\0\0\x63\xAF\x85\0",
+                *b"\x01use a filename ", *b"header as a subs",
+                *b"titute for the f", *b"ilename field wh",
+                *b"en byte count of", *b" filename is in ",
+                *b"excess of the fo", *b"regoing restrict",
+                *b"ion\0\0___________",
+            ];
+            INNER.as_flattened()
+        };
+        let mut data = HEADER_1A;
+        let mut reader = LhaDecodeReader::new(&mut data).unwrap();
+        {
+            let header = reader.header();
+            assert_eq!(header.level, 1);
+            assert_eq!(header.original_size, 0);
+            assert_eq!(header.compressed_size, 0);
+            assert_eq!(header.parse_os_type().unwrap(), OsType::Java);
+            assert!(!header.compression_method().unwrap().is_compressed());
+            assert_eq!(header.parse_pathname_to_str(), concat!(
+                "use a filename header as a substitute for the filename field when ",
+                "byte count of filename is in excess of the foregoing restriction"));
+            assert_eq!(header.file_crc, 0);
+        }
+        let data = reader.take_inner().unwrap();
+        assert_eq!(data, b"___________");
+        let mut data = HEADER_0;
+        reader.begin_new(&mut data).unwrap();
+        assert_eq!(&header, reader.header());
+        assert_eq!(reader.header().level, 0);
     }
 }

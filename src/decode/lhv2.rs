@@ -284,7 +284,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
 }
 
 impl<C: LhaDecoderConfig, R: Read> Decoder<R> for LhaV2Decoder<C, R>
-    where R::Error: core::fmt::Debug
+    where R::Error: core::error::Error
 {
     type Error = R::Error;
 

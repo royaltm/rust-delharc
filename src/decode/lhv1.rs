@@ -64,7 +64,7 @@ impl<R: Read> Lh1Decoder<R> {
     }
 }
 
-impl<R: Read> Decoder<R> for Lh1Decoder<R> where R::Error: core::fmt::Debug {
+impl<R: Read> Decoder<R> for Lh1Decoder<R> where R::Error: core::error::Error {
     type Error = R::Error;
 
     fn into_inner(self) -> R {
