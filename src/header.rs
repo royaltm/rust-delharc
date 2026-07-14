@@ -8,10 +8,11 @@ use alloc::{boxed::Box, string::String, borrow::Cow};
 use chrono::{LocalResult, prelude::*};
 
 mod compression;
-mod ostype;
 mod msdos;
+mod ostype;
 mod parser;
 mod timestamp;
+mod unix;
 
 use parser::ext::*;
 
@@ -20,9 +21,10 @@ pub use compression::*;
 pub use ostype::*;
 pub use parser::*;
 pub use timestamp::*;
+pub use unix::*;
 
 /// Semi-parsed LHA header.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LhaHeader {
     /// Header level: 0, 1, 2 or 3.
     pub level: u8,
@@ -51,10 +53,22 @@ pub struct LhaHeader {
     /// Uncompressed file's CRC-16.
     pub file_crc: u16,
     /// An extended area as raw bytes.
+    ///
+    /// Extended area is only present on header levels 0 and 1.
+    ///
+    /// * On level 0 if the extended area is present, the first byte is removed as an OS ID field.
+    /// * On level 1 the extended area starts *AFTER* an OS ID field and ends before the first
+    /// extended header.
+    ///
+    /// Either way the content provided here, *DOES NOT* include an OS ID byte.
     pub extended_area: Box<[u8]>,
     /// The size of the first extra header.
+    ///
+    /// The extra headers are only present on header levels 1 and above.
     pub first_header_len: u32,
     /// The extra headers' data.
+    ///
+    /// The extra headers are only present on header levels 1 and above.
     pub extra_headers: Box<[u8]>,
 }
 
@@ -81,14 +95,17 @@ impl LhaHeader {
     /// Return whether the archive is an empty directory or a symbolic link.
     pub fn is_directory(&self) -> bool {
         self.compression_method().ok()
-            .filter(CompressionMethod::is_directory)
-            .is_some()
+            .map(CompressionMethod::is_directory)
+            .unwrap_or(false)
     }
     /// Attempt to parse the `os_type` field and return the `OsType` enum on success.
+    ///
+    /// Header level 0 doesn't have an OS ID field, but in this instance a first byte of
+    /// the extended area, if present, is treated as an `os_type` field.
     pub fn parse_os_type(&self) -> Result<OsType, UnrecognizedOsType> {
         OsType::try_from(self.os_type)
     }
-    /// Attempt to parse the extended area, extra headers and as a last resort the `last_modified` field
+    /// Attempt to parse the extra headers, extended area and as a last resort the `last_modified` field
     /// taking into account the header level, and on success return an instance of [`DateTime<Utc>`][DateTime]
     /// or a [NaiveDateTime] wrapped in an `TimestampResult` enum.
     pub fn parse_last_modified(&self) -> TimestampResult {
@@ -108,13 +125,10 @@ impl LhaHeader {
             }
         }
         if self.level < 2 {
-            match self.parse_os_type() {
-                Ok(OsType::Unix)|Ok(OsType::Osk) => {
-                    if let Some(ts) = self.extended_area.get(1..5).and_then(read_u32) {
-                        return Utc.timestamp_opt(ts as i64, 0).into()
-                    }
-                }
-                _ => {}
+            if matches!(self.parse_os_type(), Ok(OsType::Unix)|Ok(OsType::Osk)) &&
+               let Some(ts) = self.extended_area.get(1..5).and_then(read_u32)
+            {
+                    return Utc.timestamp_opt(ts as i64, 0).into()
             }
             parse_msdos_datetime(self.last_modified).into()
         }
@@ -246,6 +260,47 @@ impl LhaHeader {
         else {
             None
         }
+    }
+    /// Attempt to parse the extra headers, the extended area of header levels 0 and 1,
+    /// to find the unix permissions field, and on success return an instance of
+    /// [`Permissions`] flags.
+    pub fn parse_unix_permissions(&self) -> Option<Permissions> {
+        let mut perm_raw = None;
+        for header in self.iter_extra() {
+            if let [EXT_HEADER_UNIX_PERM, data @ ..] = header {
+                perm_raw = data.get(0..2).and_then(read_u16);
+                break
+            }
+        }
+        if perm_raw.is_none() &&
+           self.level < 2 &&
+           matches!(self.parse_os_type(), Ok(OsType::Unix))
+        {
+            perm_raw = self.extended_area.get(5..7).and_then(read_u16);
+        }
+        perm_raw.map(Permissions::from_bits_truncate)
+    }
+    /// Attempt to parse the extra headers, the extended area of header levels 0 and 1,
+    /// to find the unix User-ID and Group-ID fields, and on success return a tuple of `(UID, GID)`.
+    pub fn parse_unix_uid_gid(&self) -> Option<(u16, u16)> {
+        for header in self.iter_extra() {
+            if let [EXT_HEADER_UNIX_UIDGID, data @ ..] = header &&
+               data.len() >= 4
+            {
+                let gid = read_u16(&data[0..2]).unwrap();
+                let uid = read_u16(&data[2..4]).unwrap();
+                return Some((gid, uid))
+            }
+        }
+        if self.level < 2 &&
+           self.extended_area.len() >= 11 &&
+           matches!(self.parse_os_type(), Ok(OsType::Unix))
+        {
+            let uid = read_u16(&self.extended_area[7..9]).unwrap();
+            let gid = read_u16(&self.extended_area[9..11]).unwrap();
+            return Some((gid, uid))
+        }
+        None
     }
 }
 
