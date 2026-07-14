@@ -56,6 +56,7 @@ jobs:
       - name: Tests
         env:
           RUSTFLAGS: '-D warnings'
+          # FIXME 1.97+: CARGO_BUILD_WARNINGS: 'deny'
         run: |
           cargo build --verbose --no-default-features
           cargo test --verbose --no-default-features
@@ -74,6 +75,7 @@ jobs:
         if: matrix.target
         env:
           RUSTFLAGS: '-D warnings'
+          # FIXME 1.97+: CARGO_BUILD_WARNINGS: 'deny'
         run: |
           cargo build -p delharc-embedded-example --target ${{ matrix.target }}
 
@@ -82,6 +84,7 @@ jobs:
         env:
           LLVM_PROFILE_FILE: "delharc-%p-%m.profraw"
           RUSTFLAGS: "-Cinstrument-coverage"
+          # FIXME 1.97+: CARGO_BUILD_WARNINGS: 'deny'
         run: |
           cargo build --no-default-features --features=lh1,lz,lhx
           cargo run --example extract --no-default-features --features=lh1,lz,lhx
