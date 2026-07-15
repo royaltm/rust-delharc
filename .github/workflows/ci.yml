@@ -60,16 +60,24 @@ jobs:
         run: |
           cargo build --verbose --no-default-features
           cargo test --verbose --no-default-features
-          cargo build --verbose --no-default-features --features=lz,lh1,lhx
-          cargo test --verbose --no-default-features --features=lz,lh1,lhx
+          cargo build --verbose --no-default-features --features=lz,lh1,lhx,fast-static-tree
+          cargo test --verbose --no-default-features --features=lz,lh1,lhx,fast-static-tree
+          cargo build --verbose --no-default-features --features=lz,lh1,lhx,extend,fast-static-tree
+          cargo test --verbose --no-default-features --features=lz,lh1,lhx,extend,fast-static-tree
           cargo build --verbose --no-default-features --features=std
           cargo test --verbose --no-default-features --features=std
           cargo build --verbose --no-default-features --features=std,lz
           cargo test --verbose --no-default-features --features=std,lz
           cargo build --verbose --no-default-features --features=std,lh1
           cargo test --verbose --no-default-features --features=std,lh1
+          cargo build --verbose --features=std,lz,lh1,lhx,extend,fast-static-tree
+          cargo test --verbose --features=std,lz,lh1,lhx,extend,fast-static-tree
+          cargo build -r --verbose --features=std,lz,lh1,lhx,extend,fast-static-tree
+          cargo test -r --verbose --features=std,lz,lh1,lhx,extend,fast-static-tree
           cargo build --verbose --all-features
           cargo test --verbose --all-features
+          cargo build -r --verbose --all-features
+          cargo test -r --verbose --all-features
 
       - name: Test embedded
         if: matrix.target
@@ -87,10 +95,12 @@ jobs:
           # FIXME 1.97+: CARGO_BUILD_WARNINGS: 'deny'
         run: |
           cargo build --no-default-features --features=lh1,lz,lhx
-          cargo run --example extract --no-default-features --features=lh1,lz,lhx
           cargo test --no-default-features --features=lh1,lz,lhx
-          cargo build --all-features
+          cargo build --no-default-features --features=lh1,lz,lhx,extend,fast-static-tree
+          cargo test --no-default-features --features=lh1,lz,lhx,extend,fast-static-tree
+          cargo run --example extract --no-default-features --features=lh1,lz,lhx,extend
           cargo run --example extract --all-features
+          cargo build --all-features
           cargo test --all-features
           cargo test --all-features -- --ignored
           grcov . \
