@@ -85,6 +85,10 @@ macro_rules! unsafe_assert {
 }
 
 impl HuffTree {
+    /// The maximum number of unique values (leaves) this object can hold.
+    pub const MAX_LEAVES: usize = (TreeEntry::MAX_INDEX + 1) / 2;
+    /// The maximum number of nodes this object can hold.
+    pub const MAX_NODES: usize = Self::MAX_LEAVES * 2 - 1;
     /// Creates a new and empty [`HuffTree`] without allocating anything.
     ///
     /// The tree needs to be populated with nodes first, before it can be read from.
@@ -106,7 +110,7 @@ impl HuffTree {
     /// If [`max_leaves`] exceeds the maximum tree capacity this method panics.
     #[inline]
     pub fn with_leaf_capacity(max_leaves: usize) -> Self {
-        if max_leaves > TreeEntry::MAX_INDEX / 2 {
+        if max_leaves > Self::MAX_LEAVES {
             panic!("too many leaves")
         }
         let capacity = max_leaves * 2 - 1;
@@ -126,7 +130,7 @@ impl HuffTree {
     /// the `max_leaves` argument is the number of expected *TOTAL* number of leaves in the
     /// complete tree, and *NOT* the additional number.
     pub fn try_reserve_for_leaves(&mut self, max_leaves: usize) -> Result<(), &'static str> {
-        if max_leaves > TreeEntry::MAX_INDEX / 2 {
+        if max_leaves > Self::MAX_LEAVES {
             return Err("too many leaves");
         }
         if max_leaves == 0 {
@@ -157,19 +161,20 @@ impl HuffTree {
     /// Builds the tree from the given array of lengths.
     ///
     /// 0-based indexes of `value_lengths` slice represent the values stored in the tree
-    /// leaves. Each 8-bit value represents the `length` (or depth), measured in
+    /// leaves. Each non-zero 8-bit value represents the `length` (or depth), measured in
     /// nodes from the tree root, at which the leaf is being created.
     ///
     /// See [`statictree`] module for more information about the three lengths.
     ///
-    /// * Entries containing `0` are being ignored - there will be no leaf with a `value`
-    ///   from such an index.
-    /// * If the size of the argument slice exceeds [`TreeEntry::MAX_INDEX`] / 2,
-    ///   an error is returned.
-    /// * If too many entries contain the same `length`, exceeding the given `length`
-    ///   capacity, an error is returned.
-    /// * An error is returned if a tree is incomplete - there are not enough leaves
-    ///   to fill the last length.
+    /// Entries containing `0` are being ignored - there will be no leaf with a `value`
+    /// from such an empty index.
+    ///
+    /// An error is returned:
+    /// * if too many entries contain the same `length`, exceeding the given `length`
+    ///   capacity,
+    /// * if a tree is incomplete - there are not enough leaves to fill the last length,
+    /// * if the size of the argument slice exceeds [`TreeEntry::MAX_INDEX`] + 1,
+    /// * if the node size of the tree would exceed [`Self::MAX_NODES`].
     ///
     /// The root of the tree (`length = 0`) is always a branch. The maximum number of
     /// leaves on the first length is 2. If there are 2 leaves on the first length,
@@ -208,7 +213,7 @@ impl HuffTree {
         tree_vec.clear();
 
         // println!("({}) {:?}", value_lengths.len(), value_lengths);
-        if value_lengths.len() > TreeEntry::MAX_INDEX / 2 {
+        if value_lengths.len() > const { TreeEntry::MAX_INDEX + 1 } {
             return Err("too many code lengths");
         }
 
@@ -219,9 +224,14 @@ impl HuffTree {
             }
         }
         let num_leaves = tree_vec.len();
-        if num_leaves <= 1 {
+        if !(2..=Self::MAX_LEAVES).contains(&num_leaves) {
             tree_vec.clear();
-            return Err("missing some leaves")
+            return Err(if num_leaves > Self::MAX_LEAVES {
+                "too many leaves"
+            }
+            else {
+                "missing some leaves"
+            })
         }
 
         // step 2: make room for branches before leaves O(n)
@@ -316,7 +326,7 @@ impl HuffTree {
         tree.clear();
 
         // println!("({}) {:?}", value_lengths.len(), value_lengths);
-        if value_lengths.len() > TreeEntry::MAX_INDEX / 2 {
+        if value_lengths.len() > const { TreeEntry::MAX_INDEX + 1 } {
             return Err("too many code lengths");
         }
 
@@ -328,9 +338,8 @@ impl HuffTree {
             let more_branches = max_allocated - tree.len();
             for _ in  0..more_branches {
                 if max_allocated > max_nodes { // too many branches created
-                    // println!("too many!!! max nodes: {} max_allocated: {} tree: {}", max_nodes, max_allocated, tree.len());
                     tree.clear();
-                    return Err("missing some leaves"); 
+                    return Err("missing some leaves")
                 }
                 tree.push(TreeEntry::branch(max_allocated));
                 // for every branch node, two new child nodes are required
@@ -361,7 +370,7 @@ impl HuffTree {
                 break;
             }
 
-            max_nodes = (max_allocated + more_leaves).min(TreeEntry::MAX_INDEX);
+            max_nodes = (max_allocated + more_leaves).min(Self::MAX_NODES);
         }
         if tree.len() != max_allocated {
             // println!("tree missing leaves: {}", max_allocated - tree.len());
@@ -505,6 +514,8 @@ mod tests {
 
     #[test]
     fn hufftree_works() {
+        assert_eq!(HuffTree::MAX_LEAVES, 0x4000);
+        assert_eq!(HuffTree::MAX_NODES,  0x8000);
         let mut tree = HuffTree::new();
         println!("{}", tree);
         tree.set_single(42);
@@ -583,7 +594,7 @@ mod tests {
         assert!(tree.is_empty());
         assert_eq!(tree.build_tree(&[255;5]).unwrap_err(), "missing some leaves");
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[255;0x3FFF]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&vec![255;0x4000]).unwrap_err(), "missing some leaves");
         assert!(tree.is_empty());
         assert_eq!(tree.build_tree(&[1,1,1]).unwrap_err(), "too many leaves");
         assert!(tree.is_empty());
@@ -613,17 +624,20 @@ mod tests {
         assert_eq!(tree.build_tree(&[0, 1, 0, 2, 5]).unwrap_err(), "missing some leaves");
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
-        let code_length = vec![0u8; 0x4000-1];
+        let mut code_length = vec![0u8; 0x4000];
         assert_eq!(tree.build_tree(&code_length).unwrap_err(), "missing some leaves");
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
-        let code_length = vec![0u8; 0x4000];
-        assert_eq!(tree.try_reserve_for_leaves(0x4000).unwrap_err(), "too many leaves");
+        code_length.resize(0x8000, 0u8);
+        tree.try_reserve_for_leaves(0x4000).unwrap();
+        assert_eq!(tree.try_reserve_for_leaves(0x4001).unwrap_err(), "too many leaves");
+        assert_eq!(tree.build_tree(&code_length).unwrap_err(), "missing some leaves");
+        code_length.push(1);
         assert_eq!(tree.build_tree(&code_length).unwrap_err(), "too many code lengths");
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
 
-        let mut code_length = Vec::with_capacity(0x4000);
+        code_length.clear();
         for i in 1u8..=255u8 {
             code_length.push(i);
         }
@@ -677,10 +691,11 @@ mod tests {
 
     #[test]
     #[ignore = "long tests"]
-    fn hufftree_long_tests() {
-        let mut tree = HuffTree::with_leaf_capacity(0x3FFF);
+    fn hufftree_long_tests_random_garbage() {
+        let mut tree = HuffTree::with_leaf_capacity(256);
         let mut rng = rand::rng();
-        let vec = &mut Vec::new();
+        let vec = &mut Vec::with_capacity(256);
+        // random garbage failure test
         vec.resize(256, 0);
         for n in 1..=100_000 {
             rng.fill(vec);
@@ -691,22 +706,37 @@ mod tests {
                 }
             }
         }
+    }
 
-        tree.clear();
-        tree.shrink_to_fit();
-        println!("length: 255");
-        vec.clear();
-        loop {
-            vec.push(255);
+    #[test]
+    #[ignore = "long tests"]
+    fn hufftree_long_tests_trees_too_deep() {
+        let mut tree = HuffTree::with_leaf_capacity(0x4000);
+        let vec = &mut Vec::with_capacity(HuffTree::MAX_NODES + 256);
+        // extreme depth three with missing leaves
+        for i in (0..0x2000)
+            .chain((0x2000..HuffTree::MAX_LEAVES-0x100).step_by(16))
+            .chain(HuffTree::MAX_LEAVES-0x100..HuffTree::MAX_LEAVES+0x100)
+            .chain((HuffTree::MAX_LEAVES+0x100..HuffTree::MAX_NODES-0x100).step_by(16))
+            .chain(HuffTree::MAX_NODES-0x100..)
+        {
+            vec.resize(i, u8::MAX);
             println!("length: 255 -> ({})", vec.len());
             let err = tree.build_tree(&vec).unwrap_err();
             assert!(tree.is_empty());
             match err {
                 "too many code lengths" => break,
+                e if cfg!(feature = "fast-static-tree") && i > HuffTree::MAX_LEAVES => {
+                    assert_eq!(e, "too many leaves")
+                }
                 e => assert_eq!(e, "missing some leaves"),
             }
         }
+    }
 
+    #[test]
+    #[ignore = "long tests"]
+    fn hufftree_long_tests_random_trees() {
         // build a random tree lengths with an upper num of values
         fn build_random_lengths(max_values: usize, rng: &mut impl Rng, out: &mut Vec<u8>) -> usize {
             out.clear();
@@ -734,11 +764,16 @@ mod tests {
             out.len()
         }
 
-        for nvalues in (2..=10).chain([20,50,100,200,256,0x3FFF]) {
-            for i in 0..(nvalues*2).max(1).min(if nvalues <= 256 { 20 } else { 50 }) {
-                println!("-------------- [{}][{}]", nvalues, i + 1);
+        let mut rng = rand::rng();
+        let mut tree = HuffTree::with_leaf_capacity(HuffTree::MAX_LEAVES);
+        let vec = &mut Vec::with_capacity(0x8000);
+
+        // build randomized, but otherwise proper trees of different sizes
+        for nvalues in (2..=10).chain([20,50,100,200,256,0x4000]) {
+            for i in 0..(nvalues*2).max(1).min(if nvalues <= 256 { 10 } else { 20 }) {
+                print!("Rng tree max: {} #{} ", nvalues, i + 1);
                 let nleaves = build_random_lengths(nvalues, &mut rng, vec);
-                // println!("leaves: {}", nleaves);
+                println!("leaves: {}", nleaves);
                 if nvalues <= 256 {
                     assert_eq!(nvalues, nleaves);
                 }
@@ -752,27 +787,25 @@ mod tests {
                     let value = tree.read_entry(&mut rndstream).unwrap() as usize;
                     assert!(value < nvalues, "unexpected value returned: {}", value);
                 }
-
+                // one more
                 let max_level = vec.iter().copied().max().unwrap();
                 vec.push(rng.random_range(1..=max_level));
-                assert_eq!(tree.build_tree(vec).unwrap_err(), if vec.len() > 0x3FFF {
-                    "too many code lengths"
-                }
-                else {
-                    "too many leaves"
-                });
+                assert_eq!(tree.build_tree(vec).unwrap_err(), "too many leaves");
+                // restore
                 vec.pop();
+                // one less
                 let last = vec.pop().unwrap();
                 assert_eq!(tree.build_tree(vec).unwrap_err(), "missing some leaves");
+                // restore
                 vec.push(last);
 
-                let nleaves = vec.len();
-                vec.resize(0x3FFF, 0);
+                // expand the lengths array to a maximum possible size
+                vec.resize(0x8000, 0);
                 vec.shuffle(&mut rng);
                 tree.build_tree(vec).unwrap();
-                if nvalues < 100 {
-                    // println!("{}", tree);
-                }
+                // if nvalues < 100 {
+                //     println!("{}", tree);
+                // }
                 validate_tree(&tree, nleaves);
                 let mut rndstream = BitStream::new(RngReader(&mut rng));
                 for _ in 0..1_000_000 {
