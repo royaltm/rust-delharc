@@ -1,18 +1,18 @@
-// use core::num::NonZeroU16;
 use bytemuck::{AnyBitPattern, NoUninit};
-/// A packed tree entry object
+
+/// A packed tree node object
 #[derive(Debug, Clone, Copy, PartialEq, Eq, NoUninit, AnyBitPattern)]
 #[repr(transparent)]
 pub struct TreeEntry(u16);
 
 const LEAF_BIT: u16 = 1u16.rotate_right(1);
 
-/// A tree entry node enum
+/// An enum representing a single tree node
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeType {
-    /// Values are stored in leaves
+    /// Leaves contain unique values
     Leaf(u16),
-    /// A branch holds an index to child nodes
+    /// Branches hold indexes to child nodes
     Branch(u16),
 }
 
@@ -20,19 +20,27 @@ impl TreeEntry {
     /// The maximum tree node value or index
     pub const MAX_INDEX: usize = LEAF_BIT as usize - 1;
 
-    /// Create a tree entry as a leaf with the given value
+    /// Create a tree entry as a leaf with the given value.
+    ///
+    /// # Note
+    /// If the number given is larger than [`Self::MAX_INDEX`] this function
+    /// will truncate the value.
     #[inline]
     pub fn leaf(value: u16) -> TreeEntry {
         TreeEntry(value | LEAF_BIT)
     }
 
     /// Create a tree entry as a branch with the given child index
+    ///
+    /// # Note
+    /// If the number given is larger than [`Self::MAX_INDEX`] this function
+    /// will truncate the value.
     #[inline]
     pub fn branch(child_index: usize) -> TreeEntry {
         TreeEntry((child_index as u16) & !LEAF_BIT)
     }
 
-    /// Convert self to a node type enum
+    /// Convert self to a node enum
     #[inline]
     pub fn as_node(self) -> NodeType {
         let TreeEntry(entry) = self;
@@ -45,18 +53,22 @@ impl TreeEntry {
         }
     }
 
-    /// Return whether this tree entry is a leaf
+    /// Return whether this node is a leaf
     #[allow(dead_code)]
     #[inline]
     pub fn is_leaf(self) -> bool {
         self.0 & LEAF_BIT == LEAF_BIT
     }
 
+    /// Convert a node to a branch with the given childe index.
+    ///
+    /// The `child_index` value is truncated.
     #[cfg(feature = "lh1")]
     #[inline]
     pub(crate) fn set_as_branch(&mut self, child_index: usize) {
         self.0 = (child_index as u16) & !LEAF_BIT;
     }
+
     /// Return a node value regardless of the node type
     #[inline]
     pub(crate) fn as_value(self) -> u16 {

@@ -62,9 +62,10 @@ impl<'a> Iterator for ExtraHeaderIter<'a> {
     }
 }
 
-/// Allocation max for reading with a limit
+/// Allocate at once this number of bytes maximum when reading variable size fields
 const ALLOCATE_LIMIT_MAX: usize = 8*1024;
 
+/// The raw LHA header fragment with a rigid structure
 #[derive(Clone, Copy, Debug, Default, NoUninit, AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -77,15 +78,22 @@ struct LhaRawBaseHeader {
     lha_level: u8
 }
 
+/// The internal header parser object
 struct Parser<'a, R> {
     rd: &'a mut R,
+    /// A collected header's CRC-16 checksum
     crc: Crc16,
+    /// A collected header's wrapping sum checksum
     csum: Wrapping<u8>,
+    /// The number of bytes parsed so far
     len: usize
 }
 
 impl<R: Read> Parser<'_, R> {
-    // NOTE: does not update wrapping sum
+    /// Read a next byte if there is one more in the stream increasing
+    /// the parsed counter and updating the header CRC-16 checksum.
+    ///
+    /// NOTE: this function does not update the wrapping sum.
     fn read_u8_or_none(&mut self) -> LhaResult<Option<u8>, R> {
         let mut byte = 0u8;
         if 0 == self.rd.read_all(slice::from_mut(&mut byte)).map_err(LhaError::Io)? {
@@ -94,48 +102,57 @@ impl<R: Read> Parser<'_, R> {
         self.update_checksums_no_wrapping_sum(slice::from_ref(&byte));
         Ok(Some(byte))
     }
-
+    /// Read the next byte, increase the parsed counter and update all checksums
     fn read_u8(&mut self) -> LhaResult<u8, R> {
         let mut byte: u8 = 0;
         self.read_exact(slice::from_mut(&mut byte))?;
         Ok(byte)
     }
-
+    /// Read the next 2 bytes, increase the parsed counter and update all checksums.
+    /// Return an LE 16-bit value.
     fn read_u16(&mut self) -> LhaResult<u16, R> {
         let mut buf = [0u8;2];
         self.read_exact(&mut buf)?;
         Ok(u16::from_le_bytes(buf))
     }
-
+    /// Read the next 4 bytes, increase the parsed counter and update all checksums.
+    /// Return an LE 32-bit value.
     fn read_u32(&mut self) -> LhaResult<u32, R> {
         let mut buf = [0u8;4];
         self.read_exact(&mut buf)?;
         Ok(u32::from_le_bytes(buf))
     }
-
+    /// Read the exact number of bytes, increase the parsed counter and update all
+    /// checksums.
     fn read_exact(&mut self, buf: &mut [u8]) -> LhaResult<(), R> {
         self.rd.read_exact(buf).map_err(LhaError::Io)?;
         self.update_checksums(buf);
         Ok(())
     }
-
+    /// Read the `limit` bytes into an newly allocated boxed slice, increase the
+    /// parsed counter and update all checksums.
     fn read_limit(&mut self, limit: usize) -> LhaResult<Box<[u8]>, R> {
         let mut buf = Vec::new();
         self.read_limit_no_checksums(limit, &mut buf)?;
         self.update_checksums(&buf);
         Ok(buf.into_boxed_slice())
     }
-
-    fn update_checksums(&mut self, buf: &[u8]) {
-        self.update_checksums_no_wrapping_sum(buf);
-        self.csum = wrapping_csum(self.csum, buf);
+    /// Increase the parser counter and update all header checksums from data
+    fn update_checksums(&mut self, data: &[u8]) {
+        self.update_checksums_no_wrapping_sum(data);
+        self.csum = wrapping_csum(self.csum, data);
     }
-
-    fn update_checksums_no_wrapping_sum(&mut self, buf: &[u8]) {
-        self.len += buf.len();
-        self.crc.digest(buf);
+    /// Increase the parser counter and update only the CRC-16 header checksum
+    fn update_checksums_no_wrapping_sum(&mut self, data: &[u8]) {
+        self.len += data.len();
+        self.crc.digest(data);
     }
-
+    /// Read the `limit` bytes into a vector.
+    ///
+    /// This function does not increase the parsed counter, nor updates any checksums.
+    ///
+    /// Take care not to allocate too much memory when doing so, until more data
+    /// is read from the stream.
     fn read_limit_no_checksums(&mut self, mut limit: usize, buf: &mut Vec<u8>) -> LhaResult<(), R> {
         while limit != 0 {
             let chunk_size = limit.min(ALLOCATE_LIMIT_MAX);
@@ -160,17 +177,20 @@ impl LhaHeader {
     ///
     /// The method validates all length and checksum fields of the header, but does not parse extra
     /// headers except:
+    ///
     /// * The ["Common"][EXT_HEADER_COMMON] header for validating the header's CRC-16 checksum.
     /// * The ["MS-DOS Attributes"][EXT_HEADER_MSDOS_ATTRS] header for reading MS-DOS attributes.
     /// * The ["MS-DOS Size"][EXT_HEADER_MSDOS_SIZE] header for reading 64-bit file size.
     ///
-    /// All extra data is available as raw bytes and extra headers can be iterated with [`LhaHeader::iter_extra`].
+    /// All extra header data is available as raw bytes and raw extra headers can be easily iterated
+    /// with the [`LhaHeader::iter_extra`] function.
     ///
-    /// Instance methods can be further called on the parsed `LhaHeader` struct to attempt to parse the
-    /// name and path of the file or other file's meta-data.
+    /// [`LhaHeader`] methods can be further called on the returned object to attempt to parse the
+    /// additional properties of an archive entry.
     ///
     /// # Errors
-    /// Returns an error from the underlying reading operations or because a malformed header was encountered.
+    /// Returns an error from the underlying reading operations or because a malformed header was
+    /// encountered.
     pub fn read<R: Read>(rd: &mut R) -> LhaResult<Option<LhaHeader>, R> {
         let mut parser = Parser {
             rd, 
@@ -225,7 +245,7 @@ impl LhaHeader {
             }
             let mut extended_len = (header_len as usize) - min_len;
             if extended_len != 0 && raw_header.lha_level == 0  {
-                // get os_type from level 0 extended area
+                // Get optional os_type from level 0 extended area
                 extended_len -= 1;
                 os_type = parser.read_u8()?;
             }
@@ -378,7 +398,7 @@ impl LhaHeader {
     /// data, excluding the next header length field.
     ///
     /// # Note
-    /// Each iterated raw header will have at least the size of 1 byte containing the header identifier.
+    /// Each iterated slice will have at least the size of 1 byte containing the header identifier.
     pub fn iter_extra(&self) -> ExtraHeaderIter<'_> {
         ExtraHeaderIter {
             data: &self.extra_headers,

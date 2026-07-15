@@ -23,7 +23,9 @@ pub use parser::*;
 pub use timestamp::*;
 pub use unix::*;
 
-/// Semi-parsed LHA header.
+/// An object representing a partially parsed LHA header.
+///
+/// This object can be obtained from the [`LhaHeader::read`] function.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LhaHeader {
     /// Header level: 0, 1, 2 or 3.
@@ -264,6 +266,11 @@ impl LhaHeader {
     /// Attempt to parse the extra headers, the extended area of header levels 0 and 1,
     /// to find the unix permissions field, and on success return an instance of
     /// [`Permissions`] flags.
+    ///
+    /// # Note
+    /// The [`Permissions`] object properly identify permission flags only if the
+    /// file was created on a UNIX operating system.
+    /// Otherwise the result can be meaningless.
     pub fn parse_unix_permissions(&self) -> Option<Permissions> {
         let mut perm_raw = None;
         for header in self.iter_extra() {
@@ -282,6 +289,10 @@ impl LhaHeader {
     }
     /// Attempt to parse the extra headers, the extended area of header levels 0 and 1,
     /// to find the unix User-ID and Group-ID fields, and on success return a tuple of `(UID, GID)`.
+    ///
+    /// # Note
+    /// The UID and GID values should be considered with caution, especially if file was not
+    /// created on a UNIX operating system.
     pub fn parse_unix_uid_gid(&self) -> Option<(u16, u16)> {
         for header in self.iter_extra() {
             if let [EXT_HEADER_UNIX_UIDGID, data @ ..] = header &&

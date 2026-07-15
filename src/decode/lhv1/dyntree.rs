@@ -8,21 +8,30 @@ use bytemuck::{AnyBitPattern, NoUninit, Zeroable, cast_slice_mut, allocation::tr
 use crate::{
     error::LhaError,
     bitstream::BitRead,
-    statictree::entry::*
+    statictree::{NodeType, TreeEntry}
 };
 
+/// Dynamic Huffman Tree
 #[derive(Clone, Zeroable)]
 pub struct DynHuffTree {
+    /// The tree
     nodes: [TreeNode; NUM_NODES],
+    /// An offset to a given leaf indexed by its value
     leaves: LeavesIndex,
+    /// Frequency groups and group leaders
     groups: Groups,
 }
 
+/// If a root node frequency is equal or exceed this value a whole tree is rebuilt
 const REORDER_LIMIT: u16 = 32 * 1024;
+/// The number of leaves, or unique values, stored in a dynamic tree.
 const NUM_LEAVES: usize = 314;
+/// The total number of tree nodes - leaves and branches.
 const NUM_NODES: usize = NUM_LEAVES * 2 - 1;
 
-/// An object used for rebuilding a tree
+/// An object holding a leaf and its frequency.
+///
+/// This object is used when the dynamic tree is rebuilt
 #[derive(Clone, Copy, NoUninit, AnyBitPattern)]
 #[repr(C)]
 struct LeafNode {
@@ -30,39 +39,62 @@ struct LeafNode {
     freq: u16
 }
 
-/// Interleaved properties for groups and leaders arrays
+/// A tuple of properties for an interleaved array of group identifiers
+/// and leaders
 #[derive(Debug, Clone, Copy, NoUninit, AnyBitPattern)]
 #[repr(C)]
 struct GroupOrLeader {
+    /// A unique group identifier
     group: u16,
+    /// An index to a tree node group leader
     leader: u16
 }
 
+/// This object is being used for allocating new frequency groups and
+/// finding group leaders
 #[derive(Clone, Copy, Zeroable)]
 #[repr(C)]
 struct Groups {
+    /// The number of allocated groups.
+    ///
+    /// There will never be more groups than tree nodes.
     ngroups: u16,
-     // there will be no more groups than tree nodes
+    /// An array of unique group identifiers and leader node indexes.
+    ///
+    /// To access a group identifier, this array is indexed by [`Self::ngroups`].
+    ///
+    /// To access a group leader, this array is indexed by group identifiers.
     groups_leaders: [GroupOrLeader; NUM_NODES], // groups_leaders[group].leader -> node_index
 }
 
+/// An index object for looking up leaves in the tree by their values
 #[derive(Clone, Copy, Zeroable)]
 #[repr(transparent)]
 struct LeavesIndex([u16; NUM_LEAVES]); // leaves[leaf_value] -> node_index
 
+/// A single tree object node with additional attributes
 #[derive(Debug, Clone, Copy, Zeroable)]
 #[repr(C)]
 struct TreeNode {
-    /// a leaf or a branch
+    /// A leaf or a branch containing a value or an index to children of a branch 
     entry: TreeEntry,
-    /// node frequency
+    /// A frequency of tree node.
+    ///
+    /// The tree must be sorted by descending node frequencies at all times.
+    ///
+    /// * A leaf frequency is determined by how many times it was read from the tree.
+    /// * A branch frequency is a sum of frequencies of all descendant nodes.
+    ///
     freq: u16,
-    /// parent index
+    /// An index to a parent node
     parent: u16,
-    /// frequency group id
+    /// A frequency group identifier.
+    ///
+    /// Tree nodes having the same frequency must belong to a single and unique group.
     group: u16,
 }
 
+// Unsafe asserts are used to guide the optimizer
 macro_rules! unsafe_assert {
     ($expr:expr) => {
         #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
@@ -73,30 +105,35 @@ macro_rules! unsafe_assert {
     };
 }
 
+/// This macro asserts that a tree leaf value is contained in an allowed range
 macro_rules! unsafe_assert_leaf_value_in_range {
     ($value:ident) => {
         unsafe_assert!($value < const { NUM_LEAVES as u16 })
     };
 }
 
+/// This macro asserts that a tree branch child index is contained in an allowed range
 macro_rules! unsafe_assert_child_index_in_range {
     ($child_index:ident) => {
         unsafe_assert!(usize::from($child_index) > 0 && usize::from($child_index) < NUM_NODES)
     };
 }
 
+/// This macro asserts that a group identifier is in an allowed range
 macro_rules! unsafe_assert_group_in_range {
     ($group:ident) => {
         unsafe_assert!($group < const { NUM_NODES as u16 })
     };
 }
 
+/// This macro asserts that there can be no more groups than nodes
 macro_rules! unsafe_assert_group_can_allocate {
     ($groups:expr) => {
         unsafe_assert!($groups.ngroups < const { NUM_NODES as u16 })
     };
 }
 
+/// This macro asserts that a group can be freed
 macro_rules! unsafe_assert_group_can_free {
     ($groups:expr) => {
         unsafe_assert!($groups.ngroups > 0 && $groups.ngroups <= const { NUM_NODES as u16 })
@@ -144,6 +181,7 @@ impl Groups {
     //     }
     // }
 
+    /// Assign unique group identifiers and reset the allocation index
     #[inline]
     fn reset(&mut self) {
         self.ngroups = 0;
@@ -151,7 +189,10 @@ impl Groups {
             gl.group = n;
         }
     }
-
+    /// Allocate a single group identifier.
+    ///
+    /// # Note
+    /// The caller must ensure there will be no more allocations than tree nodes.
     #[inline]
     fn allocate(&mut self) -> u16 {
         let ngroups = self.ngroups;
@@ -159,7 +200,11 @@ impl Groups {
         self.ngroups = ngroups + 1;
         res
     }
-
+    /// Free a single group identifier.
+    ///
+    /// # Note
+    /// The caller must ensure there are no more tree nodes using this group and
+    /// the identifier was previously allocated using [`Self::allocate`].
     #[inline]
     fn free(&mut self, group: u16) {
         debug_assert!(group < NUM_NODES as u16);
@@ -167,18 +212,32 @@ impl Groups {
         self.groups_leaders[usize::from(ngroups)].group = group;
         self.ngroups = ngroups;
     }
-
+    /// Assign a leader node index to a group identifier.
+    ///
+    /// # Note
+    /// The caller must ensure the group identifier was previously allocated
+    /// using [`Self::allocate`] and the node index must point to a tree node.
     #[inline]
     fn set_leader_index(&mut self, group: u16, node_index: usize) {
         debug_assert!(node_index < NUM_NODES);
         self.groups_leaders[usize::from(group)].leader = node_index as u16;
     }
-
+    /// Acquire an index to a leader node of a group identifier.
+    ///
+    /// # Note
+    /// The caller must ensure the group identifier was previously allocated
+    /// using [`Self::allocate`] and that the group has a leader previously
+    /// assigned.
     #[inline]
     fn get_leader_index(&self, group: u16) -> usize {
         usize::from(self.groups_leaders[usize::from(group)].leader)
     }
-
+    /// Bump a leader node of a group identifier to the next node.
+    ///
+    /// # Note
+    /// The caller must ensure the group identifier was previously allocated
+    /// using [`Self::allocate`], the group has a previously assigned leader
+    /// and that the previous leader is not the last node in the tree.
     #[inline]
     fn set_next_node_as_leader(&mut self, group: u16) {
         let gl = &mut self.groups_leaders[usize::from(group)];
@@ -188,12 +247,21 @@ impl Groups {
 }
 
 impl LeavesIndex {
+    /// Set an index to a leaf node in the tree by the value of a leaf.
+    ///
+    /// # Note
+    /// The caller must ensure the value is within the allowed range and
+    /// that the node index points to a valid leaf node in the tree.
     #[inline]
     fn set_leaf_node_index(&mut self, value: u16, node_index: usize) {
         debug_assert!(node_index < NUM_NODES);
         self.0[usize::from(value)] = node_index as u16;
     }
-
+    /// Get an index to a leaf node in the tree by the value of a leaf.
+    ///
+    /// # Note
+    /// The caller must ensure the value is within the allowed range and that
+    /// the node index was previously set using [`Self::set_leaf_node_index`].
     #[inline]
     fn get_leaf_node_index(&self, value: u16) -> usize {
         usize::from(self.0[usize::from(value)])
@@ -201,6 +269,13 @@ impl LeavesIndex {
 }
 
 impl TreeNode {
+    /// Create a new tree leaf with default attributes.
+    ///
+    /// # Note
+    /// The caller must ensure the value is within the allowed range and that
+    /// the group identifier was previously allocated. Each tree leaf must have
+    /// a unique value assigned. The leaf also needs a proper parent assigned
+    /// once it is placed in the tree.
     #[inline]
     fn new_leaf(value: u16, group: u16) -> Self {
         debug_assert!(usize::from(value) < NUM_LEAVES);
@@ -210,7 +285,14 @@ impl TreeNode {
         let parent = 0;
         TreeNode { entry, freq, parent, group }
     }
-
+    /// Create a new tree branch with default attributes.
+    ///
+    /// # Note
+    /// The caller must ensure the child index is within the allowed range and
+    /// that the group identifier was previously allocated. Each tree branch
+    /// must point to a unique pair of child nodes, with the child index pointing
+    /// at the second child node. The branch also needs a proper parent assigned
+    /// once it is placed in the tree, unless it is a root branch.
     #[inline]
     fn new_branch(child_index: usize, freq: u16, group: u16) -> Self {
         debug_assert!(child_index < NUM_NODES);
@@ -220,13 +302,20 @@ impl TreeNode {
         let parent = 0;
         TreeNode { entry, freq, parent, group }
     }
-
+    /// Replace a tree node with a branch node.
+    ///
+    /// The attributes of a node remain unchanged.
+    ///
+    /// # Note
+    /// The caller must ensure the child index is within the allowed range.
+    /// Each branch must point to a unique pair of child nodes, with the
+    /// child index pointing at the second child node.
     #[inline]
     fn make_branch(&mut self, child_index: usize) {
         debug_assert!(child_index < NUM_NODES);
         self.entry.set_as_branch(child_index);
     }
-
+    /// Return whether a tree node is a leaf
     #[inline]
     fn is_leaf(&self) -> bool {
         self.entry.is_leaf()
@@ -237,22 +326,24 @@ impl TreeNode {
 impl DynHuffTree {
     /// Create a new boxed [`DynHuffTree`], ready to read entries from.
     pub fn new() -> Box<Self> {
-        // Allocate an invalid, but otherwise memory safe tree directly on the heap
-        // to avoid large stack allocation.
+        // Allocate an invalid tree directly on the heap to avoid large stack allocation.
         let mut tree = try_zeroed_box::<DynHuffTree>().expect("not enough memory for a dynamic tree");
         let groups = &mut tree.groups;
         let nodes = &mut tree.nodes;
 
         // Initialize leaves index:
+        // All leaves will be placed at the bottom of the tree in their value-reverse order.
         for (leaves_index, value) in tree.leaves.0.iter_mut().zip(0u16..) {
             *leaves_index = const { NUM_NODES as u16 - 1 } - value;
         }
-        // Initialize groups:
-        groups.reset();
 
+        // Initialize group identifiers and reset group allocations:
+        groups.reset();
+        // SAFETY: groups have been reset
         unsafe_assert_group_can_allocate!(groups);
         let mut last_group = groups.allocate();
         // Initialize leaves:
+        // All leaves are placed at the bottom of the tree in their value-reverse order.
         for (node, value) in nodes[NUM_NODES - NUM_LEAVES..NUM_NODES]
                              .iter_mut().rev()
                              .zip(0..)
@@ -262,11 +353,11 @@ impl DynHuffTree {
 
         // Initialize branches:
         let mut last_freq = 0;
-
+        // Branches are initialized back to front
         for child_index in (2..NUM_NODES).rev().step_by(2) {
             let index = child_index / 2 - 1;
-            // fortunately the rust optimizer can see that child_index is in 2..NUM_NODES
-            // and thus also index < NUM_NODES
+            // the rust optimizer can see that child_index is in 2..NUM_NODES
+            // and thus also index < NUM_NODES / 2 - 1
             let child_nodes = &mut nodes[child_index - 1..=child_index];
             let mut freq = 0;
             for child in child_nodes.iter_mut() {
@@ -274,9 +365,13 @@ impl DynHuffTree {
                 child.parent = index as u16;
             }
             if freq != last_freq {
+                // SAFETY: the group has been allocated and index < NUM_NODES / 2 - 1
                 unsafe_assert_group_in_range!(last_group);
+                // assign an index to a next position node
                 groups.set_leader_index(last_group, index + 1);
                 last_freq = freq;
+                // SAFETY: this will be called less times than NUM_NODES
+                // by the virtue of the loop constraint
                 unsafe_assert_group_can_allocate!(groups);
                 last_group = groups.allocate();
             }
@@ -287,21 +382,21 @@ impl DynHuffTree {
 
     #[inline(never)]
     fn rebuild_tree(&mut self) {
-        // use groups.groups_leaders slice as a temporary leaves storage,
-        // groups along with leaders are fully rebuilt below
+        // Use groups_leaders slice as a temporary leaves storage,
+        // groups along with leaders are fully recreated at the end of this function
         assert_eq!(size_of::<LeafNode>(), size_of::<GroupOrLeader>());
         let leaf_nodes: &mut [LeafNode] = cast_slice_mut(&mut self.groups.groups_leaders[..NUM_LEAVES]);
         debug_assert_eq!(leaf_nodes.len(), NUM_LEAVES);
-        // move leaf entries away, maintaining order and dampen down frequency
-        // we can't use leaf index, as the current order of leaves should be preserved
-        // copy leaves back to front
+        // Move leaf entries away, maintaining order and dampen down frequency
+        // we can't use leaf index, as the current order of leaves should be preserved.
+        // Copy leaves back to front, so their position is reversed in leaf_nodes.
         let mut node_filter = self.nodes.iter().rev().filter(|&n| n.is_leaf());
         for leaf in leaf_nodes.iter_mut() {
             let node = node_filter.next().unwrap(); // there shall be NUM_LEAVES leaves
             *leaf = LeafNode { entry: node.entry, freq: node.freq.div_ceil(2) };
         }
         debug_assert!(node_filter.next().is_none());
-        // an iterator of leaves from last to first
+        // A leaf iterator from the last one to the first
         let mut leaves_riter = leaf_nodes.iter();
         // Rebuilding nodes:
         let mut target_index = NUM_NODES - 1; // last target slot
@@ -312,7 +407,7 @@ impl DynHuffTree {
             let next_leaf = leaves_riter.next();
             loop {
                 if target_index >= NUM_NODES {
-                    // this is ending condition, optimizes out slice boundary check
+                    // this ending condition also optimizes out slice boundary check
                     break 'leaves
                 }
                 // SAFETY: child_index starts at NUM_NODES - 1
@@ -329,6 +424,7 @@ impl DynHuffTree {
                     let value = leaf.entry.as_value();
                     // SAFETY: leaf value must be valid
                     unsafe_assert_leaf_value_in_range!(value);
+                    // ensure the leaf node index is updated
                     self.leaves.set_leaf_node_index(value, target_index);
                     node.entry = leaf.entry;
                     node.freq = leaf.freq;
@@ -336,7 +432,7 @@ impl DynHuffTree {
                     continue 'leaves
                 }
                 else {
-                    // ensure sanity of leaves, this also prevents child_index from overflowing on sub
+                    // Ensure validity of leaves, this also prevents child_index from overflowing on sub
                     assert!(child_index >= target_index + 2);
                     if branch_freq == 0 {
                         // 2. calculate branch frequency from last 2 children and maybe copy more leaves
@@ -348,7 +444,7 @@ impl DynHuffTree {
                         node.freq = branch_freq;
                         branch_freq = 0; // next branch
                         for n in nodes[child_index - 1..=child_index].iter_mut() {
-                            n.parent = target_index as u16; // link parent
+                            n.parent = target_index as u16; // link with a parent
                         }
                         // this shall not overflow, see assertion above 
                         child_index -= 2; // next 2 children
@@ -359,31 +455,41 @@ impl DynHuffTree {
         }
         debug_assert_eq!(leaves_riter.len(), 0);
 
-        // rebuild groups
+        // Rebuild groups and their leaders
         let groups = &mut self.groups;
         groups.reset();
         let mut freq = nodes[0].freq;
+        // SAFETY: groups have been reset
         unsafe_assert_group_can_allocate!(groups);
         let mut group = groups.allocate();
+        // SAFETY: A unique group has been allocated
         unsafe_assert_group_in_range!(group);
         nodes[0].group = group;
+        // The root node always belong to its own group because
+        // its frequency is a sum of all tree node frequencies.
         groups.set_leader_index(group, 0);
-
+        // Tree nodes are all sorted by frequency at this point
+        // Scan nodes and assign unique groups and their leaders
         for (node, index) in nodes[1..].iter_mut().zip(1..) {
             if node.freq == freq {
                 node.group = group;
             }
             else {
                 freq = node.freq;
+                // SAFETY: the loop is iterated the number of times
+                // exactly matching the number of potential groups
                 unsafe_assert_group_can_allocate!(groups);
                 group = groups.allocate();
+                // SAFETY: A unique group has been allocated
                 unsafe_assert_group_in_range!(group);
                 node.group = group;
                 groups.set_leader_index(group, index);
             }
         }
     }
-
+    /// Set a parent of a pair of child nodes.
+    ///
+    /// The child_index must point to a second child.
     #[inline]
     fn set_as_parent(&mut self, child_index: u16, parent_index: usize) {
         debug_assert!(parent_index < NUM_NODES);
@@ -393,16 +499,19 @@ impl DynHuffTree {
             child.parent = parent_index as u16;
         }
     }
-
+    /// Ensure a node is a leader or promote a node to the leader position
+    /// return the new valid node position.
     #[inline]
     fn promote_to_leader(&mut self, node_index: usize) -> usize {
         let (node, head) = self.nodes[..=node_index].split_last_mut().unwrap();
         let leader_index = {
             let group = node.group;
+            // SAFETY: A node group is allocated before it is being assigned to a node.
             unsafe_assert_group_in_range!(group);
             self.groups.get_leader_index(group)
         };
         assert!(head.len() == node_index); // trivial to prove compile-time
+        // if a node_index were a leader then the following condition fails:
         let leader = if leader_index < head.len() {
             &mut head[leader_index] // no boundary check here
         }
@@ -419,11 +528,13 @@ impl DynHuffTree {
             NodeType::Leaf(value) => {
                 // SAFETY: leaf value must be valid
                 unsafe_assert_leaf_value_in_range!(value);
+                // ensure the leaf node index is updated
                 self.leaves.set_leaf_node_index(value, node_index);
             }
             NodeType::Branch(child_index) => {
                 // SAFETY: branch child_index must be valid
                 unsafe_assert_child_index_in_range!(child_index);
+                // ensure the leaf children are updated
                 self.set_as_parent(child_index, node_index);
             }
         }
@@ -432,72 +543,100 @@ impl DynHuffTree {
             NodeType::Leaf(value) => {
                 // SAFETY: leaf value must be valid
                 unsafe_assert_leaf_value_in_range!(value);
+                // ensure the leaf node index is updated
                 self.leaves.set_leaf_node_index(value, leader_index);
             }
             NodeType::Branch(child_index) => {
                 // SAFETY: branch child_index must be valid
                 unsafe_assert_child_index_in_range!(child_index);
+                // ensure the leaf children are updated
                 self.set_as_parent(child_index, leader_index);
             }
         }
         leader_index
     }
-
+    /// Increment the frequency of a node and return a reference to
+    /// a tree node object.
+    ///
+    /// The index must not point to a root node because this function inspects the
+    /// previous node position.
+    ///
+    /// The caller must ensure the given node index must point to a frequency group leader
+    /// and the call to this function must be repeated for all ancestors, ensuring each
+    /// ancestor is also a group leader.
     #[inline]
     fn increment_frequency(&mut self, node_index: usize) -> &TreeNode {
-        let (prev, tail) = self.nodes[node_index - 1..].split_first_mut().unwrap();
-        let (node, tail) = tail.split_first_mut().unwrap();
+        let (prev, node_tail) = self.nodes[node_index - 1..].split_first_mut().unwrap();
+        let (node, tail) = node_tail.split_first_mut().unwrap();
 
+        // Bump frequency.
+        // To prevent overflowing, a caller must ensure a tree is rebuilt
+        // when root node frequency is at a certain threshold.
         node.freq += 1;
 
         let groups = &mut self.groups;
 
-        // node was part of the group with next nodes
+        // Check if a node was part of the group with more members
         if let Some(next) = tail.first() && node.group == next.group {
-            // the next node is now a leader
+            // The next node is now a leader of its group
             let group = node.group;
+            // SAFETY: A node group is allocated before it is being assigned to a node.
             unsafe_assert_group_in_range!(group);
+            // We made sure there is a next node we can bump the leader position to
             groups.set_next_node_as_leader(group);
+            // Check if a bumped node frequency matches the previous node frequency
             if node.freq == prev.freq {
-                // join group of previous node
+                // Simply join the group of a previous node
                 node.group = prev.group;
             }
             else {
-                // create node's own group
+                // Create a unique group for a single node
+                // SAFETY: we know there are more nodes belonging to the same group
+                // at this point, so there must be at least one unique group available
                 unsafe_assert_group_can_allocate!(groups);
                 let group = groups.allocate();
+                // SAFETY: A unique group has been allocated
                 unsafe_assert_group_in_range!(group);
                 node.group = group;
+                // Set this node as a leader of its own group
                 groups.set_leader_index(group, node_index);
             }
-
-            return node
         }
-
-        // node had its own group
-        if node.freq == prev.freq {
+        // The node was a single member of a unique group
+        else if node.freq == prev.freq {
+            // A bumped node frequency matches the previous node frequency
+            // SAFETY: A node group is allocated before it is being assigned to a node
+            // and we determined there are no more members of this group
             unsafe_assert_group_can_free!(groups);
             groups.free(node.group);
-            // join group of previous node
+            // Join the group of a previous node
             node.group = prev.group;
         }
+        // Otherwise a node remains a single member of a unique group
         node
     }
-
+    /// Increment frequency of a leaf node and all of its ancestors and rebuild
+    /// the tree if necessary.
+    ///
+    /// The leaf is identified by the unique value it represents.
     #[inline]
     fn increment_for_value(&mut self, value: u16) {
-        // reorder tree when limit reached
+        // Dumpen frequencies and reorder the tree when a limit is reached
         if self.nodes[0].freq >= REORDER_LIMIT {
             self.rebuild_tree();
         }
-
+        // Bump the frequency of a tree root
         self.nodes[0].freq += 1;
-
+        // Look up the leaf node
         let mut node_index = self.leaves.get_leaf_node_index(value);
-        // walk up from leaf and re-arrange nodes
-        while node_index != 0 {
+        // Walk up from leaf through all ancestors and re-arrange nodes
+        while node_index != 0 { // loop until root is found
+            // SAFETY: leaf lookup index is never populated with indexes outside
+            // of the allowed range
             unsafe_assert_child_index_in_range!(node_index);
             node_index = self.promote_to_leader(node_index);
+            // SAFETY: leader lookup index is never populated with indexes outside
+            // of the allowed range and we never point to the root node
             unsafe_assert_child_index_in_range!(node_index);
             node_index = usize::from(self.increment_frequency(node_index).parent);
         }
@@ -512,19 +651,21 @@ impl DynHuffTree {
         loop {
             match node.entry.as_node() {
                 NodeType::Leaf(value) => {
+                    // SAFETY: leaf value must be valid
                     unsafe_assert_leaf_value_in_range!(value);
                     self.increment_for_value(value);
                     return Ok(value)
                 }
-                NodeType::Branch(index) => {
+                NodeType::Branch(child_index) => {
                     let is_one = path.read_bit()?;
-                    let index = usize::from(index);
-                    unsafe_assert_child_index_in_range!(index);
+                    let child_index = usize::from(child_index);
+                    // SAFETY: branch child_index must be valid
+                    unsafe_assert_child_index_in_range!(child_index);
                     node = if is_one {
-                        &nodes[index - 1]
+                        &nodes[child_index - 1]
                     }
                     else {
-                        &nodes[index]
+                        &nodes[child_index]
                     };
                 }
             }

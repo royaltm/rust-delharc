@@ -7,7 +7,7 @@ use criterion::{
     criterion_main,
     Criterion, BenchmarkId, Throughput
 };
-use delharc::statictree::{*, entry::*};
+use delharc::statictree::*;
 
 // Build a flat tree with all the leaves at the bottom.
 fn flat_tree_benchmark(c: &mut Criterion) {

@@ -343,8 +343,8 @@ mod tests {
         println!("Lh7Decoder<File> {}", size_of::<Lh7Decoder<fs::File>>());
         println!("BitStream<File> {}", size_of::<BitStream<fs::File>>());
         println!("HuffTree {}", size_of::<HuffTree>());
-        println!("HuffTree offset tree: {}", size_of::<[entry::TreeEntry;NUM_TEMP_CODELEN * 2]>());
-        println!("HuffTree command tree: {}", size_of::<[entry::TreeEntry;NUM_COMMANDS * 2]>());
+        println!("HuffTree offset tree: {}", size_of::<[TreeEntry;NUM_TEMP_CODELEN * 2]>());
+        println!("HuffTree command tree: {}", size_of::<[TreeEntry;NUM_COMMANDS * 2]>());
         println!("Option<(u32, NonZeroU32)> {}", size_of::<Option<(u32, NonZeroU32)>>());
         println!("Box<C::RingBuffer> {}", size_of::<Box<<Lh7DecoderCfg as LhaDecoderConfig>::RingBuffer>>());
         println!("Lh5::RingBuffer {}", size_of::<<Lh5DecoderCfg as LhaDecoderConfig>::RingBuffer>());
@@ -405,7 +405,7 @@ mod tests {
         let mut max_temp = 0;
         let mut max_command = 0;
         let mut max_offset = 0;
-        for i in 0..300 {
+        for i in 0..500 {
             println!("-lh5-: {}", i);
             // let mut err = 0u64;
             let mut max = 0;

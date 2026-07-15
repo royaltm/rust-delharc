@@ -56,8 +56,8 @@ use alloc::string::String;
 #[cfg(test)]
 use core::fmt;
 
-pub mod entry;
-use entry::*;
+mod entry;
+pub use entry::*;
 
 /// A static Huffman Tree.
 #[derive(Debug, Clone)]
