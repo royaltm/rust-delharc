@@ -1,3 +1,7 @@
+//! This is an example program using the delharc library.
+//!
+//! The program extracts the first file matching the pattern from the archive
+//! and prints it to the standard output.
 #[cfg(feature = "std")]
 use std::{io, fs, path::Path};
 #[cfg(not(feature = "std"))]

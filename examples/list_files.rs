@@ -1,3 +1,10 @@
+//! This is an example program using the delharc library.
+//!
+//! This program lists all files contained in an archive file.
+//!
+//! This program expects a single argument - a path to the archive file.
+//!
+//! This program runs only with `std` feature enabled.
 #[cfg(feature = "std")]
 use core::fmt::{self, Write};
 #[cfg(feature = "std")]
@@ -17,14 +24,14 @@ fn list_files<R: io::Read>(file: R) -> io::Result<()> {
         let compression = header.compression_method()?;
         let os_type = header.parse_os_type()?;
         let perm = header.parse_unix_permissions();
-        let os_perm: &dyn fmt::Display = if let Some(perm) = perm.as_ref() {
-            perm as _
-        }
-        else if matches!(os_type, OsType::Generic|OsType::MsDos) {
-            &header.msdos_attrs as _
-        }
-        else {
-            &os_type as _
+        let os_perm: &dyn fmt::Display = match os_type {
+            OsType::Generic|OsType::MsDos => {
+                &header.msdos_attrs as _
+            }
+            OsType::Unix if let Some(perm) = perm.as_ref() => {
+                perm as _
+            }
+            _ => &os_type as _
         };
         let comment = header.parse_comment();
         // let (uid, gid) = header.parse_unix_uid_gid().unwrap_or((u16::MAX, u16::MAX));
@@ -52,10 +59,18 @@ fn list_files<R: io::Read>(file: R) -> io::Result<()> {
 
 #[cfg(feature = "std")]
 fn main() -> io::Result<()> {
-    let file_name = env::args().skip(1).next().ok_or_else(|| io::Error::other("missing archive file name argument!"))?;
-    println!("Archive: {}", file_name);
-    let file = fs::File::open(file_name)?;
-    list_files(file)
+    let mut listed = false;
+    for file_name in env::args().skip(1) {
+        println!("Archive: {}\r\n{}", file_name, "=".repeat(79));
+        let file = fs::File::open(file_name)?;
+        list_files(file)?;
+        println!("{}\r\n", "-".repeat(79));
+        listed = true;
+    }
+    if !listed {
+        eprintln!("Nothing to list, expected archive path arguments!");
+    }
+    Ok(())
 }
 
 #[cfg(not(feature = "std"))]

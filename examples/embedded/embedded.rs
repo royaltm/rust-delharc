@@ -24,7 +24,7 @@ fn extract_check<R: Read, P: AsRef<str>>(
         mut lha_reader: delharc::LhaDecodeReader<R>,
         matching_path: P
     ) -> LhaResult<bool, R>
-    where R::Error: core::fmt::Debug
+    where R::Error: core::error::Error
 {
     let mut buf: Box<[u8]> = {
         let mut vec = Vec::new();
