@@ -78,6 +78,8 @@ impl fmt::Display for MsDosAttrs {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(feature = "std"))]
+    use alloc::string::ToString;
     use super::*;
 
     #[test]
@@ -96,25 +98,25 @@ mod tests {
         assert!(!MsDosAttrs::empty().is_subdir());
         assert!(!MsDosAttrs::empty().is_archive());
         assert!(!MsDosAttrs::empty().is_symlink());
-        assert_eq!(format!("{}", MsDosAttrs::READ_ONLY), "----R");
-        assert_eq!(format!("{}", MsDosAttrs::HIDDEN),    "---H-");
-        assert_eq!(format!("{}", MsDosAttrs::SYSTEM),    "--S--");
-        assert_eq!(format!("{}", MsDosAttrs::VOLUME),    "-----");
-        assert_eq!(format!("{}", MsDosAttrs::SUBDIR),    "-D---");
-        assert_eq!(format!("{}", MsDosAttrs::ARCHIVE),   "A----");
-        assert_eq!(format!("{}", MsDosAttrs::SYMLINK),   "-----");
-        assert_eq!(format!("{}", MsDosAttrs::empty()),   "-----");
-        assert_eq!(format!("{}", MsDosAttrs::all()),     "ADSHR");
-        assert_eq!(format!("{}", MsDosAttrs::all()),     "ADSHR");
-        assert_eq!(format!("{}", MsDosAttrs::READ_ONLY|
-                                 MsDosAttrs::HIDDEN|
-                                 MsDosAttrs::SYSTEM|
-                                 MsDosAttrs::SUBDIR|
-                                 MsDosAttrs::ARCHIVE),   "ADSHR");
-        assert_eq!(format!("{}", MsDosAttrs::READ_ONLY|
-                                 MsDosAttrs::ARCHIVE),   "A---R");
-        assert_eq!(format!("{}", MsDosAttrs::HIDDEN|
-                                 MsDosAttrs::SYSTEM|
-                                 MsDosAttrs::SUBDIR),    "-DSH-");
+        assert_eq!(MsDosAttrs::READ_ONLY.to_string(), "----R");
+        assert_eq!(MsDosAttrs::HIDDEN.to_string(),    "---H-");
+        assert_eq!(MsDosAttrs::SYSTEM.to_string(),    "--S--");
+        assert_eq!(MsDosAttrs::VOLUME.to_string(),    "-----");
+        assert_eq!(MsDosAttrs::SUBDIR.to_string(),    "-D---");
+        assert_eq!(MsDosAttrs::ARCHIVE.to_string(),   "A----");
+        assert_eq!(MsDosAttrs::SYMLINK.to_string(),   "-----");
+        assert_eq!(MsDosAttrs::empty().to_string(),   "-----");
+        assert_eq!(MsDosAttrs::all().to_string(),     "ADSHR");
+        assert_eq!(MsDosAttrs::all().to_string(),     "ADSHR");
+        assert_eq!((MsDosAttrs::READ_ONLY|
+                    MsDosAttrs::HIDDEN|
+                    MsDosAttrs::SYSTEM|
+                    MsDosAttrs::SUBDIR|
+                    MsDosAttrs::ARCHIVE).to_string(),   "ADSHR");
+        assert_eq!((MsDosAttrs::READ_ONLY|
+                    MsDosAttrs::ARCHIVE).to_string(),   "A---R");
+        assert_eq!((MsDosAttrs::HIDDEN|
+                    MsDosAttrs::SYSTEM|
+                    MsDosAttrs::SUBDIR).to_string(),    "-DSH-");
     }
 }

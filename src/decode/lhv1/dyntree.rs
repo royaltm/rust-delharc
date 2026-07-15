@@ -1,11 +1,15 @@
 //! # Dynamic Huffman Coding.
 #[cfg(all(test, not(feature = "std")))]
-use alloc::{string::String};
+use alloc::string::String;
+#[cfg(not(feature = "std"))]
+use alloc::boxed::Box;
 use core::{fmt, mem};
 use bytemuck::{AnyBitPattern, NoUninit, Zeroable, cast_slice_mut, allocation::try_zeroed_box};
-use crate::error::LhaError;
-use crate::bitstream::BitRead;
-use crate::statictree::entry::*;
+use crate::{
+    error::LhaError,
+    bitstream::BitRead,
+    statictree::entry::*
+};
 
 #[derive(Clone, Zeroable)]
 pub struct DynHuffTree {

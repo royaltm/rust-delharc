@@ -155,6 +155,9 @@ impl<R: io::Read> Read for R {
 pub struct UnexpectedEofError;
 
 #[cfg(not(feature = "std"))]
+impl core::error::Error for UnexpectedEofError {}
+
+#[cfg(not(feature = "std"))]
 impl<R: Read + ?Sized> Read for &mut R {
     type Error = R::Error;
 

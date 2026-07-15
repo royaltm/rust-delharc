@@ -45,7 +45,7 @@ fn extract_to_stdout<R: Read, P: AsRef<str>>(
         mut lha_reader: delharc::LhaDecodeReader<R>,
         matching_path: P
     ) -> LhaResult<bool, R>
-    where R::Error: core::fmt::Debug
+    where R::Error: core::error::Error
 {
     let mut buf = [0u8; 1024];
     loop {

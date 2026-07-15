@@ -163,6 +163,8 @@ impl fmt::Display for Permissions {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(feature = "std"))]
+    use alloc::string::ToString;
     use super::*;
 
     #[test]
@@ -274,58 +276,58 @@ mod tests {
         assert!(!Permissions::empty().is_dir());
         assert!(!Permissions::empty().is_file());
         assert!(!Permissions::empty().is_link());
-        assert_eq!(format!("{}", Permissions::empty()),    "?---------");
-        assert_eq!(format!("{}", Permissions::X_OTHER),    "?--------x");
-        assert_eq!(format!("{}", Permissions::W_OTHER),    "?-------w-");
-        assert_eq!(format!("{}", Permissions::R_OTHER),    "?------r--");
-        assert_eq!(format!("{}", Permissions::PERM_OTHER), "?------rwx");
-        assert_eq!(format!("{}", Permissions::X_GROUP),    "?-----x---");
-        assert_eq!(format!("{}", Permissions::W_GROUP),    "?----w----");
-        assert_eq!(format!("{}", Permissions::R_GROUP),    "?---r-----");
-        assert_eq!(format!("{}", Permissions::PERM_GROUP), "?---rwx---");
-        assert_eq!(format!("{}", Permissions::X_USER),     "?--x------");
-        assert_eq!(format!("{}", Permissions::W_USER),     "?-w-------");
-        assert_eq!(format!("{}", Permissions::R_USER),     "?r--------");
-        assert_eq!(format!("{}", Permissions::PERM_USER),  "?rwx------");
-        assert_eq!(format!("{}", Permissions::STICKY),     "?--------T");
-        assert_eq!(format!("{}", Permissions::SET_GID),    "?-----S---");
-        assert_eq!(format!("{}", Permissions::SET_UID),    "?--S------");
-        assert_eq!(format!("{}", Permissions::TYPE_MASK),  "?---------");
-        assert_eq!(format!("{}", Permissions::TYPE_DIR),   "d---------");
-        assert_eq!(format!("{}", Permissions::TYPE_FILE),  "----------");
-        assert_eq!(format!("{}", Permissions::TYPE_LINK),  "l---------");
-        assert_eq!(format!("{}", Permissions::TYPE_LINK|
-                                 Permissions::PERM_OTHER|
-                                 Permissions::PERM_GROUP|
-                                 Permissions::PERM_USER),  "lrwxrwxrwx");
-        assert_eq!(format!("{}", Permissions::TYPE_DIR|
-                                 Permissions::PERM_OTHER|
-                                 Permissions::PERM_GROUP|
-                                 Permissions::PERM_USER|
-                                 Permissions::STICKY|
-                                 Permissions::SET_GID|
-                                 Permissions::SET_UID),    "drwsrwsrwt");
-        assert_eq!(format!("{}", Permissions::TYPE_DIR|
-                                 Permissions::X_OTHER|
-                                 Permissions::X_GROUP|
-                                 Permissions::X_USER|
-                                 Permissions::STICKY|
-                                 Permissions::SET_GID|
-                                 Permissions::SET_UID),    "d--s--s--t");
-        assert_eq!(format!("{}", Permissions::TYPE_FILE|
-                                 Permissions::R_OTHER|
-                                 Permissions::R_GROUP|
-                                 Permissions::R_USER|
-                                 Permissions::STICKY|
-                                 Permissions::SET_GID|
-                                 Permissions::SET_UID),    "-r-Sr-Sr-T");
-        assert_eq!(format!("{}", Permissions::TYPE_FILE|
-                                 Permissions::W_OTHER|
-                                 Permissions::W_GROUP|
-                                 Permissions::W_USER|
-                                 Permissions::STICKY|
-                                 Permissions::SET_GID|
-                                 Permissions::SET_UID),    "--wS-wS-wT");
-        assert_eq!(format!("{}", Permissions::all()),      "?rwsrwsrwt");
+        assert_eq!(Permissions::empty().to_string(),     "?---------");
+        assert_eq!(Permissions::X_OTHER.to_string(),     "?--------x");
+        assert_eq!(Permissions::W_OTHER.to_string(),     "?-------w-");
+        assert_eq!(Permissions::R_OTHER.to_string(),     "?------r--");
+        assert_eq!(Permissions::PERM_OTHER.to_string(),  "?------rwx");
+        assert_eq!(Permissions::X_GROUP.to_string(),     "?-----x---");
+        assert_eq!(Permissions::W_GROUP.to_string(),     "?----w----");
+        assert_eq!(Permissions::R_GROUP.to_string(),     "?---r-----");
+        assert_eq!(Permissions::PERM_GROUP.to_string(),  "?---rwx---");
+        assert_eq!(Permissions::X_USER.to_string(),      "?--x------");
+        assert_eq!(Permissions::W_USER.to_string(),      "?-w-------");
+        assert_eq!(Permissions::R_USER.to_string(),      "?r--------");
+        assert_eq!(Permissions::PERM_USER.to_string(),   "?rwx------");
+        assert_eq!(Permissions::STICKY.to_string(),      "?--------T");
+        assert_eq!(Permissions::SET_GID.to_string(),     "?-----S---");
+        assert_eq!(Permissions::SET_UID.to_string(),     "?--S------");
+        assert_eq!(Permissions::TYPE_MASK.to_string(),   "?---------");
+        assert_eq!(Permissions::TYPE_DIR.to_string(),    "d---------");
+        assert_eq!(Permissions::TYPE_FILE.to_string(),   "----------");
+        assert_eq!(Permissions::TYPE_LINK.to_string(),   "l---------");
+        assert_eq!((Permissions::TYPE_LINK|
+                    Permissions::PERM_OTHER|
+                    Permissions::PERM_GROUP|
+                    Permissions::PERM_USER).to_string(), "lrwxrwxrwx");
+        assert_eq!((Permissions::TYPE_DIR|
+                    Permissions::PERM_OTHER|
+                    Permissions::PERM_GROUP|
+                    Permissions::PERM_USER|
+                    Permissions::STICKY|
+                    Permissions::SET_GID|
+                    Permissions::SET_UID).to_string(),   "drwsrwsrwt");
+        assert_eq!((Permissions::TYPE_DIR|
+                    Permissions::X_OTHER|
+                    Permissions::X_GROUP|
+                    Permissions::X_USER|
+                    Permissions::STICKY|
+                    Permissions::SET_GID|
+                    Permissions::SET_UID).to_string(),   "d--s--s--t");
+        assert_eq!((Permissions::TYPE_FILE|
+                    Permissions::R_OTHER|
+                    Permissions::R_GROUP|
+                    Permissions::R_USER|
+                    Permissions::STICKY|
+                    Permissions::SET_GID|
+                    Permissions::SET_UID).to_string(),   "-r-Sr-Sr-T");
+        assert_eq!((Permissions::TYPE_FILE|
+                    Permissions::W_OTHER|
+                    Permissions::W_GROUP|
+                    Permissions::W_USER|
+                    Permissions::STICKY|
+                    Permissions::SET_GID|
+                    Permissions::SET_UID).to_string(),   "--wS-wS-wT");
+        assert_eq!(Permissions::all().to_string(),       "?rwsrwsrwt");
     }
 }
