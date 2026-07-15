@@ -84,7 +84,7 @@ impl<R: Read> Decoder<R> for LzsDecoder<R> where R::Error: core::error::Error {
 #[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
-    use std::{io, fs};
+    use std::{io, fs, time::{Instant, Duration}};
     use super::*;
 
     #[test]
@@ -103,11 +103,15 @@ mod tests {
         let mut decoder = LzsDecoder::new(RngReader(&mut rng));
         let mut buf = Vec::new();
         buf.resize(1024, 0);
-        for n in 0..1000 {
-            println!("-lzs-: {}", n);
+        let mut n = 0usize;
+        let start = Instant::now();
+        let limit = Duration::from_secs(59);
+        while start.elapsed() <= limit {
+            n += 1;
             for i in 1..=1024 {
                 decoder.fill_buffer(&mut buf[0..i]).unwrap()
             }
-        }        
+        }
+        println!("-lzs- iterations: {}", n);
     }
 }

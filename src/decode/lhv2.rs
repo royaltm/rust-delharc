@@ -331,7 +331,7 @@ impl<C: LhaDecoderConfig, R: Read> Decoder<R> for LhaV2Decoder<C, R>
 #[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
-    use std::{io, fs};
+    use std::{io, fs, time::{Instant, Duration}};
     use super::*;
     use super::super::DecoderAny;
 
@@ -405,8 +405,11 @@ mod tests {
         let mut max_temp = 0;
         let mut max_command = 0;
         let mut max_offset = 0;
-        for i in 0..500 {
-            println!("-lh5-: {}", i);
+        let mut i = 0usize;
+        let start = Instant::now();
+        let limit = Duration::from_secs(59);
+        while start.elapsed() <= limit {
+            i += 1;
             // let mut err = 0u64;
             let mut max = 0;
             for _ in 0..1000 {
@@ -489,8 +492,9 @@ mod tests {
                 }
             }
         }
-        println!("-lh5-: read_temp_tree: {}", max_temp);
-        println!("-lh5-: read_command_tree: {}", max_command);
-        println!("-lh5-: read_offset_tree: {}", max_offset);
+        println!("-lh5- read_temp_tree: {}", max_temp);
+        println!("-lh5- read_command_tree: {}", max_command);
+        println!("-lh5- read_offset_tree: {}", max_offset);
+        println!("-lh5- iterations: {}", i);
     }
 }

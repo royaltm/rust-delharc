@@ -129,7 +129,7 @@ fn decode_offset(bits9: u16) -> (u16, u32) {
 #[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
-    use std::{io, fs};
+    use std::{io, fs, time::{Instant, Duration}};
     use super::*;
 
     #[test]
@@ -149,11 +149,15 @@ mod tests {
         let mut decoder = Lh1Decoder::new(RngReader(&mut rng));
         let mut buf = Vec::new();
         buf.resize(1024, 0);
-        for n in 0..600 {
-            println!("-lh1-: {}", n);
+        let mut n = 0usize;
+        let start = Instant::now();
+        let limit = Duration::from_secs(59);
+        while start.elapsed() <= limit {
+            n += 1;
             for i in 1..=1024 {
                 decoder.fill_buffer(&mut buf[0..i]).unwrap()
             }
         }        
+        println!("-lh1- iterations: {}", n);
     }
 }

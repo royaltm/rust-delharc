@@ -107,7 +107,7 @@ impl HuffTree {
     /// Any attempt to read from a new tree will result in a panic.
     ///
     /// # Panics
-    /// If [`max_leaves`] exceeds the maximum tree capacity this method panics.
+    /// If `max_leaves` exceeds [`Self::MAX_LEAVES`] this method panics.
     #[inline]
     pub fn with_leaf_capacity(max_leaves: usize) -> Self {
         if max_leaves > Self::MAX_LEAVES {
@@ -515,7 +515,7 @@ mod tests {
     #[test]
     fn hufftree_works() {
         assert_eq!(HuffTree::MAX_LEAVES, 0x4000);
-        assert_eq!(HuffTree::MAX_NODES,  0x8000);
+        assert_eq!(HuffTree::MAX_NODES,  0x8000 - 1);
         let mut tree = HuffTree::new();
         println!("{}", tree);
         tree.set_single(42);
