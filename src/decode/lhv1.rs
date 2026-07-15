@@ -1,11 +1,14 @@
 use core::num::NonZeroU16;
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
-use crate::error::LhaResult;
-use crate::stub_io::Read;
-use crate::decode::Decoder;
-use crate::ringbuf::*;
-use crate::bitstream::*;
+use crate::{
+    bitstream::*,
+    decode::Decoder,
+    error::LhaResult,
+    ringbuf::*,
+    stub_io::Read,
+};
+use bytemuck::allocation::zeroed_box;
 
 mod dyntree;
 use dyntree::*;
@@ -24,7 +27,8 @@ pub struct Lh1Decoder<R> {
 impl<R: Read> Lh1Decoder<R> {
     pub fn new(rd: R) -> Lh1Decoder<R> {
         let bit_reader = BitStream::new(rd);
-        let ringbuf = Default::default();
+        let mut ringbuf = zeroed_box::<RingArrayBuf<RING_BUFFER_SIZE>>();
+        ringbuf.initialize(b' ');
         let command_tree = DynHuffTree::new();
         Lh1Decoder {
             bit_reader,

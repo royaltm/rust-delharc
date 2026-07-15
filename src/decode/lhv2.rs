@@ -1,11 +1,14 @@
 use core::num::NonZeroU32;
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
-use crate::error::{LhaResult, LhaError};
-use crate::stub_io::Read;
-use crate::bitstream::*;
-use crate::statictree::*;
-use crate::ringbuf::*;
+use crate::{
+    error::{LhaResult, LhaError},
+    stub_io::Read,
+    bitstream::*,
+    statictree::*,
+    ringbuf::*,
+};
+use bytemuck::allocation::zeroed_box;
 
 use super::Decoder;
 
@@ -82,7 +85,8 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         assert!((1..=5).contains(&C::OFFSET_BITS));
         assert!(C::HISTORY_BITS as usize <= MAX_HISTORY_BITS);
         let bit_reader = BitStream::new(rd);
-        let ringbuf = Default::default();
+        let mut ringbuf = zeroed_box::<C::RingBuffer>();
+        ringbuf.initialize(b' ');
         let command_tree = HuffTree::with_leaf_capacity(NUM_COMMANDS);
         let offset_tree = HuffTree::with_leaf_capacity(NUM_TEMP_CODELEN);
         LhaV2Decoder {

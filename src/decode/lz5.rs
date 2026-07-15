@@ -1,11 +1,13 @@
-use core::slice;
-use core::num::NonZeroU16;
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
-use crate::error::{LhaResult, LhaError};
-use crate::stub_io::Read;
-use crate::decode::Decoder;
-use crate::ringbuf::*;
+use core::{num::NonZeroU16, slice};
+use crate::{
+    decode::Decoder,
+    error::{LhaResult, LhaError},
+    ringbuf::*,
+    stub_io::Read,
+};
+use bytemuck::allocation::zeroed_box;
 
 const RING_BUFFER_SIZE: usize = 4096;
 const START_OFFSET: isize = -18;
@@ -21,32 +23,31 @@ pub struct Lz5Decoder<R> {
 
 impl<R: Read> Lz5Decoder<R> {
     pub fn new(reader: R) -> Lz5Decoder<R> {
-        let mut ringbuf: Box<RingArrayBuf<RING_BUFFER_SIZE>> = Box::default();
-
-        // fill 13 times with each byte value (3328)
-        for i in 0..=255 {
-            for _ in 0..13 {
-                ringbuf.push(i);
+        let mut ringbuf = zeroed_box::<RingArrayBuf<RING_BUFFER_SIZE>>();
+        ringbuf.initialize_with(|buffer| {
+            assert_eq!(buffer.len(), RING_BUFFER_SIZE);
+            // fill 13 times with each byte value (3328)
+            for (chunk, i) in buffer.as_chunks_mut::<13>().0.iter_mut().zip(0..=255u8) {
+                chunk.fill(i);
             }
-        }
-        // 256 ascending values (3584)
-        for i in 0..=255 {
-            ringbuf.push(i);
-        }
-        // 256 descending values (3840)
-        for i in (0..=255).rev() {
-            ringbuf.push(i);
-        }
-        // 128 zeroes (3968)
-        for _ in 0..128 {
-            ringbuf.push(0);
-        }
-        // leave a gap of 110 default spaces (4078)
-        ringbuf.set_cursor(START_OFFSET);
-        // a margin of zeroes (4096)
-        while ringbuf.cursor() != 0 {
-            ringbuf.push(0);
-        }
+            // 256 ascending values (3584)
+            let offset = 256 * 13;
+            for (p, i) in buffer[offset..].iter_mut().zip(0..=255u8) {
+                *p = i;
+            }
+            // 256 descending values (3840)
+            let offset = offset + 256;
+            for (p, i) in buffer[offset..].iter_mut().zip((0..=255u8).rev()) {
+                *p = i;
+            }
+            // 128 zeroes (3968)
+            let offset = offset + 256;
+            buffer[offset..offset + 128].fill(0);
+            // leave a gap of 110 default spaces (4078)
+            let offset = offset + 128;
+            buffer[offset..offset + 110].fill(b' ');
+            // a margin of zeroes (4096)
+        });
         // set the start offset
         ringbuf.set_cursor(START_OFFSET);
 

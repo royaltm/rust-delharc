@@ -1,11 +1,14 @@
-use core::num::NonZeroU16;
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
-use crate::error::LhaResult;
-use crate::stub_io::Read;
-use crate::decode::Decoder;
-use crate::ringbuf::*;
-use crate::bitstream::*;
+use core::num::NonZeroU16;
+use crate::{
+    bitstream::*,
+    decode::Decoder,
+    error::LhaResult,
+    ringbuf::*,
+    stub_io::Read,
+};
+use bytemuck::allocation::zeroed_box;
 
 const RING_BUFFER_SIZE: usize = 2048;
 const START_OFFSET: isize = -17;
@@ -21,7 +24,8 @@ pub struct LzsDecoder<R> {
 impl<R: Read> LzsDecoder<R> {
     pub fn new(rd: R) -> LzsDecoder<R> {
         let bit_reader = BitStream::new(rd);
-        let mut ringbuf: Box<RingArrayBuf<RING_BUFFER_SIZE>> = Box::default();
+        let mut ringbuf = zeroed_box::<RingArrayBuf<RING_BUFFER_SIZE>>();
+        ringbuf.initialize(b' ');
         ringbuf.set_cursor(START_OFFSET);
         LzsDecoder {
             bit_reader,
