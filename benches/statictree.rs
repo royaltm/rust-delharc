@@ -11,7 +11,7 @@ use delharc::statictree::*;
 
 // Build a flat tree with all the leaves at the bottom.
 fn flat_tree_benchmark(c: &mut Criterion) {
-    let mut tree = HuffTree::with_capacity(0x4000);
+    let mut tree = HuffTree::with_leaf_capacity(0x2000);
     let mut code_lengths = Vec::with_capacity(0x2000);
     let mut group = c.benchmark_group("Flat");
     group.sample_size(300);
@@ -36,7 +36,7 @@ fn flat_tree_benchmark(c: &mut Criterion) {
 // Build a steep tree with each leaf on its own level, except the 2 at the bottom.
 fn steep_tree_benchmark(c: &mut Criterion) {
     let mut rng = rand::rng();
-    let mut tree = HuffTree::with_capacity(512);
+    let mut tree = HuffTree::with_leaf_capacity(256);
     let mut code_lengths = Vec::with_capacity(256);
     let mut group = c.benchmark_group("Steep");
     group.sample_size(200);
@@ -63,7 +63,7 @@ fn steep_tree_benchmark(c: &mut Criterion) {
 // Build a random tree
 fn random_tree_benchmark(c: &mut Criterion) {
     let mut rng = rand::rng();
-    let mut tree = HuffTree::with_capacity(1024);
+    let mut tree = HuffTree::with_leaf_capacity(512);
     let mut code_lengths = Vec::with_capacity(512);
     let mut group = c.benchmark_group("Random");
     group.sample_size(100);
