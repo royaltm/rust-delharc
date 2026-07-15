@@ -23,14 +23,14 @@ fn lhav2_benchmark(c: &mut Criterion) {
     let mut buffer = vec![0u8;8192].into_boxed_slice();
     let mut group = c.benchmark_group("LHA-v2");
     for &archive in ARCHIVES {
-        let mut file = match fs::read(tests_dir.join(archive) {
+        let file = match fs::read(tests_dir.join(archive)) {
             Ok(f) => f,
             Err(err) => {
                 eprintln!("{}: {}", archive, err);
                 continue
             }
         };
-        let mut file = io::Cursor::new().unwrap());
+        let mut file = io::Cursor::new(file);
         let header = LhaHeader::read(&mut file).unwrap().unwrap();
         let compression = header.compression_method().unwrap();
         assert!(matches!(compression,
