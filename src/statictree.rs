@@ -31,6 +31,8 @@ h -> 5
 i -> 5
 ```
 
+The value-lengths array thus would be: `[1, 3, 3, 4, 4, 5, 5, 5, 5]`.
+
 When reading, the following bit paths will result in finding the particular leaves:
 
 ```text
@@ -85,30 +87,53 @@ macro_rules! unsafe_assert {
 impl HuffTree {
     /// Creates a new and empty [`HuffTree`] without allocating anything.
     ///
+    /// The tree needs to be populated with nodes first, before it can be read from.
+    ///
     /// Any attempt to read from a new tree will result in a panic.
     #[inline]
     pub fn new() -> Self {
         let tree = Vec::new();
         HuffTree { tree }
     }
-    /// Creates a new and empty [`HuffTree`] with the reserved node capacity.
+    /// Creates a new and empty [`HuffTree`] with the reserved node capacity for the
+    /// given number of leaf nodes - representing unique values stored in the tree.
+    ///
+    /// The tree needs to be populated with nodes first, before it can be read from.
     ///
     /// Any attempt to read from a new tree will result in a panic.
+    ///
+    /// # Panics
+    /// If [`max_leaves`] exceeds the maximum tree capacity this method panics.
     #[inline]
-    pub fn with_capacity(capacity: usize) -> Self {
+    pub fn with_leaf_capacity(max_leaves: usize) -> Self {
+        if max_leaves > TreeEntry::MAX_INDEX / 2 {
+            panic!("too many leaves")
+        }
+        let capacity = max_leaves * 2 - 1;
         let tree = Vec::with_capacity(capacity);
         HuffTree { tree }
     }
-    /// Attempt to reserve enough memory to build a tree from the given number of leaves.
-    pub fn try_reserve(&mut self, num_leaves: usize) -> Result<(), &'static str> {
-        if num_leaves > TreeEntry::MAX_INDEX / 2 {
+    /// Attempt to reserve enough memory to build a tree from the given number of
+    /// leaf nodes - representing unique values stored in the tree.
+    ///
+    /// Call this function before calling [`Self::build_tree`] to ensure the proper capacity
+    /// for the tree nodes is reserved.
+    ///
+    /// This function does not change the content of the tree.
+    ///
+    /// # Note
+    /// Because the tree can not be built incrementally, unlike with [`Vec::try_reserve()`]
+    /// the `max_leaves` argument is the number of expected *TOTAL* number of leaves in the
+    /// complete tree, and *NOT* the additional number.
+    pub fn try_reserve_for_leaves(&mut self, max_leaves: usize) -> Result<(), &'static str> {
+        if max_leaves > TreeEntry::MAX_INDEX / 2 {
             return Err("too many leaves");
         }
-        if num_leaves == 0 {
+        if max_leaves == 0 {
             return Ok(())
         }
-        let required_size = num_leaves * 2 - 1;
-        if let Some(reserve) = required_size.checked_sub(self.tree.len())
+        let capacity = max_leaves * 2 - 1;
+        if let Some(reserve) = capacity.checked_sub(self.tree.len())
             && reserve != 0
         {
             self.tree.try_reserve_exact(reserve).map_err(|_| "not enough memory")
@@ -119,7 +144,7 @@ impl HuffTree {
     }
     /// Clears the tree from all nodes.
     ///
-    /// Any attempt to read from tree after a call to this function will result in a panic.
+    /// Any attempt to read from the tree after a call to this function will result in a panic.
     pub fn clear(&mut self) {
         self.tree.clear();
     }
@@ -131,22 +156,31 @@ impl HuffTree {
     }
     /// Builds the tree from the given array of lengths.
     ///
-    /// Each entry's index represents the `value` stored in tree leaves. Each entry's content represents
-    /// the `length` (or depth), measured in nodes from the tree root, at which the leaf is being created.
+    /// 0-based indexes of `value_lengths` slice represent the values stored in the tree
+    /// leaves. Each 8-bit value represents the `length` (or depth), measured in
+    /// nodes from the tree root, at which the leaf is being created.
     ///
-    /// * Entries containing `0` are being ignored - there will be no leaf with a `value` from such an index.
-    /// * If the size of the argument slice is larger than [`TreeEntry::MAX_INDEX`] / 2, an error is returned.
-    /// * If too many entries contain the same `length`, exceeding the given `length` capacity, an error is
-    ///   returned.
-    /// * An error is returned if a tree is incomplete - there are not enough leaves to fill the last length.
+    /// See [`statictree`] module for more information about the three lengths.
     ///
-    /// The root of the tree (`length = 0`) is always a branch. The maximum number of leaves on the first
-    /// length is 2. If there are 2 leaves on the first length, no more leaves can be added to the tree.
-    /// The number of leaves on each next length depends on the number of leaves added on smaller lengths.
+    /// * Entries containing `0` are being ignored - there will be no leaf with a `value`
+    ///   from such an index.
+    /// * If the size of the argument slice exceeds [`TreeEntry::MAX_INDEX`] / 2,
+    ///   an error is returned.
+    /// * If too many entries contain the same `length`, exceeding the given `length`
+    ///   capacity, an error is returned.
+    /// * An error is returned if a tree is incomplete - there are not enough leaves
+    ///   to fill the last length.
+    ///
+    /// The root of the tree (`length = 0`) is always a branch. The maximum number of
+    /// leaves on the first length is 2. If there are 2 leaves on the first length,
+    /// no more leaves can be added to the tree. The number of leaves on each next
+    /// length depends on the number of leaves added on smaller lengths.
     ///
     /// # Features
     /// With the `fast-static-tree` feature this method forwards to [`Self::build_tree_with_sort`],
-    /// or [`Self::build_tree_simple`] if the feature is not present.
+    /// or to [`Self::build_tree_simple`] if the feature is not present.
+    ///
+    /// [`statictree`]: crate::statictree
     #[inline(always)]
     pub fn build_tree(&mut self, value_lengths: &[u8]) -> Result<(), &'static str> {
         #[cfg(not(feature = "fast-static-tree"))]
@@ -273,10 +307,10 @@ impl HuffTree {
     /// See [`Self::build_tree`].
     ///
     /// This naive implementation iterates the argument slice as many times as the deepest leaf
-    /// length, but it produces very small code.
+    /// length, but it produces very small code size.
     ///
     /// The time complexity is `O(l*n)` where `l` is the highest leaf depth and `n` is the size of
-    //  the `value_lengths` slice.
+    /// the `value_lengths` slice.
     pub fn build_tree_simple(&mut self, value_lengths: &[u8]) -> Result<(), &'static str> {
         let tree = &mut self.tree;
         tree.clear();
@@ -341,14 +375,14 @@ impl HuffTree {
     /// Bits are being read from the stream until a leaf is being encountered. The `value` stored in that
     /// leaf is being returned.
     ///
-    /// If a branch is encountered a bit of value `0` indicates that the left node should be followed,
+    /// If a branch is encountered, a bit of value `0` indicates that the left node should be followed,
     /// and `1` to take the path to the right.
     ///
-    /// If a tree has been initialized with [`HuffTree::set_single`] this method will always return the
-    /// single `value`, without reading any bits from the stream.
+    /// If the tree has only a single value - has been initialized with [`HuffTree::set_single`], this
+    /// method will always return a single `value`, without reading any bits from the stream.
     ///
     /// # Panics
-    /// Panics if a tree has not been built or otherwise initialized as a single value tree.
+    /// Panics if a tree has not been initialized or if it has been cleared without rebuilding it.
     pub fn read_entry<R: BitRead>(&self, mut path: R) -> Result<u16, LhaError<R::Error>> {
         let tree = &self.tree;
         let mut node = &tree[0]; // panics if tree uninitialized
@@ -370,11 +404,17 @@ impl HuffTree {
             }
         }
     }
-    /// Return whether the tree is empty (uninitialized).
+    /// Return whether the tree is empty - uninitialized.
+    ///
+    /// Reading from such a tree will result in a panic.
     pub fn is_empty(&self) -> bool {
         self.tree.is_empty()
     }
     /// Return the number of populated nodes.
+    ///
+    /// The number of leaves can be calculated as `(len + 1) / 2`.
+    ///
+    /// The returned number, if not equal to 0, is always odd.
     pub fn len(&self) -> usize {
         self.tree.len()
     }
@@ -507,11 +547,11 @@ mod tests {
         tree.shrink_to_fit();
         assert_eq!(tree.len(), 0);
         assert_eq!(tree.tree.capacity(), 0);
-        tree.try_reserve(0).unwrap();
+        tree.try_reserve_for_leaves(0).unwrap();
         assert_eq!(tree.len(), 0);
         assert_eq!(tree.tree.capacity(), 0);
         let lengths = [0, 0, 0, 1, 0, 3, 3, 0, 4, 4, 5, 0, 0, 5, 5, 5];
-        tree.try_reserve(9).unwrap();
+        tree.try_reserve_for_leaves(9).unwrap();
         assert_eq!(tree.len(), 0);
         assert_eq!(tree.tree.capacity(), 9 + 8);
         tree.build_tree(&lengths).unwrap();
@@ -578,7 +618,7 @@ mod tests {
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
         let code_length = vec![0u8; 0x4000];
-        assert_eq!(tree.try_reserve(0x4000).unwrap_err(), "too many leaves");
+        assert_eq!(tree.try_reserve_for_leaves(0x4000).unwrap_err(), "too many leaves");
         assert_eq!(tree.build_tree(&code_length).unwrap_err(), "too many code lengths");
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
@@ -593,7 +633,7 @@ mod tests {
         code_length.push(255);
         code_length.shuffle(&mut rng);
         tree.shrink_to_fit();
-        tree.try_reserve(256).unwrap();
+        tree.try_reserve_for_leaves(256).unwrap();
         tree.build_tree(&code_length).unwrap();
         assert_eq!(tree.tree.len(), 256+255);
         assert_eq!(tree.tree.capacity(), 256+255);
@@ -638,7 +678,7 @@ mod tests {
     #[test]
     #[ignore = "long tests"]
     fn hufftree_long_tests() {
-        let mut tree = HuffTree::with_capacity(32768);
+        let mut tree = HuffTree::with_leaf_capacity(0x3FFF);
         let mut rng = rand::rng();
         let vec = &mut Vec::new();
         vec.resize(256, 0);

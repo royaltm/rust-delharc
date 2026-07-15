@@ -11,15 +11,16 @@ pub trait UBits: Copy {
     fn from_bits(bitbuf: BitBuf) -> Self;
 }
 
-/// This trait is being used to read single bits from data source.
+/// This trait is being used to read bits from a source stream.
 pub trait BitRead {
+    /// The error type returned from the stream reader.
     type Error;
     /// Reads the next single bit from the stream. `true` represents `1` and `false` represents `0`.
     fn read_bit(&mut self) -> Result<bool, LhaError<Self::Error>>;
     /// Reads the next `n` bits from the stream.
     ///
     /// For example reading 4 bits into the `u8` type will result in: `0b0000abcd` where
-    /// `a`, `b`, `c`, `d` are consecutive bits that were read from source.
+    /// `a`, `b`, `c`, `d` are consecutive MSB -> LSB bits that were read from the source.
     ///
     /// Returns `0` if `n` is `0`.
     ///
@@ -36,7 +37,8 @@ pub trait BitRead {
 
 /// A simple bit-stream reader, wrapped over a readable stream.
 ///
-/// Bits are being read from an each consecutive byte, starting from its highest bit.
+/// Bits are being read from consecutive data bytes, starting
+/// from the highest bit of each byte.
 #[derive(Debug)]
 pub struct BitStream<R> {
     inner: R,

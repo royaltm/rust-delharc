@@ -14,19 +14,35 @@ pub mod ext {
     /// The "Common" header's CRC-16 field will always be reset to 0 in the parsed header data.
     /// This is the necessary condition to verify header's checksum.
     pub const EXT_HEADER_COMMON:      u8 = 0x00;
+    /// The "File name" header may contain the entry's file name.
     pub const EXT_HEADER_FILENAME:    u8 = 0x01;
+    /// The "Directory name" header may contain the directory of the entry.
     pub const EXT_HEADER_PATH:        u8 = 0x02;
+    /// The "Multi-disc" header
     pub const EXT_HEADER_MULTI_DISC:  u8 = 0x39;
+    /// The "Comment" header
     pub const EXT_HEADER_COMMENT:     u8 = 0x3F;
+    /// The MS-DOS ["Attributes"](super::MsDosAttrs) header
     pub const EXT_HEADER_MSDOS_ATTRS: u8 = 0x40;
+    /// The "Windows time stamp" header
     pub const EXT_HEADER_MSDOS_TIME:  u8 = 0x41;
+    /// The "File size" header with 64-bit file size information
     pub const EXT_HEADER_MSDOS_SIZE:  u8 = 0x42;
+    /// The UNIX ["Permission"](super::Permissions) header
     pub const EXT_HEADER_UNIX_PERM:   u8 = 0x50;
+    /// The UNIX "GID UID" header
     pub const EXT_HEADER_UNIX_UIDGID: u8 = 0x51;
+    /// The UNIX "Group name" header
     pub const EXT_HEADER_UNIX_GROUP:  u8 = 0x52;
+    /// The UNIX "User name" header
     pub const EXT_HEADER_UNIX_OWNER:  u8 = 0x53;
+    /// The UNIX "Time stamp" header
     pub const EXT_HEADER_UNIX_TIME:   u8 = 0x54;
-    pub const EXT_HEADER_OS9:         u8 = 0xCC;
+    /// The Mac "Capsule" header
+    pub const EXT_HEADER_MAC_CAPSULE: u8 = 0x7D;
+    /// The OS/2 "Extended attribute" header
+    pub const EXT_HEADER_OS2_ATTR1:   u8 = 0x7E;
+    /// Level 3 "Extended attribute" header
     pub const EXT_HEADER_EXT_ATTRS:   u8 = 0x7F;
 }
 

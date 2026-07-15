@@ -83,8 +83,8 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         assert!(C::HISTORY_BITS as usize <= MAX_HISTORY_BITS);
         let bit_reader = BitStream::new(rd);
         let ringbuf = Default::default();
-        let command_tree = HuffTree::with_capacity(NUM_COMMANDS * 2);
-        let offset_tree = HuffTree::with_capacity(NUM_TEMP_CODELEN * 2);
+        let command_tree = HuffTree::with_leaf_capacity(NUM_COMMANDS);
+        let offset_tree = HuffTree::with_leaf_capacity(NUM_TEMP_CODELEN);
         LhaV2Decoder {
             bit_reader,
             ringbuf,

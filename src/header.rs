@@ -156,7 +156,7 @@ impl LhaHeader {
     ///   characters, e.g. `?` or `*` in `Windows`.
     /// * This method makes its best effort to return a non-absolute path name, however it is not guaranteed,
     ///   so make sure the path is not absolute before creating a file or a directory.
-    /// * If the archive OS is [OsType::Amiga] the file name parsing terminates before the `nul` character.
+    /// * If the archive OS is [`OsType::Amiga`] the file name parsing terminates before the `nul` character.
     ///
     /// # `no_std`
     ///
@@ -291,8 +291,8 @@ impl LhaHeader {
     /// to find the unix User-ID and Group-ID fields, and on success return a tuple of `(UID, GID)`.
     ///
     /// # Note
-    /// The UID and GID values should be considered with caution, especially if file was not
-    /// created on a UNIX operating system.
+    /// The UID and GID values should be considered with a reservation, especially if an archive
+    /// was not created on a UNIX operating system.
     pub fn parse_unix_uid_gid(&self) -> Option<(u16, u16)> {
         for header in self.iter_extra() {
             if let [EXT_HEADER_UNIX_UIDGID, data @ ..] = header &&
