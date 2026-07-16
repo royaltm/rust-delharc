@@ -17,14 +17,14 @@ Breaking changes:
 New features:
 * `extend` expose previously internal implementations of a ring buffer, a static Huffman Tree and a bit-stream reader; allows users to build custom `LhaV2Decoder` variants.
 * `no-unsafe-assertions` remove unsafe assertions that eliminate boundary checks in critical functions; it only affects code if `debug_assertions` are disabled.
-* `fast-static-tree` enables more complex but faster static tree building method.
+* `fast-tree-build` enables more complex but faster static tree building method.
 
 Improvements:
 * Error objects implement `core::error::Error`.
 * Replace potential temporary large stack allocations in decoders with `bytemuck::zeroed_box()`.
 * Reimplemented and simplified tree building methods of the dynamic Huffman Tree used by `lhv1` decoder.
 * Static and dynamic Huffman Tree implementations refactored to use unsafe assertions instead of unsafe slice accesses, which can be disabled with the `no-unsafe-assertions` feature.
-* An alternative tree building method added to the static Huffman Tree object, gated under the `fast-static-tree` feature.
+* An alternative tree building method added to the static Huffman Tree object, gated under the `fast-tree-build` feature.
 * Improved the ring buffer implementation.
 * Error messages changed to better reflect causes of errors.
 * `LhaError` to `std::io::Error` conversion includes the orignal `LhaError` encapsulation variant.

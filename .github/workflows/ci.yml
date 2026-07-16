@@ -60,20 +60,20 @@ jobs:
         run: |
           cargo build --verbose --no-default-features
           cargo test --verbose --no-default-features
-          cargo build --verbose --no-default-features --features=lz,lh1,lhx,fast-static-tree
-          cargo test --verbose --no-default-features --features=lz,lh1,lhx,fast-static-tree
-          cargo build --verbose --no-default-features --features=lz,lh1,lhx,extend,fast-static-tree
-          cargo test --verbose --no-default-features --features=lz,lh1,lhx,extend,fast-static-tree
+          cargo build --verbose --no-default-features --features=lz,lh1,lhx,fast-tree-build
+          cargo test --verbose --no-default-features --features=lz,lh1,lhx,fast-tree-build
+          cargo build --verbose --no-default-features --features=lz,lh1,lhx,extend,fast-tree-build
+          cargo test --verbose --no-default-features --features=lz,lh1,lhx,extend,fast-tree-build
           cargo build --verbose --no-default-features --features=std
           cargo test --verbose --no-default-features --features=std
           cargo build --verbose --no-default-features --features=std,lz
           cargo test --verbose --no-default-features --features=std,lz
           cargo build --verbose --no-default-features --features=std,lh1
           cargo test --verbose --no-default-features --features=std,lh1
-          cargo build --verbose --features=std,lz,lh1,lhx,extend,fast-static-tree
-          cargo test --verbose --features=std,lz,lh1,lhx,extend,fast-static-tree
-          cargo build -r --verbose --features=std,lz,lh1,lhx,extend,fast-static-tree
-          cargo test -r --verbose --features=std,lz,lh1,lhx,extend,fast-static-tree
+          cargo build --verbose --features=std,lz,lh1,lhx,extend,fast-tree-build
+          cargo test --verbose --features=std,lz,lh1,lhx,extend,fast-tree-build
+          cargo build -r --verbose --features=std,lz,lh1,lhx,extend,fast-tree-build
+          cargo test -r --verbose --features=std,lz,lh1,lhx,extend,fast-tree-build
           cargo build --verbose --all-features
           cargo test --verbose --all-features
           cargo build -r --verbose --all-features
@@ -96,17 +96,17 @@ jobs:
         run: |
           cargo run --example extract --no-default-features --features=lh1,lz,lhx,extend
           cargo run --example extract --all-features
-          cargo run -r --example extract --features=lh1,lz,lhx,extend,fast-static-tree
+          cargo run -r --example extract --features=lh1,lz,lhx,extend,fast-tree-build
           cargo run -r --example extract --features=lh1,lz,lhx,extend
           find tests -name '*.l*' -type f|xargs -- cargo run --example=list_files --
           cargo build --no-default-features --features=lh1,lz,lhx
           cargo test --no-default-features --features=lh1,lz,lhx
-          cargo build --no-default-features --features=lh1,lz,lhx,extend,fast-static-tree
-          cargo test --no-default-features --features=lh1,lz,lhx,extend,fast-static-tree
+          cargo build --no-default-features --features=lh1,lz,lhx,extend,fast-tree-build
+          cargo test --no-default-features --features=lh1,lz,lhx,extend,fast-tree-build
           cargo build --all-features
           cargo test --all-features
           cargo test --all-features -- --ignored
-          cargo test --features=lhx,extend,fast-static-tree -- --ignored
+          cargo test --features=lhx,extend,fast-tree-build -- --ignored
           grcov . \
               --binary-path ./target/debug/ \
               --branch \

@@ -183,7 +183,7 @@ impl HuffTree {
     /// length depends on the number of leaves added on smaller lengths.
     ///
     /// # Features
-    /// With the `fast-static-tree` feature this method forwards to [`Self::build_tree_with_sort`],
+    /// With the `fast-tree-build` feature this method forwards to [`Self::build_tree_with_sort`],
     /// or to [`Self::build_tree_simple`] if the feature is not present.
     ///
     /// # Panics
@@ -193,11 +193,11 @@ impl HuffTree {
     /// [`statictree`]: crate::statictree
     #[inline(always)]
     pub fn build_tree(&mut self, value_lengths: &[u8]) -> Result<(), BuildError> {
-        #[cfg(not(feature = "fast-static-tree"))]
+        #[cfg(not(feature = "fast-tree-build"))]
         {
             self.build_tree_simple(value_lengths)
         }
-        #[cfg(feature = "fast-static-tree")]
+        #[cfg(feature = "fast-tree-build")]
         {
             self.build_tree_with_sort(value_lengths)
         }
@@ -215,8 +215,8 @@ impl HuffTree {
     /// # Panics
     /// This method panics on allocation error. If memory is low, e.g. on embedded
     /// system, call [`Self::try_reserve_for_leaves()`] before calling this method.
-    #[cfg(feature = "fast-static-tree")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "fast-static-tree")))]
+    #[cfg(feature = "fast-tree-build")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "fast-tree-build")))]
     pub fn build_tree_with_sort(&mut self, value_lengths: &[u8]) -> Result<(), BuildError> {
         let tree_vec = &mut self.tree;
         tree_vec.clear();
@@ -739,7 +739,7 @@ mod tests {
             assert!(tree.is_empty());
             match err {
                 BuildError::CodeLengthOverflow => break,
-                e if cfg!(feature = "fast-static-tree") && i > HuffTree::MAX_LEAVES => {
+                e if cfg!(feature = "fast-tree-build") && i > HuffTree::MAX_LEAVES => {
                     assert_eq!(e, BuildError::LeavesOverflow)
                 }
                 e => assert_eq!(e, BuildError::LeavesUndeflow),
