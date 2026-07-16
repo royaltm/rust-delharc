@@ -207,6 +207,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
 
     fn read_offset_tree(&mut self) -> LhaResult<(), R> {
         let mut code_lengths = [0u8; MAX_HISTORY_BITS];
+        assert!(C::HISTORY_BITS as usize <= MAX_HISTORY_BITS);
 
         // number of codes to read
         let num_codes: usize = self.bit_reader.read_bits(C::OFFSET_BITS)?;
