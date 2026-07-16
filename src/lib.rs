@@ -130,9 +130,10 @@ which allows creating decoders with custom sliding window sizes, using the
 The `extend` feature is not enable by default.
 
 */
-// https://web.archive.org/web/20240916153830/https://archive.gamedev.net/archive/reference/articles/article295.html
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(redundant_imports)]
+#![deny(unused_imports)]
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;
