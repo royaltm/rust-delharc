@@ -157,8 +157,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
             // println!("length: {:?}", *p);
         }
 
-        self.offset_tree.build_tree(&code_lengths[0..num_codes])
-            .map_err(LhaError::Decompress)?;
+        self.offset_tree.build_tree(&code_lengths[0..num_codes])?;
         Ok(())
     }
 
@@ -202,8 +201,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
             break;
         }
 
-        self.command_tree.build_tree(&code_lengths[0..num_codes])
-            .map_err(LhaError::Decompress)?;
+        self.command_tree.build_tree(&code_lengths[0..num_codes])?;
         Ok(())
     }
 
@@ -234,8 +232,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
             // println!("length: {}", *p);
         }
 
-        self.offset_tree.build_tree(&code_lengths[0..num_codes])
-            .map_err(LhaError::Decompress)?;
+        self.offset_tree.build_tree(&code_lengths[0..num_codes])?;
         Ok(())
     }
 

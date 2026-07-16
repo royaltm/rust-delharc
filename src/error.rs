@@ -7,48 +7,64 @@ use crate::stub_io::Read;
 
 pub type LhaResult<T, R> = Result<T, LhaError<<R as Read>::Error>>;
 
-/// `delharc` error object.
+/// `delharc` error enum.
 ///
 /// With `std` feature enabled `E` is [`std::io::Error`] and
-/// `LhaError` can be converted to [`std::io::Error`] using [`From`] or [`Into`].
+/// [`LhaError`] can be converted to [`std::io::Error`] using
+/// [`From`] or [`Into`].
 #[derive(Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum LhaError<E> {
-    /// I/O error.
+    /// An error occured while reading from the data stream
     Io(E),
-    /// When parsing LHA header.
+    /// An error occured when parsing LHA header
     HeaderParse(LhaHeaderError),
-    /// When decompressing a file.
+    /// An error occured when decompressing a file
     Decompress(DecompressionError),
-    /// File checksum mismatch.
+    /// A checksum mismatch error occured
     Checksum,
 }
 
-/// An enum of [`LhaHeader`] errors.
+/// An enum of [`LhaHeader`] errors
 #[derive(Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum LhaHeaderError {
-    /// Unknown header level
+    /// The header level is unknown
     UnknownLevel,
-    /// Level 3 signature mismatch
+    /// First 2 bytes of level 3 header are incorrect
     Level3Signature,
-    /// Not enough bytes in the extended header
+    /// The extended header is too small
     ExtendedHeaderSize,
-    /// Wrapping checksum mismatch
+    /// A wrapping sum (level 0 and 1) did not match calculated value
     WrappingSumMismatch,
-    /// CRC-16 checksum mismatch
+    /// A common header CRC-16 did not match calculated value
     Crc16Mismatch,
-    /// Size validation failed
+    /// Header size validation failed (level 0 and 1)
     SizeMismatch,
-    /// Long size validation failed
+    /// Header long size validation failed (level 2 and 3)
     LongSizeMismatch,
-    /// Skip size validation failed
+    /// Header skip size validation failed (level 1)
     SkipSizeMismatch,
-    /// Duplicate common CRC-16 header found
+    /// Another common CRC-16 header found
     CommonHeader,
-    /// Header not found
+    /// A header was expected but 0 was encountered or end of stream
     HeaderNotFound,
-    /// Memory allocation failed
+    /// Memory allocation for extra header data has failed
+    OutOfMemory,
+}
+
+/// An enum of errors returned from the static Huffman Tree building method.
+#[derive(Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum BuildError {
+    /// The tree code length slice is longer than the maximum
+    /// number of potential leaf values.
+    CodeLengthOverflow,
+    /// There are not enough leaf nodes to cover the last tree level
+    LeavesUndeflow,
+    /// There are too many leaf nodes provided in code lengths
+    LeavesOverflow,
+    /// Allocating memory for tree nodes has failed
     OutOfMemory,
 }
 
@@ -56,30 +72,24 @@ pub enum LhaHeaderError {
 #[derive(Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DecompressionError {
-    // "unsupported compression method"
+    // Attempted to decompress a file with unsupported compression method
     UnsupportedCompression,
-    // "too many tree code lengths"
-    CodeLengthTableOverflow,
-    // "not enough leaf nodes in code lengths"
-    TreeLeavesUndeflow,
-    // "too many leaf nodes in code lengths"
-    TreeLeavesOverflow,
-    // "temporary code length table size overflow"
+    // LHv2 - too many code lengths requested for a temporary tree
     TemporaryCodeTableOverflow,
-    // "commands code length table size overflow"
+    // LHv2 - too many code lengths requested for a command tree
     CommandCodeTableOverflow,
-    // "offset code length table size overflow"
+    // LHv2 - too many code lengths requested for a history offset tree
     OffsetCodeTableOverflow,
-    // "command code overflow"
+    // LHv2 - a requested single command code is too large
     CommandOverflow,
-    // "offset code overflow"
+    // LHv2 - a requested single history offset code is too large
     OffsetOverflow,
-    // "code length overflow"
+    // LHv2 - too large code length decoded from the bit stream
     CodeLengthOverflow,
-    // "too many bits requested"
+    // Bit-stream - too many bits requested for a given integer type capacity
     BitSizeOverflow,
-    /// Memory allocation failed
-    OutOfMemory,
+    /// An error occured while building a Huffman Tree
+    Tree(BuildError),
 }
 
 impl fmt::Display for LhaHeaderError {
@@ -110,14 +120,32 @@ impl From<TryReserveError> for LhaHeaderError {
     }
 }
 
+impl fmt::Display for BuildError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use BuildError::*;
+        match self {
+            CodeLengthOverflow => "too many code lengths",
+            LeavesUndeflow => "not enough leaf nodes in code lengths",
+            LeavesOverflow => "too many leaf nodes in code lengths",
+            OutOfMemory => "memory allocation failed",
+        }
+        .fmt(f)
+    }
+}
+
+impl error::Error for BuildError {}
+
+impl From<TryReserveError> for BuildError {
+    fn from(_err: TryReserveError) -> BuildError {
+        BuildError::OutOfMemory
+    }
+}
+
 impl fmt::Display for DecompressionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use DecompressionError::*;
         match self {
             UnsupportedCompression => "unsupported compression method",
-            CodeLengthTableOverflow => "too many tree code lengths",
-            TreeLeavesUndeflow => "not enough leaf nodes in code lengths",
-            TreeLeavesOverflow => "too many leaf nodes in code lengths",
             TemporaryCodeTableOverflow => "temporary code length table size overflow",
             CommandCodeTableOverflow => "commands code length table size overflow",
             OffsetCodeTableOverflow => "offset code length table size overflow",
@@ -125,7 +153,7 @@ impl fmt::Display for DecompressionError {
             OffsetOverflow => "offset code overflow",
             CodeLengthOverflow => "code length overflow",
             BitSizeOverflow => "too many bits requested",
-            OutOfMemory => "memory allocation failed",
+            Tree(err) => return write!(f, "while building a tree: {}", err)
         }
         .fmt(f)
     }
@@ -133,9 +161,9 @@ impl fmt::Display for DecompressionError {
 
 impl error::Error for DecompressionError {}
 
-impl From<TryReserveError> for DecompressionError {
-    fn from(_err: TryReserveError) -> DecompressionError {
-        DecompressionError::OutOfMemory
+impl From<BuildError> for DecompressionError {
+    fn from(err: BuildError) -> DecompressionError {
+        DecompressionError::Tree(err)
     }
 }
 
@@ -158,6 +186,24 @@ impl<E: error::Error + 'static> error::Error for LhaError<E> {
             Io(e) => Some(e),
             _ => None
         }
+    }
+}
+
+impl<E> From<LhaHeaderError> for LhaError<E> {
+    fn from(err: LhaHeaderError) -> LhaError<E> {
+        LhaError::HeaderParse(err)
+    }
+}
+
+impl<E> From<DecompressionError> for LhaError<E> {
+    fn from(err: DecompressionError) -> LhaError<E> {
+        LhaError::Decompress(err)
+    }
+}
+
+impl<E> From<BuildError> for LhaError<E> {
+    fn from(err: BuildError) -> LhaError<E> {
+        LhaError::Decompress(err.into())
     }
 }
 

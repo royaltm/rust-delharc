@@ -50,7 +50,7 @@ When reading, the following bit paths will result in finding the particular leav
 */
 #![allow(dead_code)]
 use core::cmp::Ordering;
-use crate::{bitstream::BitRead, error::{LhaError, DecompressionError}};
+use crate::{bitstream::BitRead, error::{LhaError, BuildError}};
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 #[cfg(all(test, not(feature = "std")))]
@@ -107,11 +107,12 @@ impl HuffTree {
     /// Any attempt to read from a new tree will result in a panic.
     ///
     /// # Panics
-    /// If `max_leaves` exceeds [`Self::MAX_LEAVES`] this method panics.
+    /// If `max_leaves` exceeds [`Self::MAX_LEAVES`] or on allocation error, this
+    /// method panics.
     #[inline]
     pub fn with_leaf_capacity(max_leaves: usize) -> Self {
         if max_leaves > Self::MAX_LEAVES {
-            panic!("{}", DecompressionError::TreeLeavesOverflow)
+            panic!("{}", BuildError::LeavesOverflow)
         }
         let capacity = max_leaves * 2 - 1;
         let tree = Vec::with_capacity(capacity);
@@ -120,18 +121,18 @@ impl HuffTree {
     /// Attempt to reserve enough memory to build a tree from the given number of
     /// leaf nodes - representing unique values stored in the tree.
     ///
-    /// Call this function before calling [`Self::build_tree`] to ensure the proper capacity
+    /// Call this method before calling [`Self::build_tree`] to ensure the proper capacity
     /// for the tree nodes is reserved.
     ///
-    /// This function does not change the content of the tree.
+    /// This method does not change the content of the tree.
     ///
     /// # Note
     /// Because the tree can not be built incrementally, unlike with [`Vec::try_reserve()`]
     /// the `max_leaves` argument is the number of expected *TOTAL* number of leaves in the
     /// complete tree, and *NOT* the additional number.
-    pub fn try_reserve_for_leaves(&mut self, max_leaves: usize) -> Result<(), DecompressionError> {
+    pub fn try_reserve_for_leaves(&mut self, max_leaves: usize) -> Result<(), BuildError> {
         if max_leaves > Self::MAX_LEAVES {
-            return Err(DecompressionError::TreeLeavesOverflow);
+            return Err(BuildError::LeavesOverflow);
         }
         if max_leaves == 0 {
             return Ok(())
@@ -148,7 +149,7 @@ impl HuffTree {
     }
     /// Clears the tree from all nodes.
     ///
-    /// Any attempt to read from the tree after a call to this function will result in a panic.
+    /// Any attempt to read from the tree after a call to this method will result in a panic.
     pub fn clear(&mut self) {
         self.tree.clear();
     }
@@ -185,9 +186,13 @@ impl HuffTree {
     /// With the `fast-static-tree` feature this method forwards to [`Self::build_tree_with_sort`],
     /// or to [`Self::build_tree_simple`] if the feature is not present.
     ///
+    /// # Panics
+    /// This method panics on allocation error. If memory is low, e.g. on embedded
+    /// system, call [`Self::try_reserve_for_leaves()`] before calling this method.
+    ///
     /// [`statictree`]: crate::statictree
     #[inline(always)]
-    pub fn build_tree(&mut self, value_lengths: &[u8]) -> Result<(), DecompressionError> {
+    pub fn build_tree(&mut self, value_lengths: &[u8]) -> Result<(), BuildError> {
         #[cfg(not(feature = "fast-static-tree"))]
         {
             self.build_tree_simple(value_lengths)
@@ -206,15 +211,19 @@ impl HuffTree {
     ///
     /// The time complexity is `O(n) + O(v * log(v))` where `v` is the number of populated values (leaves),
     /// and `n` is the size of `value_lengths`.
+    ///
+    /// # Panics
+    /// This method panics on allocation error. If memory is low, e.g. on embedded
+    /// system, call [`Self::try_reserve_for_leaves()`] before calling this method.
     #[cfg(feature = "fast-static-tree")]
     #[cfg_attr(docsrs, doc(cfg(feature = "fast-static-tree")))]
-    pub fn build_tree_with_sort(&mut self, value_lengths: &[u8]) -> Result<(), DecompressionError> {
+    pub fn build_tree_with_sort(&mut self, value_lengths: &[u8]) -> Result<(), BuildError> {
         let tree_vec = &mut self.tree;
         tree_vec.clear();
 
         // println!("({}) {:?}", value_lengths.len(), value_lengths);
         if value_lengths.len() > const { TreeEntry::MAX_INDEX + 1 } {
-            return Err(DecompressionError::CodeLengthTableOverflow);
+            return Err(BuildError::CodeLengthOverflow);
         }
 
         // step 1: add leaves with values corresponding to value_lengths indexes O(n)
@@ -227,10 +236,10 @@ impl HuffTree {
         if !(2..=Self::MAX_LEAVES).contains(&num_leaves) {
             tree_vec.clear();
             return Err(if num_leaves > Self::MAX_LEAVES {
-                DecompressionError::TreeLeavesOverflow
+                BuildError::LeavesOverflow
             }
             else {
-                DecompressionError::TreeLeavesUndeflow
+                BuildError::LeavesUndeflow
             })
         }
 
@@ -295,7 +304,7 @@ impl HuffTree {
                 }
                 else if max_allocated > leaf_index {
                     tree_vec.clear(); // make sure no outstanding branch indices exist
-                    return Err(DecompressionError::TreeLeavesUndeflow)
+                    return Err(BuildError::LeavesUndeflow)
                 }
                 else {
                     // leaves are sorted so lengths can only go up
@@ -306,7 +315,7 @@ impl HuffTree {
             }
             if max_allocated != tree.len() {
                 tree_vec.clear(); // for consistency
-                return Err(DecompressionError::TreeLeavesOverflow);
+                return Err(BuildError::LeavesOverflow);
             }
             break
         }
@@ -321,13 +330,17 @@ impl HuffTree {
     ///
     /// The time complexity is `O(l*n)` where `l` is the highest leaf depth and `n` is the size of
     /// the `value_lengths` slice.
-    pub fn build_tree_simple(&mut self, value_lengths: &[u8]) -> Result<(), DecompressionError> {
+    ///
+    /// # Panics
+    /// This method panics on allocation error. If memory is low, e.g. on embedded
+    /// system, call [`Self::try_reserve_for_leaves()`] before calling this method.
+    pub fn build_tree_simple(&mut self, value_lengths: &[u8]) -> Result<(), BuildError> {
         let tree = &mut self.tree;
         tree.clear();
 
         // println!("({}) {:?}", value_lengths.len(), value_lengths);
         if value_lengths.len() > const { TreeEntry::MAX_INDEX + 1 } {
-            return Err(DecompressionError::CodeLengthTableOverflow);
+            return Err(BuildError::CodeLengthOverflow);
         }
 
         // the number of allocated tree indices
@@ -339,7 +352,7 @@ impl HuffTree {
             for _ in  0..more_branches {
                 if max_allocated > max_nodes { // too many branches created
                     tree.clear();
-                    return Err(DecompressionError::TreeLeavesUndeflow)
+                    return Err(BuildError::LeavesUndeflow)
                 }
                 tree.push(TreeEntry::branch(max_allocated));
                 // for every branch node, two new child nodes are required
@@ -363,7 +376,7 @@ impl HuffTree {
 
             if tree.len() > max_allocated {
                 tree.clear(); // for consistency
-                return Err(DecompressionError::TreeLeavesOverflow);
+                return Err(BuildError::LeavesOverflow);
             }
 
             if more_leaves == 0 {
@@ -375,7 +388,7 @@ impl HuffTree {
         if tree.len() != max_allocated {
             // println!("tree missing leaves: {}", max_allocated - tree.len());
             tree.clear(); // make sure no outstanding branch indices exist
-            return Err(DecompressionError::TreeLeavesUndeflow)
+            return Err(BuildError::LeavesUndeflow)
         }
         Ok(())
     }
@@ -585,55 +598,55 @@ mod tests {
             assert!(matches!(value, 3|5|6|8|9|10|13|14|15), "unexpected value returned: {}", value);
         }
 
-        assert_eq!(tree.build_tree(&[]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+        assert_eq!(tree.build_tree(&[]).unwrap_err(), BuildError::LeavesUndeflow);
         assert!(tree.is_empty());
         assert_eq!(tree.inspect(), &[]);
-        assert_eq!(tree.build_tree(&[1]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+        assert_eq!(tree.build_tree(&[1]).unwrap_err(), BuildError::LeavesUndeflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[255]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+        assert_eq!(tree.build_tree(&[255]).unwrap_err(), BuildError::LeavesUndeflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[255;5]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+        assert_eq!(tree.build_tree(&[255;5]).unwrap_err(), BuildError::LeavesUndeflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&vec![255;0x4000]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+        assert_eq!(tree.build_tree(&vec![255;0x4000]).unwrap_err(), BuildError::LeavesUndeflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[1,1,1]).unwrap_err(), DecompressionError::TreeLeavesOverflow);
+        assert_eq!(tree.build_tree(&[1,1,1]).unwrap_err(), BuildError::LeavesOverflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[1,1,1]).unwrap_err(), DecompressionError::TreeLeavesOverflow);
+        assert_eq!(tree.build_tree(&[1,1,1]).unwrap_err(), BuildError::LeavesOverflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[3,3,3,1]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+        assert_eq!(tree.build_tree(&[3,3,3,1]).unwrap_err(), BuildError::LeavesUndeflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[1,3,3,3,3,1]).unwrap_err(), DecompressionError::TreeLeavesOverflow);
+        assert_eq!(tree.build_tree(&[1,3,3,3,3,1]).unwrap_err(), BuildError::LeavesOverflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[1,3,3,3,3,3]).unwrap_err(), DecompressionError::TreeLeavesOverflow);
+        assert_eq!(tree.build_tree(&[1,3,3,3,3,3]).unwrap_err(), BuildError::LeavesOverflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[0]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
-        assert!(tree.is_empty());
-        assert_eq!(tree.len(), 0);
-        assert_eq!(tree.build_tree(&[0, 0, 0]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+        assert_eq!(tree.build_tree(&[0]).unwrap_err(), BuildError::LeavesUndeflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
-        assert_eq!(tree.build_tree(&[0, 0, 0, 1]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+        assert_eq!(tree.build_tree(&[0, 0, 0]).unwrap_err(), BuildError::LeavesUndeflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
-        assert_eq!(tree.build_tree(&[0, 1, 0, 1, 1]).unwrap_err(), DecompressionError::TreeLeavesOverflow);
+        assert_eq!(tree.build_tree(&[0, 0, 0, 1]).unwrap_err(), BuildError::LeavesUndeflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
-        assert_eq!(tree.build_tree(&[0, 1, 0, 1, 10]).unwrap_err(), DecompressionError::TreeLeavesOverflow);
+        assert_eq!(tree.build_tree(&[0, 1, 0, 1, 1]).unwrap_err(), BuildError::LeavesOverflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
-        assert_eq!(tree.build_tree(&[0, 1, 0, 2, 5]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+        assert_eq!(tree.build_tree(&[0, 1, 0, 1, 10]).unwrap_err(), BuildError::LeavesOverflow);
+        assert!(tree.is_empty());
+        assert_eq!(tree.len(), 0);
+        assert_eq!(tree.build_tree(&[0, 1, 0, 2, 5]).unwrap_err(), BuildError::LeavesUndeflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
         let mut code_length = vec![0u8; 0x4000];
-        assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+        assert_eq!(tree.build_tree(&code_length).unwrap_err(), BuildError::LeavesUndeflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
         code_length.resize(0x8000, 0u8);
         tree.try_reserve_for_leaves(0x4000).unwrap();
-        assert_eq!(tree.try_reserve_for_leaves(0x4001).unwrap_err(), DecompressionError::TreeLeavesOverflow);
-        assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+        assert_eq!(tree.try_reserve_for_leaves(0x4001).unwrap_err(), BuildError::LeavesOverflow);
+        assert_eq!(tree.build_tree(&code_length).unwrap_err(), BuildError::LeavesUndeflow);
         code_length.push(1);
-        assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::CodeLengthTableOverflow);
+        assert_eq!(tree.build_tree(&code_length).unwrap_err(), BuildError::CodeLengthOverflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
 
@@ -642,7 +655,7 @@ mod tests {
             code_length.push(i);
         }
         code_length.shuffle(&mut rng);
-        assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+        assert_eq!(tree.build_tree(&code_length).unwrap_err(), BuildError::LeavesUndeflow);
         assert!(tree.is_empty());
         code_length.push(255);
         code_length.shuffle(&mut rng);
@@ -660,7 +673,7 @@ mod tests {
         }
         code_length.push(255);
         code_length.shuffle(&mut rng);
-        assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::TreeLeavesOverflow);
+        assert_eq!(tree.build_tree(&code_length).unwrap_err(), BuildError::LeavesOverflow);
 
         tree.clear();
         tree.shrink_to_fit();
@@ -670,7 +683,7 @@ mod tests {
             code_length.clear();
             for _ in 1..nleaves {
                 code_length.push(len);
-                assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+                assert_eq!(tree.build_tree(&code_length).unwrap_err(), BuildError::LeavesUndeflow);
                 assert!(tree.is_empty());
             }
             code_length.push(len);
@@ -684,7 +697,7 @@ mod tests {
                 assert!(value < nleaves as u16, "unexpected value returned: {}", value);
             }
             code_length.push(len);
-            assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::TreeLeavesOverflow);
+            assert_eq!(tree.build_tree(&code_length).unwrap_err(), BuildError::LeavesOverflow);
             assert!(tree.is_empty());
         }
     }
@@ -725,11 +738,11 @@ mod tests {
             let err = tree.build_tree(&vec).unwrap_err();
             assert!(tree.is_empty());
             match err {
-                DecompressionError::CodeLengthTableOverflow => break,
+                BuildError::CodeLengthOverflow => break,
                 e if cfg!(feature = "fast-static-tree") && i > HuffTree::MAX_LEAVES => {
-                    assert_eq!(e, DecompressionError::TreeLeavesOverflow)
+                    assert_eq!(e, BuildError::LeavesOverflow)
                 }
-                e => assert_eq!(e, DecompressionError::TreeLeavesUndeflow),
+                e => assert_eq!(e, BuildError::LeavesUndeflow),
             }
         }
     }
@@ -790,12 +803,12 @@ mod tests {
                 // one more
                 let max_level = vec.iter().copied().max().unwrap();
                 vec.push(rng.random_range(1..=max_level));
-                assert_eq!(tree.build_tree(vec).unwrap_err(), DecompressionError::TreeLeavesOverflow);
+                assert_eq!(tree.build_tree(vec).unwrap_err(), BuildError::LeavesOverflow);
                 // restore
                 vec.pop();
                 // one less
                 let last = vec.pop().unwrap();
-                assert_eq!(tree.build_tree(vec).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
+                assert_eq!(tree.build_tree(vec).unwrap_err(), BuildError::LeavesUndeflow);
                 // restore
                 vec.push(last);
 
