@@ -55,7 +55,7 @@ fn find_file<R: io::Read>(file: R, name: &str) -> io::Result<(LhaHeader, Box<[u8
 }
 
 fn fetch_cached(archive: &str, file_name: &str) -> io::Result<(LhaHeader, Box<[u8]>)> {
-    let mut file_path = Path::new(file!()).join("../cache");
+    let mut file_path = Path::new(file!()).join("../.cache");
     file_path.push(archive);
     match fs::File::open(&file_path) {
         Ok(file) => {
