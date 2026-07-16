@@ -30,7 +30,7 @@ Improvements:
 * `LhaError` to `std::io::Error` conversion includes the orignal `LhaError` encapsulation variant.
 
 Additions:
-* New error objects `LhaHeaderError` and `DecompressionError`.
+* New error objects: `LhaHeaderError`, `DecompressionError` and `BuildError`.
 * `LhaHeader` now derives `PartialEq` and `Eq`.
 * `LhaHeader::parse_unix_permissions()` and a new `Permissions` bitflag object added.
 * `LhaHeader::parse_unix_uid_gid()` added.
