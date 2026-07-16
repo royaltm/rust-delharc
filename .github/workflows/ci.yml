@@ -106,6 +106,7 @@ jobs:
           cargo build --all-features
           cargo test --all-features
           cargo test --all-features -- --ignored
+          cargo test --features=lhx,extend,fast-static-tree -- --ignored
           grcov . \
               --binary-path ./target/debug/ \
               --branch \
