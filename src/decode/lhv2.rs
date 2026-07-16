@@ -2,7 +2,7 @@ use core::num::NonZeroU32;
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
 use crate::{
-    error::{LhaResult, LhaError},
+    error::{LhaResult, LhaError, DecompressionError},
     stub_io::Read,
     bitstream::*,
     statictree::*,
@@ -105,7 +105,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         if len == 7 {
             while self.bit_reader.read_bit()? {
                 len = len.checked_add(1).ok_or_else(||
-                    LhaError::Decompress("code length overflow"))?;
+                    LhaError::Decompress(DecompressionError::CodeLengthOverflow))?;
             }
         }
         Ok(len)
@@ -136,7 +136,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         }
 
         if num_codes > NUM_TEMP_CODELEN {
-            return Err(LhaError::Decompress("temporary codelen table has invalid size"))
+            return Err(LhaError::Decompress(DecompressionError::TemporaryCodeTableOverflow))
         }
 
         // read actual lengths
@@ -149,7 +149,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         // println!("skip: {:?}", skip);
 
         if 3 + skip > num_codes {
-            return Err(LhaError::Decompress("temporary codelen table has invalid size"))
+            return Err(LhaError::Decompress(DecompressionError::TemporaryCodeTableOverflow))
         }
 
         for p in code_lengths[3 + skip..num_codes].iter_mut() {
@@ -173,14 +173,14 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         if num_codes == 0 {
             let code = self.bit_reader.read_bits(9)?;
             if usize::from(code) >= NUM_COMMANDS {
-                return Err(LhaError::Decompress("invalid single command"))
+                return Err(LhaError::Decompress(DecompressionError::CommandOverflow))
             }
             self.command_tree.set_single(code);
             return Ok(());
         }
 
         if num_codes > NUM_COMMANDS {
-            return Err(LhaError::Decompress("commands codelen table has invalid size"))
+            return Err(LhaError::Decompress(DecompressionError::CommandCodeTableOverflow))
         }
 
         let mut index = 0;
@@ -218,14 +218,14 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         if num_codes == 0 {
             let code = self.bit_reader.read_bits(C::OFFSET_BITS)?;
             if u32::from(code) >= C::HISTORY_BITS {
-                return Err(LhaError::Decompress("invalid single offset"))
+                return Err(LhaError::Decompress(DecompressionError::OffsetOverflow))
             }
             self.offset_tree.set_single(code);
             return Ok(());
         }
 
         if num_codes > C::HISTORY_BITS as usize {
-            return Err(LhaError::Decompress("offset codelen table has invalid size"))
+            return Err(LhaError::Decompress(DecompressionError::OffsetCodeTableOverflow))
         }
 
         // read actual lengths

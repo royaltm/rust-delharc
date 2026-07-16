@@ -1,5 +1,5 @@
 //! # Bit-stream tools.
-use crate::error::{LhaResult, LhaError};
+use crate::error::{LhaResult, LhaError, DecompressionError};
 use crate::stub_io::Read;
 
 type BitBuf = usize;
@@ -151,7 +151,7 @@ impl<R: Read> BitRead for BitStream<R> {
         match n {
             0 => Ok(0),
             n if n <= bitsize::<T>() => self.next_bits(n),
-            _ => Err(LhaError::Decompress("too many bits requested"))
+            _ => Err(LhaError::Decompress(DecompressionError::BitSizeOverflow))
         }.map(T::from_bits)
     }
 }

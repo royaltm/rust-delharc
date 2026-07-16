@@ -1,12 +1,12 @@
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
-use core::num::Wrapping;
-use core::slice;
-use core::fmt::Write;
+use core::{fmt::Write, num::Wrapping, slice};
 use bytemuck::{NoUninit, AnyBitPattern, bytes_of_mut};
-use crate::error::{LhaError, LhaResult};
-use crate::stub_io::Read;
-use crate::crc::Crc16;
+use crate::{
+    error::{LhaError, LhaResult, LhaHeaderError},
+    stub_io::Read,
+    crc::Crc16,
+};
 use super::*;
 
 /// Raw identifiers of extra headers.
@@ -172,7 +172,7 @@ impl<R: Read> Parser<'_, R> {
     fn read_limit_no_checksums(&mut self, mut limit: usize, buf: &mut Vec<u8>) -> LhaResult<(), R> {
         while limit != 0 {
             let chunk_size = limit.min(ALLOCATE_LIMIT_MAX);
-            buf.try_reserve_exact(chunk_size).map_err(|_| LhaError::HeaderParse("memory allocation failed"))?;
+            buf.try_reserve_exact(chunk_size).map_err(|err| LhaError::HeaderParse(err.into()))?;
             // FIXME: use BorrowedBuf once stabilized
             let spare_uninit = &mut buf.spare_capacity_mut()[..chunk_size];
             // SAFETY: assume read_exact is write-only
@@ -225,14 +225,14 @@ impl LhaHeader {
         let mut raw_header = LhaRawBaseHeader::default();
         parser.read_exact(bytes_of_mut(&mut raw_header))?;
         if raw_header.lha_level > 3 {
-            return Err(LhaError::HeaderParse("unknown header level"))
+            return Err(LhaError::HeaderParse(LhaHeaderError::UnknownLevel))
         }
 
         // read filename if level 0 or 1
         let filename = if raw_header.lha_level < 2 {
             let filename_len = parser.read_u8()? as usize;
             if (header_len as usize) < parser.len + filename_len {
-                return Err(LhaError::HeaderParse("wrong header size"))
+                return Err(LhaError::HeaderParse(LhaHeaderError::SizeMismatch))
             }
             parser.read_limit(filename_len)?
         }
@@ -257,7 +257,7 @@ impl LhaHeader {
                 min_len -= 2; // no extra headers
             }
             if (header_len as usize) < min_len {
-                return Err(LhaError::HeaderParse("wrong header size"))
+                return Err(LhaError::HeaderParse(LhaHeaderError::SizeMismatch))
             }
             let mut extended_len = (header_len as usize) - min_len;
             if extended_len != 0 && raw_header.lha_level == 0  {
@@ -286,7 +286,7 @@ impl LhaHeader {
                 long_header_len = parser.read_u32()?;
                 first_header_len = parser.read_u32()?;
                 if header_len != 4 || csum != 0 {
-                    return Err(LhaError::HeaderParse("invalid header"))
+                    return Err(LhaError::HeaderParse(LhaHeaderError::Level3Signature))
                 }
             }
             _ => {}
@@ -295,11 +295,11 @@ impl LhaHeader {
         // validate level 0 and 1 header checksum
         if raw_header.lha_level < 2 {
             if csum != parser.csum.0 {
-                return Err(LhaError::HeaderParse("invalid header level checksum"))
+                return Err(LhaError::HeaderParse(LhaHeaderError::WrappingSumMismatch))
             }
         }
         else if (long_header_len.saturating_sub(first_header_len) as usize) < parser.len {
-            return Err(LhaError::HeaderParse("wrong header size"))
+            return Err(LhaError::HeaderParse(LhaHeaderError::LongSizeMismatch))
         }
 
         let mut extra_headers = Vec::new();
@@ -312,17 +312,17 @@ impl LhaHeader {
         let mut extra_header_len = first_header_len as usize;
         while extra_header_len != 0 {
             if extra_header_len < min_header_len {
-                return Err(LhaError::HeaderParse("wrong extra header size"))
+                return Err(LhaError::HeaderParse(LhaHeaderError::ExtendedHeaderSize))
             }
             // check long header length (level 2, 3)
             if long_header_len != 0 {
                 if (long_header_len as usize).saturating_sub(extra_header_len - 2) < parser.len {
-                    return Err(LhaError::HeaderParse("wrong header size"))
+                    return Err(LhaError::HeaderParse(LhaHeaderError::LongSizeMismatch))
                 }
             }
             else if compressed_size < (extra_headers.len() as u64) + extra_header_len as u64  {
                 // otherwise check skip size (level 1)
-                return Err(LhaError::HeaderParse("wrong header size"))
+                return Err(LhaError::HeaderParse(LhaHeaderError::SkipSizeMismatch))
             }
             parser.read_limit_no_checksums(extra_header_len, &mut extra_headers)?;
             let start = extra_headers.len() - extra_header_len;
@@ -331,7 +331,7 @@ impl LhaHeader {
                 // we need to extract the CRC-16 from header and clear it in order to calculate checksum
                 [EXT_HEADER_COMMON, data @ ..] => {
                     if header_crc.is_some() {
-                        return Err(LhaError::HeaderParse("double common CRC-16 header"))
+                        return Err(LhaError::HeaderParse(LhaHeaderError::CommonHeader))
                     }
                     if let Some(crc) = data.get_mut(0..2) {
                         header_crc = read_u16(crc);
@@ -375,19 +375,19 @@ impl LhaHeader {
             else if raw_header.lha_level != 2 || long_header_len as usize != parser.len - 2
             {
                 // some packers (Osk) don't include self in the header length
-                return Err(LhaError::HeaderParse("wrong length of headers"))
+                return Err(LhaError::HeaderParse(LhaHeaderError::LongSizeMismatch))
             }
         }
 
         // validate headers CRC
         if let Some(crc) = header_crc && crc != parser.crc.sum16() {
-            return Err(LhaError::HeaderParse("wrong header CRC-16 checksum"))
+            return Err(LhaError::HeaderParse(LhaHeaderError::Crc16Mismatch))
         }
 
         // adjust compressed size for level 1
         if raw_header.lha_level == 1 {
             compressed_size = compressed_size.checked_sub(extra_headers.len() as u64)
-                .ok_or(LhaError::HeaderParse("wrong length of skip size"))?
+                .ok_or(LhaError::HeaderParse(LhaHeaderError::SkipSizeMismatch))?
         }
 
         let compression = raw_header.compression;

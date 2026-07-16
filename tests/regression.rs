@@ -70,11 +70,11 @@ const TESTS_CASES: &[(&str, &[(&str, Option<&str>, u64, u64, u16, u32, &str, u8,
 ];
 
 const CRASH_DECOMPRESS: &[(&str, &str)] = &[
-    ("clusterfuzz-1.bin", "temporary codelen table has invalid size"),
+    ("clusterfuzz-1.bin", "while decompressing: temporary code length table size overflow"),
 ];
 
 const CRASH_HEADER: &[(&str, &str)] = &[
-    ("fuzz-10-1.bin", "LHA decode error: while parsing LHA header: wrong header size")
+    ("fuzz-10-1.bin", "LHA decode error: while parsing LHA header: long size validation failed")
 ];
 
 #[test]

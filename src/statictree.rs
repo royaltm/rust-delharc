@@ -50,7 +50,7 @@ When reading, the following bit paths will result in finding the particular leav
 */
 #![allow(dead_code)]
 use core::cmp::Ordering;
-use crate::{bitstream::BitRead, error::LhaError};
+use crate::{bitstream::BitRead, error::{LhaError, DecompressionError}};
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 #[cfg(all(test, not(feature = "std")))]
@@ -111,7 +111,7 @@ impl HuffTree {
     #[inline]
     pub fn with_leaf_capacity(max_leaves: usize) -> Self {
         if max_leaves > Self::MAX_LEAVES {
-            panic!("too many leaves")
+            panic!("{}", DecompressionError::TreeLeavesOverflow)
         }
         let capacity = max_leaves * 2 - 1;
         let tree = Vec::with_capacity(capacity);
@@ -129,9 +129,9 @@ impl HuffTree {
     /// Because the tree can not be built incrementally, unlike with [`Vec::try_reserve()`]
     /// the `max_leaves` argument is the number of expected *TOTAL* number of leaves in the
     /// complete tree, and *NOT* the additional number.
-    pub fn try_reserve_for_leaves(&mut self, max_leaves: usize) -> Result<(), &'static str> {
+    pub fn try_reserve_for_leaves(&mut self, max_leaves: usize) -> Result<(), DecompressionError> {
         if max_leaves > Self::MAX_LEAVES {
-            return Err("too many leaves");
+            return Err(DecompressionError::TreeLeavesOverflow);
         }
         if max_leaves == 0 {
             return Ok(())
@@ -140,7 +140,7 @@ impl HuffTree {
         if let Some(reserve) = capacity.checked_sub(self.tree.len())
             && reserve != 0
         {
-            self.tree.try_reserve_exact(reserve).map_err(|_| "not enough memory")
+            self.tree.try_reserve_exact(reserve).map_err(From::from)
         }
         else {
             Ok(())
@@ -187,7 +187,7 @@ impl HuffTree {
     ///
     /// [`statictree`]: crate::statictree
     #[inline(always)]
-    pub fn build_tree(&mut self, value_lengths: &[u8]) -> Result<(), &'static str> {
+    pub fn build_tree(&mut self, value_lengths: &[u8]) -> Result<(), DecompressionError> {
         #[cfg(not(feature = "fast-static-tree"))]
         {
             self.build_tree_simple(value_lengths)
@@ -208,13 +208,13 @@ impl HuffTree {
     /// and `n` is the size of `value_lengths`.
     #[cfg(feature = "fast-static-tree")]
     #[cfg_attr(docsrs, doc(cfg(feature = "fast-static-tree")))]
-    pub fn build_tree_with_sort(&mut self, value_lengths: &[u8]) -> Result<(), &'static str> {
+    pub fn build_tree_with_sort(&mut self, value_lengths: &[u8]) -> Result<(), DecompressionError> {
         let tree_vec = &mut self.tree;
         tree_vec.clear();
 
         // println!("({}) {:?}", value_lengths.len(), value_lengths);
         if value_lengths.len() > const { TreeEntry::MAX_INDEX + 1 } {
-            return Err("too many code lengths");
+            return Err(DecompressionError::CodeLengthTableOverflow);
         }
 
         // step 1: add leaves with values corresponding to value_lengths indexes O(n)
@@ -227,10 +227,10 @@ impl HuffTree {
         if !(2..=Self::MAX_LEAVES).contains(&num_leaves) {
             tree_vec.clear();
             return Err(if num_leaves > Self::MAX_LEAVES {
-                "too many leaves"
+                DecompressionError::TreeLeavesOverflow
             }
             else {
-                "missing some leaves"
+                DecompressionError::TreeLeavesUndeflow
             })
         }
 
@@ -295,7 +295,7 @@ impl HuffTree {
                 }
                 else if max_allocated > leaf_index {
                     tree_vec.clear(); // make sure no outstanding branch indices exist
-                    return Err("missing some leaves")
+                    return Err(DecompressionError::TreeLeavesUndeflow)
                 }
                 else {
                     // leaves are sorted so lengths can only go up
@@ -306,7 +306,7 @@ impl HuffTree {
             }
             if max_allocated != tree.len() {
                 tree_vec.clear(); // for consistency
-                return Err("too many leaves");
+                return Err(DecompressionError::TreeLeavesOverflow);
             }
             break
         }
@@ -321,13 +321,13 @@ impl HuffTree {
     ///
     /// The time complexity is `O(l*n)` where `l` is the highest leaf depth and `n` is the size of
     /// the `value_lengths` slice.
-    pub fn build_tree_simple(&mut self, value_lengths: &[u8]) -> Result<(), &'static str> {
+    pub fn build_tree_simple(&mut self, value_lengths: &[u8]) -> Result<(), DecompressionError> {
         let tree = &mut self.tree;
         tree.clear();
 
         // println!("({}) {:?}", value_lengths.len(), value_lengths);
         if value_lengths.len() > const { TreeEntry::MAX_INDEX + 1 } {
-            return Err("too many code lengths");
+            return Err(DecompressionError::CodeLengthTableOverflow);
         }
 
         // the number of allocated tree indices
@@ -339,7 +339,7 @@ impl HuffTree {
             for _ in  0..more_branches {
                 if max_allocated > max_nodes { // too many branches created
                     tree.clear();
-                    return Err("missing some leaves")
+                    return Err(DecompressionError::TreeLeavesUndeflow)
                 }
                 tree.push(TreeEntry::branch(max_allocated));
                 // for every branch node, two new child nodes are required
@@ -363,7 +363,7 @@ impl HuffTree {
 
             if tree.len() > max_allocated {
                 tree.clear(); // for consistency
-                return Err("too many leaves");
+                return Err(DecompressionError::TreeLeavesOverflow);
             }
 
             if more_leaves == 0 {
@@ -375,7 +375,7 @@ impl HuffTree {
         if tree.len() != max_allocated {
             // println!("tree missing leaves: {}", max_allocated - tree.len());
             tree.clear(); // make sure no outstanding branch indices exist
-            return Err("missing some leaves")
+            return Err(DecompressionError::TreeLeavesUndeflow)
         }
         Ok(())
     }
@@ -585,55 +585,55 @@ mod tests {
             assert!(matches!(value, 3|5|6|8|9|10|13|14|15), "unexpected value returned: {}", value);
         }
 
-        assert_eq!(tree.build_tree(&[]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&[]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
         assert!(tree.is_empty());
         assert_eq!(tree.inspect(), &[]);
-        assert_eq!(tree.build_tree(&[1]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&[1]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[255]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&[255]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[255;5]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&[255;5]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&vec![255;0x4000]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&vec![255;0x4000]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[1,1,1]).unwrap_err(), "too many leaves");
+        assert_eq!(tree.build_tree(&[1,1,1]).unwrap_err(), DecompressionError::TreeLeavesOverflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[1,1,1]).unwrap_err(), "too many leaves");
+        assert_eq!(tree.build_tree(&[1,1,1]).unwrap_err(), DecompressionError::TreeLeavesOverflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[3,3,3,1]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&[3,3,3,1]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[1,3,3,3,3,1]).unwrap_err(), "too many leaves");
+        assert_eq!(tree.build_tree(&[1,3,3,3,3,1]).unwrap_err(), DecompressionError::TreeLeavesOverflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[1,3,3,3,3,3]).unwrap_err(), "too many leaves");
+        assert_eq!(tree.build_tree(&[1,3,3,3,3,3]).unwrap_err(), DecompressionError::TreeLeavesOverflow);
         assert!(tree.is_empty());
-        assert_eq!(tree.build_tree(&[0]).unwrap_err(), "missing some leaves");
-        assert!(tree.is_empty());
-        assert_eq!(tree.len(), 0);
-        assert_eq!(tree.build_tree(&[0, 0, 0]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&[0]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
-        assert_eq!(tree.build_tree(&[0, 0, 0, 1]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&[0, 0, 0]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
-        assert_eq!(tree.build_tree(&[0, 1, 0, 1, 1]).unwrap_err(), "too many leaves");
+        assert_eq!(tree.build_tree(&[0, 0, 0, 1]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
-        assert_eq!(tree.build_tree(&[0, 1, 0, 1, 10]).unwrap_err(), "too many leaves");
+        assert_eq!(tree.build_tree(&[0, 1, 0, 1, 1]).unwrap_err(), DecompressionError::TreeLeavesOverflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
-        assert_eq!(tree.build_tree(&[0, 1, 0, 2, 5]).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&[0, 1, 0, 1, 10]).unwrap_err(), DecompressionError::TreeLeavesOverflow);
+        assert!(tree.is_empty());
+        assert_eq!(tree.len(), 0);
+        assert_eq!(tree.build_tree(&[0, 1, 0, 2, 5]).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
         let mut code_length = vec![0u8; 0x4000];
-        assert_eq!(tree.build_tree(&code_length).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
         code_length.resize(0x8000, 0u8);
         tree.try_reserve_for_leaves(0x4000).unwrap();
-        assert_eq!(tree.try_reserve_for_leaves(0x4001).unwrap_err(), "too many leaves");
-        assert_eq!(tree.build_tree(&code_length).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.try_reserve_for_leaves(0x4001).unwrap_err(), DecompressionError::TreeLeavesOverflow);
+        assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
         code_length.push(1);
-        assert_eq!(tree.build_tree(&code_length).unwrap_err(), "too many code lengths");
+        assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::CodeLengthTableOverflow);
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
 
@@ -642,7 +642,7 @@ mod tests {
             code_length.push(i);
         }
         code_length.shuffle(&mut rng);
-        assert_eq!(tree.build_tree(&code_length).unwrap_err(), "missing some leaves");
+        assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
         assert!(tree.is_empty());
         code_length.push(255);
         code_length.shuffle(&mut rng);
@@ -660,7 +660,7 @@ mod tests {
         }
         code_length.push(255);
         code_length.shuffle(&mut rng);
-        assert_eq!(tree.build_tree(&code_length).unwrap_err(), "too many leaves");
+        assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::TreeLeavesOverflow);
 
         tree.clear();
         tree.shrink_to_fit();
@@ -670,7 +670,7 @@ mod tests {
             code_length.clear();
             for _ in 1..nleaves {
                 code_length.push(len);
-                assert_eq!(tree.build_tree(&code_length).unwrap_err(), "missing some leaves");
+                assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
                 assert!(tree.is_empty());
             }
             code_length.push(len);
@@ -684,7 +684,7 @@ mod tests {
                 assert!(value < nleaves as u16, "unexpected value returned: {}", value);
             }
             code_length.push(len);
-            assert_eq!(tree.build_tree(&code_length).unwrap_err(), "too many leaves");
+            assert_eq!(tree.build_tree(&code_length).unwrap_err(), DecompressionError::TreeLeavesOverflow);
             assert!(tree.is_empty());
         }
     }
@@ -725,11 +725,11 @@ mod tests {
             let err = tree.build_tree(&vec).unwrap_err();
             assert!(tree.is_empty());
             match err {
-                "too many code lengths" => break,
+                DecompressionError::CodeLengthTableOverflow => break,
                 e if cfg!(feature = "fast-static-tree") && i > HuffTree::MAX_LEAVES => {
-                    assert_eq!(e, "too many leaves")
+                    assert_eq!(e, DecompressionError::TreeLeavesOverflow)
                 }
-                e => assert_eq!(e, "missing some leaves"),
+                e => assert_eq!(e, DecompressionError::TreeLeavesUndeflow),
             }
         }
     }
@@ -790,12 +790,12 @@ mod tests {
                 // one more
                 let max_level = vec.iter().copied().max().unwrap();
                 vec.push(rng.random_range(1..=max_level));
-                assert_eq!(tree.build_tree(vec).unwrap_err(), "too many leaves");
+                assert_eq!(tree.build_tree(vec).unwrap_err(), DecompressionError::TreeLeavesOverflow);
                 // restore
                 vec.pop();
                 // one less
                 let last = vec.pop().unwrap();
-                assert_eq!(tree.build_tree(vec).unwrap_err(), "missing some leaves");
+                assert_eq!(tree.build_tree(vec).unwrap_err(), DecompressionError::TreeLeavesUndeflow);
                 // restore
                 vec.push(last);
 

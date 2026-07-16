@@ -2,7 +2,7 @@
 use core::{error, fmt};
 use crate::{
     crc::Crc16,
-    error::{LhaResult, LhaError},
+    error::{DecompressionError, LhaHeaderError, LhaError, LhaResult},
     header::{CompressionMethod, LhaHeader},
     stub_io::{Read, Take, discard_to_end},
 };
@@ -161,8 +161,7 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
     /// Return an error if the header could not be read or parsed.
     pub fn new(mut rd: R) -> Result<LhaDecodeReader<R>, LhaDecodeError<R>> {
         let header = match LhaHeader::read(rd.by_ref()).and_then(|h|
-                        h.ok_or_else(|| LhaError::HeaderParse("a header is missing"))
-                    )
+                    h.ok_or_else(|| LhaError::HeaderParse(LhaHeaderError::HeaderNotFound)))
         {
             Ok(h) => h,
             Err(e) => return Err(wrap_err(rd, e))
@@ -315,23 +314,29 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
     pub fn is_absent(&self) -> bool {
         self.decoder.is_none()
     }
-    /// Return whether the computed CRC-16 matches the checksum in the header.
+    /// Return whether the CRC-16 checksum, computed during file decompression,
+    /// matches the file checksum in the LHA header.
     ///
-    /// This should be called after the whole file has been read.
+    /// # Note
+    /// This method should be called only **AFTER** the whole file has been
+    /// decompressed.
     pub fn crc_is_ok(&self) -> bool {
         self.crc.sum16() == self.header.file_crc
     }
-    /// Return CRC-16 checksum if the computed checksum matches the one in the header.
+    /// Return the CRC-16 checksum, computed during file decompression, if it
+    /// matches the file checksum in the LHA header.
+    ///
     /// Otherwise return an [`LhaError::Checksum`] error.
     ///
     /// # Note
-    /// This method should be called only **AFTER** the whole file has been read.
+    /// This method should be called only **AFTER** the whole file has been
+    /// decompressed.
     pub fn crc_check(&self) -> LhaResult<u16, R> {
         if self.crc_is_ok() {
             Ok(self.header.file_crc)
         }
         else {
-            Err(LhaError::Checksum("crc16 mismatch"))
+            Err(LhaError::Checksum)
         }
     }
     /// Return whether the current file's compression method is supported.
@@ -469,7 +474,7 @@ impl<R: Read> Decoder<R> for UnsupportedDecoder<R> where R::Error: error::Error 
 
     #[inline]
     fn fill_buffer(&mut self, _buf: &mut[u8]) -> Result<(), LhaError<Self::Error>> {
-        Err(LhaError::Decompress("unsupported compression method"))
+        Err(LhaError::Decompress(DecompressionError::UnsupportedCompression))
     }
 }
 
@@ -545,7 +550,7 @@ mod tests {
     fn decode_error_works() {
         let rd = io::Cursor::new(vec![0u8;3]);
         let mut err = LhaDecodeReader::new(rd).unwrap_err();
-        assert_eq!(err.to_string(), "LHA decode error: while parsing LHA header: a header is missing");
+        assert_eq!(err.to_string(), "LHA decode error: while parsing LHA header: header not found");
         assert_eq!(err.get_ref().get_ref(), &vec![0u8;3]);
         assert_eq!(err.get_mut().get_mut(), &mut vec![0u8;3]);
         let rd = err.into_inner();
