@@ -23,7 +23,7 @@ You may include or opt out of some of the decoders:
 [dependencies.delharc]
 version = "0.7"
 default-features = false
-features = ["std", "lh1"] # select desired features
+features = ["std", "lh1", "pm"] # select desired features
 ```
 
 `lh1` and `lz` features are enabled by **default**.
@@ -45,8 +45,8 @@ compression method features. Otherwise the library will be compiled in the `no_s
 | `-lzs-`    | LzsDecoder         | lz      | LArc, 2kb sliding window
 | `-lz5-`    | Lz5Decoder         | lz      | LArc, 4kb sliding window
 | `-pm0-`    | PassthroughDecoder |         | no compression
-| `-pm1-`    | unsupported        | N/A     | PMarc, 8 Kb sliding window, static huffman
-| `-pm2-`    | unsupported        | N/A     | PMarc, 4 Kb sliding window, static huffman
+| `-pm1-`    | unsupported        | pm      | PMarc, 8 Kb sliding window, static huffman
+| `-pm2-`    | unsupported        | pm      | PMarc, 4 Kb sliding window, static huffman
 
 */
 #![cfg_attr(feature = "std", doc = r##"

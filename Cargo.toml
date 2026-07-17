@@ -18,11 +18,16 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = ["std", "lh1", "lz"]
+default = ["std", "lh1", "lz", "pm"]
 std = ["chrono/std", "chrono/clock"]
+# -lh1- decompression
 lh1 = []
+# -lhx- decompression
 lhx = []
+# -lzs- and -lz5- decompression
 lz = []
+# -pm1- and -pm2- decompression
+pm = []
 # Expose internal utilities - enables LHAv2 decoder customization.
 extend = []
 # Enable HuffTree::build_tree_with_sort and it becomes default tree building method.

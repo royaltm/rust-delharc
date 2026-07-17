@@ -72,21 +72,25 @@ pub enum BuildError {
 #[derive(Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DecompressionError {
-    // Attempted to decompress a file with unsupported compression method
+    /// Attempted to decompress a file with unsupported compression method
     UnsupportedCompression,
-    // LHv2 - too many code lengths requested for a temporary tree
+    /// LHv2 - too many code lengths requested for a temporary tree
     TemporaryCodeTableOverflow,
-    // LHv2 - too many code lengths requested for a command tree
+    /// LHv2 - too many code lengths requested for a command tree
     CommandCodeTableOverflow,
-    // LHv2 - too many code lengths requested for a history offset tree
+    /// LHv2 - too many code lengths requested for a history offset tree
     OffsetCodeTableOverflow,
-    // LHv2 - a requested single command code is too large
+    /// LHv2 - a requested single command code is too large
     CommandOverflow,
-    // LHv2 - a requested single history offset code is too large
+    /// LHv2 - a requested single history offset code is too large
     OffsetOverflow,
-    // LHv2 - too large code length decoded from the bit stream
+    /// LHv2 - too large code length decoded from the bit stream
     CodeLengthOverflow,
-    // Bit-stream - too many bits requested for a given integer type capacity
+    #[cfg(feature = "pm")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "pm")))]
+    /// PMarc - too large history distance
+    HistoryDistanceOverflow,
+    /// Bit-stream - too many bits requested for a given integer type capacity
     BitSizeOverflow,
     /// An error occured while building a Huffman Tree
     Tree(BuildError),
@@ -146,14 +150,16 @@ impl fmt::Display for DecompressionError {
         use DecompressionError::*;
         match self {
             UnsupportedCompression => "unsupported compression method",
-            TemporaryCodeTableOverflow => "temporary code length table size overflow",
-            CommandCodeTableOverflow => "commands code length table size overflow",
-            OffsetCodeTableOverflow => "offset code length table size overflow",
-            CommandOverflow => "command code overflow",
-            OffsetOverflow => "offset code overflow",
-            CodeLengthOverflow => "code length overflow",
+            TemporaryCodeTableOverflow => "temporary code length table is too large",
+            CommandCodeTableOverflow => "commands code length table is too large",
+            OffsetCodeTableOverflow => "offset code length table is too large",
+            CommandOverflow => "command code is too large",
+            OffsetOverflow => "offset code is too large",
+            #[cfg(feature = "pm")]
+            HistoryDistanceOverflow => "history distance is too large",
+            CodeLengthOverflow => "code length is too large",
             BitSizeOverflow => "too many bits requested",
-            Tree(err) => return write!(f, "while building a tree: {}", err)
+            Tree(err) => return write!(f, "while building a tree: {}", err),
         }
         .fmt(f)
     }

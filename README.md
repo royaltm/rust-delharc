@@ -46,7 +46,7 @@ external crate will be required instead.
 [dependencies.delharc]
 version = "0.7"
 default-features = false
-features = ["lh1", "lz"] # select desired features
+features = ["lh1", "lz", "pm"] # select desired features
 ```
 
 `delharc` API was originally built around the `std::io` types such as `io::Error` and `io::Read`.

@@ -61,7 +61,7 @@ impl_ubits!(u8);
 impl_ubits!(u16);
 impl_ubits!(u32);
 impl_ubits!(usize);
-#[cfg(feature = "extend")]
+#[cfg(any(feature = "pm", feature = "extend"))]
 impl_ubits!(u64);
 #[cfg(feature = "extend")]
 impl_ubits!(u128);
