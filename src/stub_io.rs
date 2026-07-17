@@ -151,6 +151,7 @@ impl<R: io::Read> Read for R {
         Ok(orig_len - buf.len())
     }
 
+    #[inline]
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Self::Error> {
         io::Read::read_exact(self, buf)
     }
@@ -231,14 +232,5 @@ impl Read for &'_[u8] {
 
         *self = b;
         Ok(amt)
-    }
-
-    #[inline]
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Self::Error> {
-        if buf.len() > self.len() {
-            return Err(UnexpectedEofError);
-        }
-        self.read_all(buf)?;
-        Ok(())
     }
 }
