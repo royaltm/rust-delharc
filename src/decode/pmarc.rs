@@ -1,6 +1,8 @@
 //! PMarc decoders
-#![allow(dead_code)]
-#![allow(unused_imports)]
+//!
+//! Original C version: 2011, 2012, Simon Howard lhasa/lib/pma_common.c
+//!
+//! Rust version: 2026, Rafał Michalski
 use crate::{
     bitstream::BitRead,
     error::LhaError,
@@ -13,7 +15,7 @@ mod history_list;
 pub use pm1::*;
 use history_list::*;
 
-/// This object is used to decode variable bit integer encoding.
+/// This object is used to decode variable bit integer encoding
 #[derive(Debug, Clone, Copy)]
 struct VarLenEntry {
     /// The base value to which the read value needs to be added

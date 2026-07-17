@@ -26,7 +26,7 @@ default-features = false
 features = ["std", "lh1", "pm"] # select desired features
 ```
 
-`lh1` and `lz` features are enabled by **default**.
+`lh1`, `lz` and `pm` features are enabled by **default**.
 
 When using `default-features = false` the `std` feature needs to be added back along with other
 compression method features. Otherwise the library will be compiled in the `no_std` mode.
@@ -45,8 +45,8 @@ compression method features. Otherwise the library will be compiled in the `no_s
 | `-lzs-`    | LzsDecoder         | lz      | LArc, 2kb sliding window
 | `-lz5-`    | Lz5Decoder         | lz      | LArc, 4kb sliding window
 | `-pm0-`    | PassthroughDecoder |         | no compression
-| `-pm1-`    | unsupported        | pm      | PMarc, 8 Kb sliding window, static huffman
-| `-pm2-`    | unsupported        | pm      | PMarc, 4 Kb sliding window, static huffman
+| `-pm1-`    | Pm1Decoder         | pm      | PMarc, 16 Kb sliding window, built-in static huffman
+| `-pm2-`    | unsupported        | pm      | PMarc,  4 Kb sliding window, static huffman
 
 */
 #![cfg_attr(feature = "std", doc = r##"

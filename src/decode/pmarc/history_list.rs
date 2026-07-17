@@ -1,18 +1,23 @@
 //! History linked list for PMarc decoders
+//!
+//! Original C version: 2011, 2012, Simon Howard lhasa/lib/pma_common.c
+//!
+//! Rust version: 2026, Rafał Michalski
 use bytemuck::{Zeroable, allocation::zeroed_box};
 
-// History linked list. In the decode stream, codes representing
-// characters are not the character itself, but the number of
-// nodes to count back in time in the linked list. Every time
-// a character is output, it is moved to the front of the linked
-// list. The entry point index into the list is the last output
-// character, given by history_head;
 #[derive(Debug, Clone, Copy, Zeroable)]
 pub struct HistoryNode {
     prev: u8,
     next: u8,
 }
 
+// Simon Howard:
+// History linked list. In the decode stream, codes representing
+// characters are not the character itself, but the number of
+// nodes to count back in time in the linked list. Every time
+// a character is output, it is moved to the front of the linked
+// list. The entry point index into the list is the last output
+// character, given by history_head;
 #[derive(Debug, Clone, Copy, Zeroable)]
 pub struct HistoryLinkedList {
     history: [HistoryNode; 256],
@@ -33,6 +38,7 @@ impl HistoryLinkedList {
             node.prev = i.wrapping_add(1);
             node.next = i.wrapping_sub(1)
         }
+        // Simon Howard:
         // The chain is cut into groups and initially arranged so
         // that the ASCII characters are closest to the start of
         // the chain. This is followed by ASCII control characters,
@@ -62,6 +68,7 @@ impl HistoryLinkedList {
         // Start from the last outputted byte.
         let mut code = self.history_head;
 
+        // Simon Howard:
         // Walk along the history chain until we reach the desired
         // node.  If we will have to walk more than half the chain,
         // go the other way around.
@@ -80,7 +87,7 @@ impl HistoryLinkedList {
         code
     }
 
-    /// Update history list, by moving the specified byte to the head of the queue
+    /// Update history list by moving the specified byte to the head of the queue
     #[inline]
     pub fn update_history_list(&mut self, byte: u8) {
         // No update necessary?
@@ -89,12 +96,12 @@ impl HistoryLinkedList {
             return
         }
 
-        // Unhook the entry from its current position:
+        // unlink the entry from its current position
         let mut node = self.history[usize::from(byte)];
         self.history[usize::from(node.next)].prev = node.prev;
         self.history[usize::from(node.prev)].next = node.next;
 
-        // Hook in between the old head and old_head->next:
+        // link in between the old head and old_head.next
         let old_head = self.history[usize::from(head)];
         node.prev = head;
         node.next = old_head.next;
@@ -103,7 +110,7 @@ impl HistoryLinkedList {
         self.history[usize::from(old_head.next)].prev = byte;
         self.history[usize::from(head)].next = byte;
 
-        // byte is now the head of the queue:
+        // byte is now the head of the queue
         self.history_head = byte;
     }
 }

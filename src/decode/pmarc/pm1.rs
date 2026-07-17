@@ -1,3 +1,8 @@
+//! PMarc v1 decoder
+//!
+//! Original C version: 2011, 2012, Simon Howard lhasa/lib/pm1_decoder.c
+//!
+//! Rust version: 2026, Rafał Michalski
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
 use core::num::NonZeroU8;
@@ -6,13 +11,13 @@ use crate::{
     decode::Decoder,
     error::{LhaResult, DecompressionError},
     ringbuf::*,
-    // stub_io::Read,
 };
 use bytemuck::allocation::zeroed_box;
 use super::*;
 
 const RING_BUFFER_SIZE: usize = 16384;
 
+/// Maximum length of a command representing a block of bytes
 const MAX_BYTE_BLOCK_LEN: u8 = 216;
 
 /// Operation in progress
@@ -31,11 +36,17 @@ pub struct Pm1Decoder<R> {
     progress: Option<Progress>,
     ringbuf: Box<RingArrayBuf<RING_BUFFER_SIZE>>,
     history_list: Box<HistoryLinkedList>,
-    output_stream_pos: u16,
+    output_stream_pos: u16, // saturating on u16::MAX
     byte_decode_tree_ready: bool,
     byte_decode_tree: [u8;5]
 }
 
+// Simon Howard:
+// This table is a list of trees to decode indices into byte_ranges.
+// Each line is actually a mini binary tree, starting with the first
+// byte as the root node. Each nybble of the byte is one of the two
+// branches: either a leaf value (a-f) or an offset to the child node.
+// Expanded representation is shown in comments below.
 static BYTE_DECODE_TREES: [[u8;5];32] = [
        [ 0x12, 0x2d, 0xef, 0x1c, 0xab ],    // ((((a b) c) d) (e f))
        [ 0x12, 0x23, 0xde, 0xab, 0xcf ],    // (((a b) (c f)) (d e))
@@ -85,6 +96,7 @@ const fn bit_width(v: u16) -> u16 {
 }
 
 impl<R: Read> Pm1Decoder<R> {
+    /// Create a new decoder instance from the given data read stream
     pub fn new(rd: R) -> Pm1Decoder<R> {
         let bit_reader = BitStream::new(NoEofReader(rd));
         let ringbuf = zeroed_box::<RingArrayBuf<RING_BUFFER_SIZE>>();
@@ -109,6 +121,7 @@ impl<R: Read> Pm1Decoder<R> {
         Ok(())
     }
 
+    /// Progressively copy data from history buffer
     fn copy_from_history<'a, I: ExactSizeIterator<Item=&'a mut u8>>(
             &mut self,
             target: I,
@@ -130,6 +143,7 @@ impl<R: Read> Pm1Decoder<R> {
                         .map(|count| Progress::Copy { count, offset });
     }
 
+    /// Progressively read data block to the end
     fn read_byte_block<'a, I: ExactSizeIterator<Item=&'a mut u8>>(
             &mut self,
             mut target: I,
@@ -151,16 +165,18 @@ impl<R: Read> Pm1Decoder<R> {
         let count_after = count - actual_count as u8;
         self.progress = NonZeroU8::new(count_after)
                         .map(|count| Progress::Read { count, copy_next });
+
         if copy_next && count_after == 0 {
             return self.read_copy_command(target)
         }
         Ok(())
     }
 
-    /// Decode a count of the number of bytes to copy in a copy command.
+    /// Decode the number of bytes to copy in a copy command.
     ///
     /// The returned value is in the range: 3..=244.
     fn read_copy_byte_count(&mut self) -> LhaResult<u8, R> {
+        // Simon Howard:
         // This is a form of static huffman encoding that uses less bits
         // to encode short copy amounts (again).
 
@@ -173,33 +189,13 @@ impl<R: Read> Pm1Decoder<R> {
         //             .6 <62 (+23)
         //                62: .5 (+85)
         //                63: .7 (+117)
-        // struct T<'a> {
-        //     b: u32, t: usize, o: usize, n: &'a [T<'a>]
-        // }
-        // static TREE: T = T { b:2, t:3, o:3, n: &[   //   3..=5
-        //     T { b:3, t:5, o:6, n: &[                //   6..=10
-        //         T { b:2, t: 4, o:11, n: &[]},       //  11..=14
-        //         T { b:3, t: 8, o:15, n: &[]},       //  15..=22
-        //         T { b:6, t:62, o:23, n: &[          //  23..=84
-        //             T { b:5, t: 32, o: 85, n: &[]}, //  85..=116
-        //             T { b:7, t:128, o:117, n: &[]}, // 117..=244
-        //         ]}
-        //     ]}
-        // ]};
-        // let mut cur = &TREE;
-        // loop {
-        //     let x = self.bit_reader.read_bits::<usize>(cur.b)?;
-        //     if let Some(index) = x.checked_sub(cur.t) {
-        //         cur = &cur.n[index];
-        //     }
-        //     else {
-        //         return Ok(x + cur.o)
-        //     }
-        // }
-        // Value in the range 3..5?
+
+        // value in the range 3..=5?
+        // Simon Howard:
         // Length values start at 3: if it was 2, a different copy
         // range would have been used and this function would not
         // have been called.
+
         let x: u8 = self.bit_reader.read_bits(2)?;
 
         if x < 3 {
@@ -208,11 +204,11 @@ impl<R: Read> Pm1Decoder<R> {
 
         let next = match self.bit_reader.read_bits(3)? {
             7 => None,
-            // Value in range 15..22?
+            // value in the range 15..=22?
             6 => Some((3, 15)),
-            // Value in range 11..14?
+            // value in the range 11..=14?
             5 => Some((2, 11)),
-            // Value in range 6..10?
+            // value in the range 6..=10?
             x => return Ok(x + 6), // x < 5
         };
 
@@ -221,11 +217,11 @@ impl<R: Read> Pm1Decoder<R> {
         }
 
         let (bits, offset) = match self.bit_reader.read_bits(6)? {
-            // Value in range 117..244?
+            // value in the range 117..=244?
             63 => (7, 117), // x == 63
-            // Value in range 85..116?
+            // value in the range 85..=116?
             62 => (5, 85),
-            // Value in range 23..84?
+            // value in the range 23..=84?
             x  => return Ok(x + 23),
         };
 
@@ -248,20 +244,45 @@ impl<R: Read> Pm1Decoder<R> {
     ///
     /// The returned value is in the range: 0..=5.
     fn read_copy_type_range(&mut self) -> LhaResult<usize, R> {
+        // Simon Howard:
         // This is another static huffman tree, but the path grows as
         // more data is decoded. The progression is as follows:
         //  1. Initially, only '0' and '2' can be returned.
         //  2. After 64 bytes, '1' and '3' can be returned as well.
         //  3. After 576 bytes, '4' can be returned.
         //  4. After 2624 bytes, '5' can be returned.
-        //
+
         // t <   64: 0b0   -> 0,                                              0b1   -> 2
         // t <  576: 0b00  -> 0, 0b01  -> 1,            0b10 -> 3,            0b11  -> 2
         // t < 2264: 0b000 -> 0, 0b001 -> 1, 0b01 -> 4, 0b10 -> 3,            0b11  -> 2
         // t       : 0b000 -> 0, 0b001 -> 1, 0b01 -> 4, 0b10 -> 3, 0b110 ->5, 0b111 -> 2
+
+        // let range_index = if !self.bit_reader.read_bit()? {
+        //     if self.read_bit_after_threshold(576, false)? {
+        //         4 // 0b01 (>=576)
+        //     }
+        //     else {
+        //         // Return either 0 or 1.
+        //         self.read_bit_after_threshold(64, false).map(Into::into)?
+        //         // 0 0b000 (>=576) or 0b00 (>=64) or 0b0
+        //         // 1 0b001 (>=576) or 0b01 (>=64)
+        //     }
+        // }
+        // else {
+        //     if !self.read_bit_after_threshold(64, true)? {
+        //         3 // 0b10 (>=64)
+        //     }
+        //     else if self.read_bit_after_threshold(2624, true)? {
+        //         2 // 0b111 (>=2624) or 0b11 (>= 64) or 0b1
+        //     }
+        //     else {
+        //         5 // 0b110 (>=2624)
+        //     }
+        // };
+
         let t = self.output_stream_pos;
         let range_index = if t < 64 {
-            self.bit_reader.read_bit().map(|x| usize::from(x) * 2)? // 0 or 2
+            (self.bit_reader.read_bits::<usize>(1)? & 1) * 2 // 0 or 2
         }
         else {
             let x = self.bit_reader.read_bits::<usize>(2)?;
@@ -270,7 +291,7 @@ impl<R: Read> Pm1Decoder<R> {
             }
             else {
                 match x {
-                    0b00 => self.bit_reader.read_bit().map(usize::from)?, // 0b000: 0, 0b001: 1
+                    0b00 => self.bit_reader.read_bits::<usize>(1)? & 1, // 0b000: 0, 0b001: 1
                     0b01 => 4,
                     0b10 => 3,
                     // 0b11
@@ -284,28 +305,6 @@ impl<R: Read> Pm1Decoder<R> {
             }
         };
         Ok(range_index)
-        // if !self.bit_reader.read_bit()? {
-        //     if self.read_bit_after_threshold(576, false)? {
-        //         return Ok(4) // 0b01 (>=576)
-        //     }
-        //     else {
-        //         // Return either 0 or 1.
-        //         return self.read_bit_after_threshold(64, false).map(Into::into)
-        //         // 0 0b000 (>=576) or 0b00 (>=64) or 0b0
-        //         // 1 0b001 (>=576) or 0b01 (>=64)
-        //     }
-        // }
-        // else {
-        //     if !self.read_bit_after_threshold(64, true)? {
-        //         return Ok(3) // 0b10 (>=64)
-        //     }
-        //     else if self.read_bit_after_threshold(2624, true)? {
-        //         Ok(2) // 0b111 (>=2624) or 0b11 (>= 64) or 0b1
-        //     }
-        //     else {
-        //         Ok(5) // 0b110 (>=2624)
-        //     }
-        // }
     }
 
     /// Read a copy command from the input stream and copy from history.
@@ -318,6 +317,10 @@ impl<R: Read> Pm1Decoder<R> {
     {
         let range_index = self.read_copy_type_range()?;
 
+        // Simon Howard:
+        // The first two entries in the copy_ranges table are used as
+        // a shorthand to copy two bytes. Otherwise, decode the number
+        // of bytes to copy.
         let count = if range_index < 2 {
             2
         }
@@ -325,65 +328,91 @@ impl<R: Read> Pm1Decoder<R> {
             self.read_copy_byte_count()?
         };
 
-        // The first two entries in the copy_ranges table are used as
-        // a shorthand to copy two bytes. Otherwise, decode the number
-        // of bytes to copy.
         type E = VarLenEntry;
         const COPY_RANGES: [VarLenEntry;6] = [
-            E::new(   0,  6),  //    0 +  (1 << 6) =    64
-            E::new(  64,  8),  //   64 +  (1 << 8) =   320
-            E::new(   0,  6),  //    0 +  (1 << 6) =    64
-            E::new(  64,  9),  //   64 +  (1 << 9) =   576
-            E::new( 576, 11),  //  576 + (1 << 11) =  2624
-            E::new(2624, 13),  // 2624 + (1 << 13) = 10816
-/* from lhasa:
+            E::new(    0,  6 ),  //    0 +  (1 << 6) =    64
+            E::new(   64,  8 ),  //   64 +  (1 << 8) =   320
+            E::new(    0,  6 ),  //    0 +  (1 << 6) =    64
+            E::new(   64,  9 ),  //   64 +  (1 << 9) =   576
+            E::new(  576, 11 ),  //  576 + (1 << 11) =  2624
+            E::new( 2624, 13 ),  // 2624 + (1 << 13) = 10816
+
+            // Simon Howard:
             // The above table entries are used after a certain number of
             // bytes have been decoded.
             // Early in the stream, some of the copy ranges are more limited
             // in their range, so that fewer bits are needed. The above
             // table entries are redirected to these entries instead.
             // Table entry #3 (64):
-
-            {   64,  8 },   // < 320 bytes   (320-64)   bits(< 256)  <=8
+            /*
+            E::new(   64,  8 ),   // < 320 bytes   (320-64)   bits(< 256)  <=8
 
             // Table entry #4 (576):
-            {  576,  8 },   // < 832  bytes  ( 832-576) bits(< 256)  <=8
-            {  576,  9 },   // < 1088 bytes  (1088-576) bits(< 512)  = 9
-            {  576, 10 },   // < 1600 bytes  (1600-576) bits(< 1024) = 10
+            E::new(  576,  8 ),   // < 832  bytes  ( 832-576) bits(< 256)  <=8
+            E::new(  576,  9 ),   // < 1088 bytes  (1088-576) bits(< 512)  = 9
+            E::new(  576, 10 ),   // < 1600 bytes  (1600-576) bits(< 1024) = 10
 
             // Table entry #5 (2624):
-            { 2624,  8 },   // < 2880 bytes (2880-2624) bits(< 256)  <=8
-            { 2624,  9 },   // < 3136 bytes (3136-2624) bits(< 512)  = 9
-            { 2624, 10 },   // < 3648 bytes (3648-2624) bits(< 1024) = 10
-            { 2624, 11 },   // < 4672 bytes (4672-2624) bits(< 2048) = 11
-            { 2624, 12 },   // < 6720 bytes (6720-2624) bits(< 4096) = 12
-*/
+            E::new( 2624,  8 ),   // < 2880 bytes (2880-2624) bits(< 256)  <=8
+            E::new( 2624,  9 ),   // < 3136 bytes (3136-2624) bits(< 512)  = 9
+            E::new( 2624, 10 ),   // < 3648 bytes (3648-2624) bits(< 1024) = 10
+            E::new( 2624, 11 ),   // < 4672 bytes (4672-2624) bits(< 2048) = 11
+            E::new( 2624, 12 ),   // < 6720 bytes (6720-2624) bits(< 4096) = 12
+            */
         ];
-        let mut range = COPY_RANGES[range_index];
+
         let pos = self.output_stream_pos;
+
+        // Simon Howard:
         // The 'range_index' variable is an index into the copy_ranges
         // array. As a special-case hack, early in the output stream
         // some history ranges are inaccessible, so fewer bits can be
         // used. Redirect range_index to special entries to do this.
+        /*
+        let range_index = match range_index {
+            3 if pos < 320 => 6,
+            4 => match pos {
+                   0..832  => 7,
+                 832..1088 => 8,
+                1088..1600 => 9,
+                _ => range_index
+            },
+            5 => match pos {
+                   0..2880 => 10,
+                2880..3136 => 11,
+                3136..3648 => 12,
+                3648..4672 => 13,
+                4672..6720 => 14,
+                _ => range_index
+            },
+            _ => range_index
+        };
+        */
+        let mut range = COPY_RANGES[range_index];
+
+        // RM: Instead of the extra table entries here we estimate range
+        // bit size from the output position bit width
         if range.bits > 8 { // 9, 11, 13
+            // limits the bits - between 8 and range.bits depending on
+            // the bit width of the (stream position - range.offs)
+            // this exactly matches the original algorithm
             range.bits = bit_width(pos.saturating_sub(range.offs))
                         .clamp(8, range.bits);
         }
 
-        // Calculate the number of bytes back into the history buffer to read.
+        // Calculate the number of bytes back into the history buffer to read
         let history_distance = range.decode_variable_length(&mut self.bit_reader)?;
         if history_distance >= pos {
             return Err(LhaError::Decompress(DecompressionError::HistoryDistanceOverflow))
         }
 
-        // Copy from the ring buffer.
+        // Start copying from the ring buffer
         self.copy_from_history(target, history_distance, count);
         Ok(())
     }
 
     /// Read the index into the byte decode table, using the byte_decode_tree
     /// set at the start of the stream.
-    ///
     ///
     /// The returned range entry maximum decoded value is 255.
     fn read_byte_decode_range(&mut self) -> LhaResult<VarLenEntry, R> {
@@ -406,7 +435,7 @@ impl<R: Read> Pm1Decoder<R> {
         // which path to take.
         let mut tree = &self.byte_decode_tree[..];
         loop {
-            let node = tree[0]; // FIXME
+            let node = tree[0];
             let child = usize::from(if self.bit_reader.read_bit()? {
                 node
             }
@@ -415,16 +444,16 @@ impl<R: Read> Pm1Decoder<R> {
             }) & 0x0f;
             // Reached a leaf node?
             match child {
-                10.. => {
-                    return Ok(BYTE_RANGES[usize::from(child) - 10])
+                10.. => break Ok(BYTE_RANGES[usize::from(child) - 10]),
+                i => {
+                    assert!(i < tree.len());
+                    tree = &tree[i..];
                 }
-                i if i < tree.len() => tree = &tree[i..],
-                _ => panic!("byte decode tree")
             }
         }
     }
 
-    /// Read a single byte value from the input stream.
+    /// Read a single byte value from the input stream
     fn read_byte(&mut self) -> LhaResult<u8, R> {
         // Read the index into the byte_ranges table to use.
         let range = self.read_byte_decode_range()?;
@@ -443,28 +472,36 @@ impl<R: Read> Pm1Decoder<R> {
     ///
     /// The returned value is in the range: 1..=216.
     fn read_byte_block_count(&mut self) -> LhaResult<u8, R> {
+        // Simon Howard:
         // This is a form of static huffman coding, where smaller
         // lengths are encoded using shorter bit sequences.
 
-        // Value in the range 1..=3?
-        let x: u8 = self.bit_reader.read_bits(2)?;
+        // .2 <3 (+1)
+        //    3:
+        //       .3 <7 (+4)
+        //          7:
+        //             .4 <14 (+11)
+        //                14: .6 (+25)
+        //                15: .7 (+89)
 
+        // value in the range 1..=3?
+        let x: u8 = self.bit_reader.read_bits(2)?;
         if x < 3 {
             return Ok(x + 1)
         }
 
-        // Value in the range 4..=10?
-        match self.bit_reader.read_bits(3)? {
-            7 => {}
-            x => return Ok(x + 4), // x < 7
+        // value in the range 4..=10?
+        let x: u8 = self.bit_reader.read_bits(3)?;
+        if x < 7 {
+            return Ok(x + 4)
         }
 
         let (bits, offset) = match self.bit_reader.read_bits(4)? {
-            // Value in the range 89..=216
+            // value in the range 89..=216
             15 => (7, 89),
-            // Value in the range 25..=88:
+            // value in the range 25..=88:
             14 => (6, 25),
-            // Value in the range 11..=25?
+            // value in the range 11..=25?
             x  => return Ok(x + 11), // x < 14
         };
         self.bit_reader.read_bits(bits).map(|x: u8| x + offset)
@@ -555,12 +592,17 @@ mod tests {
         let mut n = 0usize;
         let start = Instant::now();
         let limit = Duration::from_secs(59);
+        let mut errors = 0usize;
         while start.elapsed() <= limit {
             n += 1;
             for i in 1..=1024 {
-                decoder.fill_buffer(&mut buf[0..i]).unwrap()
+                if let Err(err) = decoder.fill_buffer(&mut buf[0..i]) {
+                    errors += 1;
+                    assert!(matches!(err, LhaError::Decompress(DecompressionError::HistoryDistanceOverflow)));
+                }
             }
         }
-        println!("-pm1- iterations: {}", n);
+        println!("-pm1- iterations: {} errors: {} {:.2}%",
+                    n, errors, (errors as f64 / n as f64) * 100.0);
     }
 }

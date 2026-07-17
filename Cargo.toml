@@ -66,6 +66,11 @@ name = "aminet"
 harness = false
 required-features = ["std"]
 
+[[bench]]
+name = "pmarc"
+harness = false
+required-features = ["std", "pm"]
+
 [workspace]
 members = [
   ".",
