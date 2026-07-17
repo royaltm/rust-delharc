@@ -17,7 +17,6 @@ static ARCHIVES: &[&str] = &[
     "unlha32/lhx_long.lzh",
 ];
 
-// Build a flat tree with all the leaves at the bottom.
 fn lhav2_benchmark(c: &mut Criterion) {
     let tests_dir = Path::new(file!()).join("../../tests");
     let mut buffer = vec![0u8;8192].into_boxed_slice();

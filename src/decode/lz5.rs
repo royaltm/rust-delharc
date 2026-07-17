@@ -22,6 +22,7 @@ pub struct Lz5Decoder<R> {
 }
 
 impl<R: Read> Lz5Decoder<R> {
+    /// Create a new decoder instance from the given data read stream
     pub fn new(reader: R) -> Lz5Decoder<R> {
         let mut ringbuf = zeroed_box::<RingArrayBuf<RING_BUFFER_SIZE>>();
         ringbuf.initialize_with(|buffer| {

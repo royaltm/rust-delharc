@@ -80,6 +80,7 @@ pub type Lh7Decoder<R> = LhaV2Decoder<Lh7DecoderCfg, R>;
 pub type LhxDecoder<R> = LhaV2Decoder<LhxDecoderCfg, R>;
 
 impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
+    /// Create a new decoder instance from the given data read stream
     pub fn new(rd: R) -> LhaV2Decoder<C, R> {
         assert_eq!(<C::RingBuffer as RingBuffer>::BUFFER_SIZE, const { 1 << (C::HISTORY_BITS - 1) });
         assert!((1..=5).contains(&C::OFFSET_BITS));

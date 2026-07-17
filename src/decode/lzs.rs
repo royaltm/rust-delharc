@@ -22,6 +22,7 @@ pub struct LzsDecoder<R> {
 }
 
 impl<R: Read> LzsDecoder<R> {
+    /// Create a new decoder instance from the given data read stream
     pub fn new(rd: R) -> LzsDecoder<R> {
         let bit_reader = BitStream::new(rd);
         let mut ringbuf = zeroed_box::<RingArrayBuf<RING_BUFFER_SIZE>>();
