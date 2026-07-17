@@ -34,7 +34,7 @@ impl<R: Read> LzsDecoder<R> {
         }
     }
 
-    fn copy_from_history<'a, I: Iterator<Item=&'a mut u8> + ExactSizeIterator>(
+    fn copy_from_history<'a, I: ExactSizeIterator<Item=&'a mut u8>>(
             &mut self,
             target: I,
             pos: usize,
