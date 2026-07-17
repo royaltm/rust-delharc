@@ -25,7 +25,12 @@ pub trait Read {
 
     /// This method shall produce the "Unexpected EOF" error.
     fn unexpected_eof() -> Self::Error;
+    /// Read data from the stream, filling the `buf` and return the number of bytes read.
+    ///
     /// Similar to [`io::Read::read`] but continue on [`io::ErrorKind::Interrupted`].
+    ///
+    /// If the returned value is lower than the length of the `buf` that indicates
+    /// the end of file has been reached.
     fn read_all(&mut self, buf: &mut[u8]) -> Result<usize, Self::Error>;
     /// Exactly like [`io::Read::read_exact`].
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Self::Error> {
@@ -132,10 +137,13 @@ impl<R: io::Read> Read for R {
 
     fn read_all(&mut self, mut buf: &mut[u8]) -> Result<usize, Self::Error> {
         let orig_len = buf.len();
-        while !buf.is_empty() {
+        loop {
             match self.read(buf) {
                 Ok(0) => break,
-                Ok(n) => buf = &mut buf[n..],
+                Ok(n) if n < buf.len() => {
+                    buf = &mut buf[n..];
+                },
+                Ok(..) => return Ok(orig_len),
                 Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
                 Err(e) => return Err(e)
             }
