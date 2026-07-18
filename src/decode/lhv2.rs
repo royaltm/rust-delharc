@@ -140,22 +140,19 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
             return Err(LhaError::Decompress(DecompressionError::TemporaryCodeTableOverflow))
         }
 
+        let mut code_iter = code_lengths[0..num_codes].iter_mut();
         // read actual lengths
-        for p in code_lengths[0..num_codes.min(3)].iter_mut() {
+        for p in code_iter.by_ref().take(3) {
             *p = self.read_code_length()?;
-            // println!("length: {:?}", *p);
-        }
-        // 2-bit skip value follows
-        let skip: usize = self.bit_reader.read_bits(2)?;
-        // println!("skip: {:?}", skip);
-
-        if 3 + skip > num_codes {
-            return Err(LhaError::Decompress(DecompressionError::TemporaryCodeTableOverflow))
         }
 
-        for p in code_lengths[3 + skip..num_codes].iter_mut() {
-            *p = self.read_code_length()?;
-            // println!("length: {:?}", *p);
+        if num_codes >= 3 {
+            // 2-bit skip value follows
+            let skip = self.bit_reader.read_bits(2)?;
+            // println!("skip: {:?}", skip);
+            for p in code_iter.skip(skip) {
+                *p = self.read_code_length()?;
+            }
         }
 
         self.offset_tree.build_tree(&code_lengths[0..num_codes])?;
