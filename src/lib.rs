@@ -46,7 +46,7 @@ compression method features. Otherwise the library will be compiled in the `no_s
 | `-lz5-`    | Lz5Decoder         | lz      | LArc, 4kb sliding window
 | `-pm0-`    | PassthroughDecoder |         | no compression
 | `-pm1-`    | Pm1Decoder         | pm      | PMarc, 16 Kb sliding window, built-in static huffman
-| `-pm2-`    | unsupported        | pm      | PMarc,  4 Kb sliding window, static huffman
+| `-pm2-`    | Pm2Decoder         | pm      | PMarc,  8 Kb sliding window, static huffman
 
 */
 #![cfg_attr(feature = "std", doc = r##"

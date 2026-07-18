@@ -1,8 +1,8 @@
 //! PMarc decoders
 //!
-//! Original C version: 2011, 2012, Simon Howard lhasa/lib/pma_common.c
+//! Original C version: (c) 2011, 2012, Simon Howard lhasa/lib/pma_common.c
 //!
-//! Rust version: 2026, Rafał Michalski
+//! Rust version: (c) 2026, Rafał Michalski
 use crate::{
     bitstream::BitRead,
     error::LhaError,
@@ -10,9 +10,11 @@ use crate::{
 };
 
 mod pm1;
+mod pm2;
 mod history_list;
 
 pub use pm1::*;
+pub use pm2::*;
 use history_list::*;
 
 /// This object is used to decode variable bit integer encoding

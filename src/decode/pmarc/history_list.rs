@@ -1,12 +1,12 @@
 //! History linked list for PMarc decoders
 //!
-//! Original C version: 2011, 2012, Simon Howard lhasa/lib/pma_common.c
+//! Original C version: (c) 2011, 2012, Simon Howard lhasa/lib/pma_common.c
 //!
-//! Rust version: 2026, Rafał Michalski
+//! Rust version: (c) 2026, Rafał Michalski
 use bytemuck::{Zeroable, allocation::zeroed_box};
 
 #[derive(Debug, Clone, Copy, Zeroable)]
-pub struct HistoryNode {
+pub(super) struct HistoryNode {
     prev: u8,
     next: u8,
 }
@@ -19,14 +19,14 @@ pub struct HistoryNode {
 // list. The entry point index into the list is the last output
 // character, given by history_head;
 #[derive(Debug, Clone, Copy, Zeroable)]
-pub struct HistoryLinkedList {
+pub(super) struct HistoryLinkedList {
     history: [HistoryNode; 256],
     history_head: u8
 }
 
 impl HistoryLinkedList {
     /// Return a new, initialized and boxed instance of history list
-    pub fn new_boxed() -> Box<Self> {
+    pub(super) fn new_boxed() -> Box<Self> {
         let mut history = zeroed_box::<Self>();
         history.initialize();
         history
@@ -64,7 +64,7 @@ impl HistoryLinkedList {
 
     /// Look up an entry in the history list, returning the code found
     #[inline]
-    pub fn find_in_history_list(&self, count: u8) -> u8 {
+    pub(super) fn find_in_history_list(&self, count: u8) -> u8 {
         // Start from the last outputted byte.
         let mut code = self.history_head;
 
@@ -89,7 +89,7 @@ impl HistoryLinkedList {
 
     /// Update history list by moving the specified byte to the head of the queue
     #[inline]
-    pub fn update_history_list(&mut self, byte: u8) {
+    pub(super) fn update_history_list(&mut self, byte: u8) {
         // No update necessary?
         let head = self.history_head;
         if head == byte {

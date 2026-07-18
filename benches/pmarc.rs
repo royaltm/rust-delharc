@@ -10,12 +10,13 @@ use delharc::{decode::*, header::*};
 
 static ARCHIVES: &[&str] = &[
     "pmarc124/pm1_long.pma",
+    "pmarc2/long.pma",
 ];
 
 fn pmarc1_benchmark(c: &mut Criterion) {
     let tests_dir = Path::new(file!()).join("../../tests");
     let mut buffer = vec![0u8;8192].into_boxed_slice();
-    let mut group = c.benchmark_group("PMarc-v1");
+    let mut group = c.benchmark_group("PMarc");
     group.sample_size(1000);
     group.measurement_time(Duration::from_secs(15));
     for &archive in ARCHIVES {
@@ -29,7 +30,8 @@ fn pmarc1_benchmark(c: &mut Criterion) {
         let mut file = io::Cursor::new(file);
         let header = LhaHeader::read(&mut file).unwrap().unwrap();
         let compression = header.compression_method().unwrap();
-        assert_eq!(compression, CompressionMethod::Pm1);
+        assert!(matches!(compression, CompressionMethod::Pm1|
+                                      CompressionMethod::Pm2));
         let compressed_size = header.compressed_size;
         let target_size = usize::try_from(header.original_size).unwrap();
         let file_pos = usize::try_from(file.position()).unwrap();

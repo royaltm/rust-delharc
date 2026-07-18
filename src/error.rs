@@ -76,11 +76,11 @@ pub enum DecompressionError {
     UnsupportedCompression,
     /// LHv2 - too many code lengths requested for a temporary tree
     TemporaryCodeTableOverflow,
-    /// LHv2 - too many code lengths requested for a command tree
+    /// LHv2/PMarc-v2 - too many code lengths requested for a command tree
     CommandCodeTableOverflow,
     /// LHv2 - too many code lengths requested for a history offset tree
     OffsetCodeTableOverflow,
-    /// LHv2 - a requested single command code is too large
+    /// LHv2/PMarc-v2 - a requested single command code is too large
     CommandOverflow,
     /// LHv2 - a requested single history offset code is too large
     OffsetOverflow,

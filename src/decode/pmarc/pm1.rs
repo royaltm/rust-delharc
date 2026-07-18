@@ -1,8 +1,8 @@
 //! PMarc v1 decoder
 //!
-//! Original C version: 2011, 2012, Simon Howard lhasa/lib/pm1_decoder.c
+//! Original C version: (c) 2011, 2012, Simon Howard lhasa/lib/pm1_decoder.c
 //!
-//! Rust version: 2026, Rafał Michalski
+//! Rust version: (c) 2026, Rafał Michalski
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
 use core::num::NonZeroU8;
@@ -131,8 +131,9 @@ impl<R: Read> Pm1Decoder<R> {
     {
         let history_iter = self.ringbuf.iter_from_offset(offset.into());
         let actual_count = target.len().min(count.into());
-        for (t, s) in target.zip(history_iter).take(count.into()) {
+        for (t, s) in target.zip(history_iter).take(actual_count) {
             *t = s;
+            // update history linked list, output stream position
             self.history_list.update_history_list(s);
         }
         // actual_count <= count
@@ -155,9 +156,9 @@ impl<R: Read> Pm1Decoder<R> {
         for t in target.by_ref().take(count.into()) {
             let byteval = self.read_byte()?;
             *t = byteval;
-            // Add to history ring buffer.
+            // add to history ring buffer.
             self.ringbuf.push(byteval);
-            // Other updates: history linked list, output stream position
+            // update history linked list, output stream position
             self.history_list.update_history_list(byteval);
         }
         // actual_count <= count
@@ -462,10 +463,10 @@ impl<R: Read> Pm1Decoder<R> {
         // a distance to walk along the history linked list - it
         // is static huffman encoding, so that recently used byte
         // values use fewer bits.
-        let count = range.decode_variable_length(&mut self.bit_reader)?;
-        debug_assert!(count <= u16::from(u8::MAX));
+        let offset = range.decode_variable_length(&mut self.bit_reader)?;
+        debug_assert!(offset <= u16::from(u8::MAX));
         // Walk through the history linked list to get the actual value.
-        Ok(self.history_list.find_in_history_list(count as u8))
+        Ok(self.history_list.find_in_history_list(offset as u8))
     }
 
     // Read the length of a block of bytes.

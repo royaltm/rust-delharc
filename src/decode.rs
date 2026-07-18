@@ -119,6 +119,9 @@ pub enum DecoderAny<R> {
     #[cfg(feature = "pm")]
     #[cfg_attr(docsrs, doc(cfg(feature = "pm")))]
     Pm1Decoder(Pm1Decoder<R>),
+    #[cfg(feature = "pm")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "pm")))]
+    Pm2Decoder(Pm2Decoder<R>),
 }
 
 macro_rules! decoder_any_dispatch {
@@ -140,6 +143,8 @@ macro_rules! decoder_any_dispatch {
             DecoderAny::LhxDecoder($($spec)*) => $expr,
             #[cfg(feature = "pm")]
             DecoderAny::Pm1Decoder($($spec)*) => $expr,
+            #[cfg(feature = "pm")]
+            DecoderAny::Pm2Decoder($($spec)*) => $expr,
         }
     };
 }
@@ -422,6 +427,8 @@ impl<R: Read> DecoderAny<R> {
             CompressionMethod::Lhx => DecoderAny::LhxDecoder(LhxDecoder::new(rd)),
             #[cfg(feature = "pm")]
             CompressionMethod::Pm1 => DecoderAny::Pm1Decoder(Pm1Decoder::new(rd)),
+            #[cfg(feature = "pm")]
+            CompressionMethod::Pm2 => DecoderAny::Pm2Decoder(Pm2Decoder::new(rd)),
             _ => DecoderAny::UnsupportedDecoder(UnsupportedDecoder::new(rd))
         }
     }
