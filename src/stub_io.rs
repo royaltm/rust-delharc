@@ -29,8 +29,8 @@ pub trait Read {
     ///
     /// Similar to [`io::Read::read`] but continue on [`io::ErrorKind::Interrupted`].
     ///
-    /// If the returned value is lower than the length of the `buf` that indicates
-    /// the end of file has been reached.
+    /// If the returned value is lower than the length of the `buf`, that indicates
+    /// the EOF has been reached.
     fn read_all(&mut self, buf: &mut[u8]) -> Result<usize, Self::Error>;
     /// Exactly like [`io::Read::read_exact`].
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Self::Error> {
@@ -41,7 +41,7 @@ pub trait Read {
             Ok(())
         }
     }
-    /// Similar to [`io::Read::take`] but return a replacement `Take` struct.
+    /// Similar to [`io::Read::take`] but return a replacement [`Take`] struct.
     fn take(self, limit: u64) -> Take<Self>
         where Self: Sized
     {
@@ -77,18 +77,32 @@ pub struct Take<R> {
 
 impl<R> Take<R> {
     #[inline]
+    /// Returns the number of bytes that can be read before this instance will
+    /// return EOF.
+    ///
+    /// # Note
+    /// This instance may reach EOF after reading fewer bytes than indicated by
+    /// this method if the underlying [`Read`] instance reaches EOF.
     pub fn limit(&self) -> u64 {
         self.limit
     }
-
+    /// Consumes the `Take`, returning the wrapped reader.
     pub fn into_inner(self) -> R {
         self.inner
     }
-
+    /// Get a reference to the underlying reader.
+    ///
+    /// Care should be taken to avoid modifying the internal I/O state of the
+    /// underlying reader as doing so may corrupt the internal limit of this
+    /// `Take`.
     pub fn get_ref(&self) -> &R {
         &self.inner
     }
-
+    /// Get a mutable reference to the underlying reader.
+    ///
+    /// Care should be taken to avoid modifying the internal I/O state of the
+    /// underlying reader as doing so may corrupt the internal limit of this
+    /// `Take`.
     pub fn get_mut(&mut self) -> &mut R {
         &mut self.inner
     }

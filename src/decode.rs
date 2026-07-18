@@ -31,37 +31,54 @@ pub use lhv2::*;
 #[cfg_attr(docsrs, doc(cfg(feature = "pm")))]
 pub use pmarc::*;
 
-/// The trait implemented by decoders.
+/// The trait implemented by decompression engines.
 pub trait Decoder<R> {
+    /// The error type required by ther underlying reader.
     type Error: error::Error;
-    /// Unwraps and returns the inner reader.
+    /// Consume the decoder and return the underlying reader.
     fn into_inner(self) -> R;
-    /// Fills the whole `buf` with decoded data.
+    /// Get a reference to the underlying reader.
     ///
-    /// The caller should be aware of how large buffer can be provided to not exceed the size
-    /// of the decompressed file. Otherwise it will most likely result in an unexpected EOF error.
-    fn fill_buffer(&mut self, buf: &mut[u8]) -> Result<(), LhaError<Self::Error>>;
+    /// Care should be taken to avoid modifying the internal I/O state of the
+    /// underlying readers as doing so may corrupt the internal state of this
+    /// `Decoder`.
+    fn get_ref(&self) -> &R;
+    /// Get a mutable reference to the underlying reader.
+    ///
+    /// Care should be taken to avoid modifying the internal I/O state of the
+    /// underlying readers as doing so may corrupt the internal state of this
+    /// `Decoder`.
+    fn get_mut(&mut self) -> &mut R;
+    /// Fill the whole `buffer` slice with decoded data.
+    ///
+    /// The caller should be aware of how large a buffer can be provided to not
+    /// exceed the size of the decompressed file. Otherwise it can result in
+    /// an unexpected EOF error, the decoder could produce meaningless data,
+    /// or the decoder could return an error specific to its algorithm.
+    fn fill_buffer(&mut self, buffer: &mut[u8]) -> Result<(), LhaError<Self::Error>>;
 }
 
 /// `LhaDecodeReader` provides a convenient way to parse and decode LHA/LZH files.
 ///
-/// To read the current archived file's content use the [`std::io::Read`] trait methods on the instance
-/// of this type. After reading the whole file (until EOF), the calculated checksum should be verified
-/// using [`LhaDecodeReader::crc_check`].
+/// To read the current archived file's content use the [`std::io::Read`] trait
+/// methods on the instance of this object. After reading until EOF, the checksum,
+/// calculated by `LhaDecodeReader` during data decoding, should be verified using
+/// [`LhaDecodeReader::crc_check()`].
 ///
-/// To parse and decode the next archive file, invoke [`LhaDecodeReader::next_file`].
+/// To parse and decode the next archive file, call [`LhaDecodeReader::next_file()`].
 ///
-/// After parsing the LHA header, a decompressed content of a file can be simply read from the
-/// `LhaDecodeReader<R>`, which decompresses it using a proper decoder, designated in the header,
-/// while reading data from the underlying stream.
+/// After parsing the next LHA header, a decompressed content of a file can be simply
+/// read from the `LhaDecodeReader`, which will decompress it using a proper decoder,
+/// indicated in the header, while reading data from the underlying stream.
 ///
-/// If the compression method is not supported by the decoder, but otherwise the header has been parsed
-/// successfully, invoke [`LhaDecodeReader::is_decoder_supported`] to ensure you can actually read the file.
-/// Otherwise, trying to read from an unsupported decoder will result in an error.
+/// If the compression method is not supported by the decoder, but otherwise the
+/// header has been parsed successfully, invoke [`Self::is_decoder_supported()`] to
+/// ensure you can actually read the file. Otherwise, trying to read from an
+/// unsupported decoder will result in an error.
 ///
 /// # `no_std`
-/// Without the `std` feature in the absence of `std::io` the crate's [`Read`] trait methods should
-/// be used instead to read the content of the decompressed files.
+/// Without the `std` feature in the absence of `std::io` the crate's [`Read`] trait
+/// methods should be used instead to read the content of the decompressed files.
 #[derive(Debug)]
 pub struct LhaDecodeReader<R> {
     header: LhaHeader,
@@ -70,25 +87,29 @@ pub struct LhaDecodeReader<R> {
     decoder: Option<DecoderAny<Take<R>>>
 }
 
-/// An empty decoder for storage only methods.
+/// A pass-through decoder for stored data without any compression.
 #[derive(Debug)]
 pub struct PassthroughDecoder<R> {
     inner: R
 }
 
-/// A decoder used when compression method is unsupported.
-/// Reading from it will always produce an error.
+/// A phony decoder object, used when compression method is unsupported.
+///
+/// Reading from it will always produce an error!
 #[derive(Debug)]
 pub struct UnsupportedDecoder<R> {
     inner: R
 }
 
-/// An error returned from methods of [LhaDecodeReader].
+/// An error returned from methods of [`LhaDecodeReader`].
 ///
-/// The error contains a stream source that can be accessed or unwrapped.
+/// The error contains a source stream object that can be accessed or
+/// recovered.
 ///
-/// Alternatively, the error can be converted to the underlying [LhaError] using [From]
-/// trait, thus discarding the contained stream.
+/// Alternatively, the error can be converted to the underlying [`LhaError`]
+/// using [`From`] trait, thus discarding the contained reader.
+///
+/// Use [`core::error::Error::source()`] to access the underlying error.
 pub struct LhaDecodeError<R: Read> {
     read: R,
     source: LhaError<R::Error>
@@ -149,8 +170,8 @@ macro_rules! decoder_any_dispatch {
     };
 }
 
-/// A default implementation creates an instance of `LhaDecodeReader<R>` with no reader present and
-/// with a phony header.
+/// A default implementation creates an instance of `LhaDecodeReader<R>`
+/// with no decoder present and with a phony header.
 impl<R: Read> Default for LhaDecodeReader<R> {
     fn default() -> Self {
         LhaDecodeReader {
@@ -163,8 +184,8 @@ impl<R: Read> Default for LhaDecodeReader<R> {
 }
 
 impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
-    /// Return a new instance of `LhaDecodeReader<R>` after reading and parsing the first header from
-    /// the stream.
+    /// Return a new instance of `LhaDecodeReader<R>` after reading and parsing
+    /// the first header from the stream.
     ///
     /// Provide a stream reader as `rd`.
     ///
@@ -285,7 +306,7 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
     pub fn into_parts(self) -> (LhaHeader, Option<DecoderAny<Take<R>>>) {
         (self.header, self.decoder)
     }
-    /// Unwrap the underlying stream reader and return it.
+    /// Consume the `LhaDecodeReader` and return the underlying stream reader.
     ///
     /// # Panics
     /// Panics if the reader has been already taken.
@@ -301,11 +322,48 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
         self.crc.reset();
         self.decoder.take()
     }
-    /// Take the inner stream reader object out of the decoder, leaving a none in its place.
+    /// Get a reference to the underlying `DecoderAny`, if the decoder is
+    /// present in this `LhaDecodeReader`.
+    ///
+    /// Care should be taken to avoid modifying the internal state of the
+    /// underlying decoder as doing so may corrupt the internal state of this
+    /// `LhaDecodeReader`.
+    pub fn get_decoder(&self) -> Option<&DecoderAny<Take<R>>> {
+        self.decoder.as_ref()
+    }
+    /// Get a mutable reference to the underlying `DecoderAny`, if the decoder
+    /// is present in this `LhaDecodeReader`.
+    ///
+    /// Care should be taken to avoid modifying the internal state of the
+    /// underlying decoder as doing so may corrupt the internal state of this
+    /// `LhaDecodeReader`.
+    pub fn get_mut_decoder(&mut self) -> Option<&mut DecoderAny<Take<R>>> {
+        self.decoder.as_mut()
+    }
+    /// Take the inner stream reader object out of the decoder, leaving a none
+    /// in its place.
     ///
     /// After this call, reading from this instance will result in a panic.
     pub fn take_inner(&mut self) -> Option<R> {
         self.take_decoder().map(|decoder| decoder.into_inner().into_inner())
+    }
+    /// Get a reference to the underlying reader, if the decoder is present in
+    /// this `LhaDecodeReader`.
+    ///
+    /// Care should be taken to avoid modifying the internal state of the
+    /// underlying reader as doing so may corrupt the internal state of this
+    /// `LhaDecodeReader`.
+    pub fn get_ref(&self) -> Option<&R> {
+        self.decoder.as_ref().map(|decoder| decoder.get_ref().get_ref())
+    }
+    /// Get a mutable reference to the underlying reader, if the decoder is
+    /// present in this `LhaDecodeReader`.
+    ///
+    /// Care should be taken to avoid modifying the internal state of the
+    /// underlying reader as doing so may corrupt the internal state of this
+    /// `LhaDecodeReader`.
+    pub fn get_mut(&mut self) -> Option<&mut R> {
+        self.decoder.as_mut().map(|decoder| decoder.get_mut().get_mut())
     }
     /// Return the number of remaining bytes of the currently decompressed file to be read.
     pub fn len(&self) -> u64 {
@@ -445,6 +503,14 @@ impl<R: Read> Decoder<R> for DecoderAny<R> where R::Error: error::Error {
         decoder_any_dispatch!((self)(decoder) => decoder.into_inner())
     }
 
+    fn get_ref(&self) -> &R {
+        decoder_any_dispatch!((self)(decoder) => decoder.get_ref())
+    }
+
+    fn get_mut(&mut self) -> &mut R {
+        decoder_any_dispatch!((self)(decoder) => decoder.get_mut())
+    }
+
     #[inline]
     fn fill_buffer(&mut self, buf: &mut[u8]) -> Result<(), LhaError<Self::Error>> {
         decoder_any_dispatch!((self)(decoder) => decoder.fill_buffer(buf))
@@ -462,6 +528,14 @@ impl<R: Read> Decoder<R> for PassthroughDecoder<R> where R::Error: error::Error 
 
     fn into_inner(self) -> R {
         self.inner
+    }
+
+    fn get_ref(&self) -> &R {
+        &self.inner
+    }
+
+    fn get_mut(&mut self) -> &mut R {
+        &mut self.inner
     }
 
     #[inline]
@@ -483,6 +557,14 @@ impl<R: Read> Decoder<R> for UnsupportedDecoder<R> where R::Error: error::Error 
         self.inner
     }
 
+    fn get_ref(&self) -> &R {
+        &self.inner
+    }
+
+    fn get_mut(&mut self) -> &mut R {
+        &mut self.inner
+    }
+
     #[inline]
     fn fill_buffer(&mut self, _buf: &mut[u8]) -> Result<(), LhaError<Self::Error>> {
         Err(LhaError::Decompress(DecompressionError::UnsupportedCompression))
@@ -490,17 +572,17 @@ impl<R: Read> Decoder<R> for UnsupportedDecoder<R> where R::Error: error::Error 
 }
 
 impl<R: Read> LhaDecodeError<R> {
-    /// Gets a reference to the contained reader.
+    /// Unwrap this `LhaDecodeError<R>`, returning the contained reader.
+    pub fn into_inner(self) -> R {
+        self.read
+    }
+    /// Get a reference to the contained reader.
     pub fn get_ref(&self) -> &R {
         &self.read
     }
-    /// Gets a mutable reference to the contained reader.
+    /// Get a mutable reference to the contained reader.
     pub fn get_mut(&mut self) -> &mut R {
         &mut self.read
-    }
-    /// Unwraps this `LhaDecodeError<R>`, returning the contained reader.
-    pub fn into_inner(self) -> R {
-        self.read
     }
 }
 

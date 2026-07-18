@@ -518,6 +518,7 @@ impl<R: Read> Pm1Decoder<R> {
         let block_len = self.read_byte_block_count()?;
         debug_assert!((1..=MAX_BYTE_BLOCK_LEN).contains(&block_len));
 
+        // Simon Howard:
         // Because this is a block of bytes, it can be assumed that the
         // block ended for a copy command. The one exception is that if
         // the maximum block length was reached, the block may have
@@ -533,6 +534,14 @@ impl<R: Read> Decoder<R> for Pm1Decoder<R> where R::Error: core::error::Error {
 
     fn into_inner(self) -> R {
         self.bit_reader.into_inner().0
+    }
+
+    fn get_ref(&self) -> &R {
+        &self.bit_reader.get_ref().0
+    }
+
+    fn get_mut(&mut self) -> &mut R {
+        &mut self.bit_reader.get_mut().0
     }
 
     fn fill_buffer(&mut self, buf: &mut[u8]) -> LhaResult<(), R> {

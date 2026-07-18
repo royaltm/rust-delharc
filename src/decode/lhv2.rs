@@ -295,6 +295,14 @@ impl<C: LhaDecoderConfig, R: Read> Decoder<R> for LhaV2Decoder<C, R>
         self.bit_reader.into_inner()
     }
 
+    fn get_ref(&self) -> &R {
+        self.bit_reader.get_ref()
+    }
+
+    fn get_mut(&mut self) -> &mut R {
+        self.bit_reader.get_mut()
+    }
+
     fn fill_buffer(&mut self, buf: &mut[u8]) -> LhaResult<(), R> {
         let buflen = buf.len();
         let mut target = buf.iter_mut();

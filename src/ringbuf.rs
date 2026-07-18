@@ -2,36 +2,47 @@
 use core::{fmt, ops::Index};
 use bytemuck::Zeroable;
 
-/// A ring buffer trait.
+/// A ring buffer interface.
 #[allow(dead_code)]
 pub trait RingBuffer: Default + Zeroable + Index<usize, Output=u8> {
-    /// The size of the buffer in bytes.
+    /// The size of the internal buffer in bytes.
     const BUFFER_SIZE: usize;
-    /// Initialize the ring buffer by filling it up with the given `byte`.
+    /// Initialize the ring buffer by filling it up with the given `byte` value.
     fn initialize(&mut self, byte: u8);
-    /// Initialize the ring buffer using a custom function that should fill
-    /// it with predetermined values.
+    /// Initialize the ring buffer using a custom function that should fill it
+    /// with predetermined values.
     fn initialize_with(&mut self, init: impl FnOnce(&mut [u8]));
-    /// The current value of the internal cursor.
+    /// Return the current value of the internal cursor.
     fn cursor(&self) -> usize;
-    /// Allows to set the current value of the internal cursor.
-    fn set_cursor(&mut self, pos: isize);
-    /// Pushes the new byte value to the buffer, overwriting the oldest one.
+    /// Set the current value of the internal cursor.
+    ///
+    /// Negative position `-1` indicate the last element in the ring buffer.
+    ///
+    /// The cursor is truncated to the lowest `N` bits such that
+    /// `2 ^ N` = [`Self::BUFFER_SIZE`].
+    fn set_cursor(&mut self, index: isize);
+    /// Push the new byte value to the buffer, overwriting the oldest one and
+    /// advance the ring buffer cursor.
     fn push(&mut self, byte: u8);
-    /// Returns an iterator which will yield consecutive bytes from the buffer starting at `-offset`
-    /// from the last element.
+    /// Return an iterator which will yield consecutive bytes from the buffer
+    /// starting at `-offset` from the last element.
     ///
-    /// `offset` = 0 indicates the last element written to the buffer.
+    /// * `offset` = 0 indicates the last element written to the buffer.
+    /// * `offset` = 1 indicates the element before the last element written to the buffer.
     ///
-    /// At each iteration the yielded value is also being pushed to the ring buffer.
+    /// # Note
+    /// At each iteration the yielded value is also being **pushed** to the ring buffer,
+    /// advancing the buffer cursor.
     fn iter_from_offset(&mut self, offset: usize) -> HistoryIter<'_, Self>;
-    /// Returns an iterator which will yield consecutive bytes from the buffer starting at
-    /// an absolute index `pos`.
+    /// Return an iterator which will yield consecutive bytes from the buffer
+    /// starting from the absolute buffer `index`.
     ///
     /// This method ignores the current cursor of the buffer.
     ///
-    /// At each iteration the yielded value is also being pushed to the ring buffer.
-    fn iter_from_pos(&mut self, pos: usize) -> HistoryIter<'_, Self>;
+    /// # Note
+    /// At each iteration the yielded value is also being **pushed** to the ring buffer,
+    /// advancing the buffer cursor.
+    fn iter_from_index(&mut self, index: usize) -> HistoryIter<'_, Self>;
 }
 
 /// A generic ring buffer implementation using arrays of the size of the power of two as internal buffers.
@@ -119,7 +130,7 @@ impl<const N: usize> RingBuffer for RingArrayBuf<N> {
     }
 
     #[inline]
-    fn iter_from_pos(&mut self, pos: usize) -> HistoryIter<'_, Self> {
+    fn iter_from_index(&mut self, pos: usize) -> HistoryIter<'_, Self> {
         HistoryIter { index: pos, ringbuf: self }
     }
 }

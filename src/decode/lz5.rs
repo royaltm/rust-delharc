@@ -67,7 +67,7 @@ impl<R: Read> Lz5Decoder<R> {
             count: usize
         )
     {
-        let history_iter = self.ringbuf.iter_from_pos(pos);
+        let history_iter = self.ringbuf.iter_from_index(pos);
         let real_count = target.len().min(count);
         for (t, s) in target.zip(history_iter).take(real_count) {
             *t = s;
@@ -82,6 +82,14 @@ impl<R: Read> Decoder<R> for Lz5Decoder<R> where R::Error: core::error::Error {
 
     fn into_inner(self) -> R {
         self.reader
+    }
+
+    fn get_ref(&self) -> &R {
+        &self.reader
+    }
+
+    fn get_mut(&mut self) -> &mut R {
+        &mut self.reader
     }
 
     fn fill_buffer(&mut self, buf: &mut[u8]) -> LhaResult<(), R> {
