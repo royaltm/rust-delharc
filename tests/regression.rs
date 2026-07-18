@@ -70,7 +70,7 @@ const TESTS_CASES: &[(&str, &[(&str, Option<&str>, u64, u64, u16, u32, &str, u8,
 ];
 
 const CRASH_DECOMPRESS: &[(&str, &str)] = &[
-    ("clusterfuzz-1.bin", "while decompressing: temporary code length table is too large"),
+    ("clusterfuzz-1.bin", "while decompressing: while building a tree: not enough leaf nodes in code lengths"),
 ];
 
 const CRASH_HEADER: &[(&str, &str)] = &[

@@ -1,13 +1,19 @@
+//! LArc -lz5- decoder
+//!
+//! Original C version: (c) 2011, 2012, Simon Howard lhasa/lib/lz5_decoder.c
+//!
+//! Rust version: (c) 2018-2026, Rafał Michalski
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
 use core::{num::NonZeroU16, slice};
+use bytemuck::allocation::zeroed_box;
 use crate::{
     decode::Decoder,
     error::{LhaResult, LhaError},
     ringbuf::*,
     stub_io::Read,
 };
-use bytemuck::allocation::zeroed_box;
+use super::unsafe_assert;
 
 const RING_BUFFER_SIZE: usize = 4096;
 const START_OFFSET: isize = -18;
@@ -44,7 +50,7 @@ impl<R: Read> Lz5Decoder<R> {
             // 128 zeroes (3968)
             let offset = offset + 256;
             buffer[offset..offset + 128].fill(0);
-            // leave a gap of 110 default spaces (4078)
+            // 110 spaces (4078)
             let offset = offset + 128;
             buffer[offset..offset + 110].fill(b' ');
             // a margin of zeroes (4096)
@@ -60,6 +66,7 @@ impl<R: Read> Lz5Decoder<R> {
         }
     }
 
+    /// Progressively copy data from history buffer
     fn copy_from_history<'a, I: ExactSizeIterator<Item=&'a mut u8>>(
             &mut self,
             target: I,
@@ -126,6 +133,9 @@ impl<R: Read> Decoder<R> for Lz5Decoder<R> where R::Error: core::error::Error {
                 let pos = (((hi & 0xf0) as usize) << 4) | lo as usize;
                 let count = (hi & 0x0f) as usize;
                 let index = buflen - target.len() - 1;
+                // SAFETY: target.len() < buf.len() because target is an
+                // iterator over buf which has yield at least one item
+                unsafe_assert!(index < buf.len());
                 target = buf[index..].iter_mut();
                 self.copy_from_history(&mut target, pos, count + 3);
             }

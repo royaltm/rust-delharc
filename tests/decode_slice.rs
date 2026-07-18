@@ -24,7 +24,8 @@ const TESTS_CASES: &[(&str, &[u8], CompressionMethod, u64, u32, Option<usize>)] 
     ("pm2", PM2_FILE, CompressionMethod::Pm2,42, 0x4E46F4A1, None),
     #[cfg(feature = "pm")]
     ("pm2", PM2_FILE, CompressionMethod::Pm2,34, 0x8E2093A7, Some(18176)),
-
+    #[cfg(feature = "pm")]
+    ("pm2", PM2_FILE, CompressionMethod::Pm2, 0, 0xDA9A9301, Some(18220)),
 ];
 
 #[test]

@@ -1,6 +1,12 @@
+//! LHA v2 decoder
+//!
+//! Original C version: (c) 2011, 2012, Simon Howard lhasa/lib/lh_new_decoder.c
+//!
+//! Rust version: (c) 2018-2026, Rafał Michalski
 use core::num::NonZeroU32;
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
+use bytemuck::allocation::zeroed_box;
 use crate::{
     error::{LhaResult, LhaError, DecompressionError},
     stub_io::Read,
@@ -8,9 +14,7 @@ use crate::{
     statictree::*,
     ringbuf::*,
 };
-use bytemuck::allocation::zeroed_box;
-
-use super::Decoder;
+use super::{Decoder, unsafe_assert};
 
 const NUM_COMMANDS: usize = 510;
 const NUM_TEMP_CODELEN: usize = 20;
@@ -100,7 +104,25 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         }
     }
 
-    // reads code length value, usually 0..=7 but might be higher
+    /// Progressively copy data from history buffer
+    fn copy_from_history<'a, I: ExactSizeIterator<Item=&'a mut u8>>(
+            &mut self,
+            target: I,
+            offset: usize,
+            count: usize
+        )
+    {
+        let history_iter = self.ringbuf.iter_from_offset(offset);
+        let actual_count = target.len().min(count);
+        for (t, s) in target.zip(history_iter).take(actual_count) {
+            *t = s;
+        }
+        let count_after = count - actual_count;
+        self.copy_progress = NonZeroU32::new(count_after as u32)
+                             .map(|count| (offset as u32, count));
+    }
+
+    // Read code length value, usually 0..=7 but might be higher
     fn read_code_length(&mut self) -> LhaResult<u8, R> {
         let mut len: u8 = self.bit_reader.read_bits(3)?;
         if len == 7 {
@@ -245,19 +267,17 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
     }
 
     #[inline]
-    fn read_command(&mut self) -> LhaResult<u16, R> {
-        self.command_tree.read_entry(&mut self.bit_reader)
-    }
-
-    #[inline]
     fn read_offset(&mut self) -> LhaResult<u32, R> {
+        // the value read from the offset tree is less than < C::HISTORY_BITS
         match self.offset_tree.read_entry(&mut self.bit_reader)?.into() {
-        //   bits => 0 ->    0
-        //   bits => 1 ->    1
+        //   bits =>  0 ->    0
+        //   bits =>  1 ->    1
             res @ 0..=1 => Ok(res),
-        //   bits => 2 ->   1x
-        //   bits => 3 ->  1xx
-        //   bits => 4 -> 1xxx
+        //   bits =>  2 ->   1x (2..=3)
+        //   bits =>  3 ->  1xx (4..=7)
+        //   bits =>  4 -> 1xxx (8..=15)
+        //   bits => 13 -> 1xxxxxxxxxxxx (4096..=8191)
+        //   bits => 16 -> 1xxxxxxxxxxxxxxx (32768..=65535)
             bits => {
                 let res: u32 = self.bit_reader.read_bits(bits - 1)?;
                 Ok(res | (1 << (bits - 1)))
@@ -265,22 +285,10 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         }
     }
 
-    fn copy_from_history<'a, I: ExactSizeIterator<Item=&'a mut u8>>(
-            &mut self,
-            target: I,
-            offset: usize,
-            count: usize
-        )
-    {
-        let history_iter = self.ringbuf.iter_from_offset(offset);
-        let count_after = count - target.len().min(count);
-        for (t, s) in target.zip(history_iter).take(count) {
-            *t = s;
-        }
-        self.copy_progress = NonZeroU32::new(count_after as u32)
-                             .map(|count| (offset as u32, count));
+    #[inline]
+    fn read_command(&mut self) -> LhaResult<u16, R> {
+        self.command_tree.read_entry(&mut self.bit_reader)
     }
-
 }
 
 impl<C: LhaDecoderConfig, R: Read> Decoder<R> for LhaV2Decoder<C, R>
@@ -325,6 +333,9 @@ impl<C: LhaDecoderConfig, R: Read> Decoder<R> for LhaV2Decoder<C, R>
                 count => {
                     let offset = self.read_offset()?;
                     let index = buflen - target.len() - 1;
+                    // SAFETY: target.len() < buf.len() because target is an
+                    // iterator over buf which has yield at least one item
+                    unsafe_assert!(index < buf.len());
                     target = buf[index..].iter_mut();
                     self.copy_from_history(&mut target,
                                            offset as usize,

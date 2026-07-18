@@ -1,6 +1,12 @@
+//! LHarc -lh1- decoder
+//!
+//! Original C version: (c) 2011, 2012, Simon Howard lhasa/lib/lh1_decoder.c
+//!
+//! Rust version: (c) 2018-2026, Rafał Michalski
 use core::num::NonZeroU16;
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
+use bytemuck::allocation::zeroed_box;
 use crate::{
     bitstream::*,
     decode::Decoder,
@@ -8,7 +14,7 @@ use crate::{
     ringbuf::*,
     stub_io::Read,
 };
-use bytemuck::allocation::zeroed_box;
+use super::unsafe_assert;
 
 mod dyntree;
 use dyntree::*;
@@ -39,9 +45,22 @@ impl<R: Read> Lh1Decoder<R> {
         }
     }
 
-    #[inline]
-    fn read_command(&mut self) -> LhaResult<u16, R> {
-        self.command_tree.read_entry(&mut self.bit_reader)
+    /// Progressively copy data from history buffer
+    fn copy_from_history<'a, I: ExactSizeIterator<Item=&'a mut u8>>(
+            &mut self,
+            target: I,
+            offset: usize,
+            count: usize
+        )
+    {
+        let history_iter = self.ringbuf.iter_from_offset(offset);
+        let actual_count = target.len().min(count);
+        for (t, s) in target.zip(history_iter).take(actual_count) {
+            *t = s;
+        }
+        let count_after = count - actual_count;
+        self.copy_progress = NonZeroU16::new(count_after as u16)
+                             .map(|count| (offset as u16, count));
     }
 
     #[inline]
@@ -52,20 +71,9 @@ impl<R: Read> Lh1Decoder<R> {
         Ok(offset)
     }
 
-    fn copy_from_history<'a, I: ExactSizeIterator<Item=&'a mut u8>>(
-            &mut self,
-            target: I,
-            offset: usize,
-            count: usize
-        )
-    {
-        let history_iter = self.ringbuf.iter_from_offset(offset);
-        let count_after = count - target.len().min(count);
-        for (t, s) in target.zip(history_iter).take(count) {
-            *t = s;
-        }
-        self.copy_progress = NonZeroU16::new(count_after as u16)
-                             .map(|count| (offset as u16, count));
+    #[inline]
+    fn read_command(&mut self) -> LhaResult<u16, R> {
+        self.command_tree.read_entry(&mut self.bit_reader)
     }
 }
 
@@ -103,6 +111,9 @@ impl<R: Read> Decoder<R> for Lh1Decoder<R> where R::Error: core::error::Error {
                 count => {
                     let offset = self.read_offset()?;
                     let index = buflen - target.len() - 1;
+                    // SAFETY: target.len() < buf.len() because target is an
+                    // iterator over buf which has yield at least one item
+                    unsafe_assert!(index < buf.len());
                     target = buf[index..].iter_mut();
                     self.copy_from_history(&mut target,
                                            offset as usize,

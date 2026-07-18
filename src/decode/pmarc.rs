@@ -13,9 +13,12 @@ mod pm1;
 mod pm2;
 mod history_list;
 
+#[cfg_attr(docsrs, doc(cfg(feature = "pm")))]
 pub use pm1::*;
+#[cfg_attr(docsrs, doc(cfg(feature = "pm")))]
 pub use pm2::*;
 use history_list::*;
+use super::unsafe_assert;
 
 /// This object is used to decode variable bit integer encoding
 #[derive(Debug, Clone, Copy)]

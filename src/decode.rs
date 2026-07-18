@@ -631,6 +631,17 @@ fn wrap_err<R: Read>(read: R, source: LhaError<R::Error>) -> LhaDecodeError<R> {
     LhaDecodeError { read, source }
 }
 
+macro_rules! unsafe_assert {
+    ($expr:expr) => {
+        #[cfg(all(not(feature = "no-unsafe-assertions"), not(debug_assertions)))]
+        unsafe {
+            core::hint::assert_unchecked($expr)
+        }
+        debug_assert!($expr)
+    };
+}
+
+use unsafe_assert;
 
 #[cfg(feature = "std")]
 #[cfg(test)]

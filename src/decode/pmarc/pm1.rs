@@ -1,4 +1,4 @@
-//! PMarc v1 decoder
+//! PMarc -pm1- decoder
 //!
 //! Original C version: (c) 2011, 2012, Simon Howard lhasa/lib/pm1_decoder.c
 //!
@@ -6,13 +6,13 @@
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
 use core::num::NonZeroU8;
+use bytemuck::allocation::zeroed_box;
 use crate::{
     bitstream::*,
     decode::Decoder,
     error::{LhaResult, DecompressionError},
     ringbuf::*,
 };
-use bytemuck::allocation::zeroed_box;
 use super::*;
 
 const RING_BUFFER_SIZE: usize = 16384;
@@ -469,7 +469,7 @@ impl<R: Read> Pm1Decoder<R> {
         Ok(self.history_list.find_in_history_list(offset as u8))
     }
 
-    // Read the length of a block of bytes.
+    /// Read the length of a block of bytes.
     ///
     /// The returned value is in the range: 1..=216.
     fn read_byte_block_count(&mut self) -> LhaResult<u8, R> {
@@ -545,13 +545,13 @@ impl<R: Read> Decoder<R> for Pm1Decoder<R> where R::Error: core::error::Error {
     }
 
     fn fill_buffer(&mut self, buf: &mut[u8]) -> LhaResult<(), R> {
-        // Start of input stream? Read the header.
+        // read the header if start of input stream
         if !self.byte_decode_tree_ready {
             self.read_start_header()?;
         }
         let mut target = buf.iter_mut();
 
-        // Continue previous operation?
+        // continue previous operation?
         if let Some(progress) = self.progress {
             match progress {
                 Progress::Read { count, copy_next } => {
@@ -564,7 +564,7 @@ impl<R: Read> Decoder<R> for Pm1Decoder<R> where R::Error: core::error::Error {
         }
 
         while target.len() > 0 {
-            // Read what type of command this is.
+            // read what the type of command this is
             if self.bit_reader.read_bit()? {
                 self.read_next_byte_block(&mut target)?;
             }

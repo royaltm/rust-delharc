@@ -21,9 +21,9 @@ You may include or opt out of some of the decoders:
 
 ```toml
 [dependencies.delharc]
-version = "0.7"
+version = "0.8"
 default-features = false
-features = ["std", "lh1", "pm"] # select desired features
+features = ["std", "lh1"] # select desired features
 ```
 
 `lh1`, `lz` and `pm` features are enabled by **default**.

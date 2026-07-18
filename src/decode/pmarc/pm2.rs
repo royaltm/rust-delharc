@@ -1,4 +1,4 @@
-//! PMarc v2 decoder
+//! PMarc -pm2- decoder
 //!
 //! Original C version: (c) 2011, 2012, Simon Howard lhasa/lib/pm2_decoder.c
 //!
@@ -7,15 +7,15 @@
 #![allow(unused_imports)]
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
-use crate::statictree::HuffTree;
 use core::num::NonZeroU16;
+use bytemuck::allocation::zeroed_box;
 use crate::{
     bitstream::*,
     decode::Decoder,
     error::{LhaResult, DecompressionError},
     ringbuf::*,
+    statictree::HuffTree,
 };
-use bytemuck::allocation::zeroed_box;
 use super::*;
 
 const RING_BUFFER_SIZE: usize = 8192;
@@ -29,8 +29,8 @@ const NUM_OFFSET_LEMENTS: usize =  8;
 /// State of the decode trees
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 enum RebuildState {
-    /// Start of stream, no data read yet.
     #[default]
+    /// Start of stream, no data read yet
     Unbuilt,
     /// Until 1KiB is output
     Build1k,
@@ -47,6 +47,7 @@ enum RebuildState {
 pub struct Pm2Decoder<R> {
     bit_reader: BitStream<R>,
     copy_progress: Option<(u16, NonZeroU16)>,
+    /// The tree rebuilding stage
     tree_state: RebuildState,
     /// Number of bytes until we initiate a tree rebuild
     tree_rebuild_remaining: u16,
@@ -56,7 +57,6 @@ pub struct Pm2Decoder<R> {
     offset_tree: HuffTree,
     need_offset_tree: bool
 }
-
 
 impl<R: Read> Pm2Decoder<R> {
     /// Create a new decoder instance from the given data read stream
@@ -80,6 +80,7 @@ impl<R: Read> Pm2Decoder<R> {
         }
     }
 
+    /// Progressively copy data from history buffer
     fn copy_from_history<'a, I: ExactSizeIterator<Item=&'a mut u8>>(
             &mut self,
             mut target: I,
@@ -130,6 +131,11 @@ impl<R: Read> Pm2Decoder<R> {
         let min_code_length: u8 = self.bit_reader.read_bits(3)?;
 
         // do we need the offset tree?
+        // when num_codes is 9, the highest possible code is 8,
+        // which turn to code = 0 argument of history_get_offset
+        // when num_codes = 29 and is single code = 28,
+        // which turn to code = 20 argument of history_get_offset
+        // code ~= 0|20 does not require offset_tree lookup
         self.need_offset_tree = num_codes >= 10 &&
                               !(num_codes == NUM_COMMANDS && min_code_length == 0);
 
@@ -141,10 +147,10 @@ impl<R: Read> Pm2Decoder<R> {
             return Ok(());
         }
 
-        // How many bits are used to represent each table entry?
+        // how many bits are used to represent each table entry?
         let length_bits: u32 = self.bit_reader.read_bits(3)?; // 0..=7
 
-        // Read table of code lengths
+        // read table of code lengths
         for p in code_lengths[0..num_codes].iter_mut() {
             // Read a table entry.  A value of zero represents an
             // unused code.  Otherwise the value represents
@@ -155,7 +161,7 @@ impl<R: Read> Pm2Decoder<R> {
             }
         }
 
-        // Build the tree.
+        // Build the tree
         self.command_tree.build_tree(&code_lengths[0..num_codes])?;
         Ok(())
     }
@@ -183,14 +189,14 @@ impl<R: Read> Pm2Decoder<R> {
             let len: u8 = self.bit_reader.read_bits(3)?;
             *p = len;
 
-            // Track how many actual codes were in the tree.
+            // track how many actual codes were in the tree
             if len != 0 {
                 single_offset = off;
                 num_codes += 1;
             }
         }
 
-        // If there was a single code, this is a single node tree.
+        // if there was a single code, this is a single node tree
         if num_codes == 1 {
             self.offset_tree.set_single(single_offset);
             return Ok(());
@@ -201,8 +207,8 @@ impl<R: Read> Pm2Decoder<R> {
         return Ok(())
     }
 
-    // Rebuild the decode trees used to compress data.  This is called when
-    // decoder->tree_rebuild_remaining reaches zero.
+    /// Rebuild the decode trees used to compress data when
+    /// tree_rebuild_remaining reaches zero
     fn rebuild_tree(&mut self) -> LhaResult<(), R> {
         match self.tree_state {
             // initial tree build, from the start of stream
@@ -246,7 +252,7 @@ impl<R: Read> Pm2Decoder<R> {
         Ok(())
     }
 
-    // Read a single byte from the input stream
+    /// Read a single byte from the input stream
     fn read_single_byte(&mut self, code: u16) -> LhaResult<u8, R> {
         // Simon Howard:
         // Decode table for history value. Characters that appeared recently in
@@ -256,14 +262,14 @@ impl<R: Read> Pm2Decoder<R> {
         // history linked list to get the actual character.
         type E = VarLenEntry;
         const HISTORY_DECODE: [VarLenEntry;8] = [
-            E::new(   0, 3 ),   //   0 + (1 << 3) =   8
-            E::new(   8, 3 ),   //   8 + (1 << 3) =  16
-            E::new(  16, 4 ),   //  16 + (1 << 4) =  32
-            E::new(  32, 5 ),   //  32 + (1 << 5) =  64
-            E::new(  64, 5 ),   //  64 + (1 << 5) =  96
-            E::new(  96, 5 ),   //  96 + (1 << 5) = 128
-            E::new( 128, 6 ),   // 128 + (1 << 6) = 192
-            E::new( 192, 6 ),   // 192 + (1 << 6) = 256
+            E::new(   0, 3 ),   //   0 + (1 << 3) =   8 - 1
+            E::new(   8, 3 ),   //   8 + (1 << 3) =  16 - 1
+            E::new(  16, 4 ),   //  16 + (1 << 4) =  32 - 1
+            E::new(  32, 5 ),   //  32 + (1 << 5) =  64 - 1
+            E::new(  64, 5 ),   //  64 + (1 << 5) =  96 - 1
+            E::new(  96, 5 ),   //  96 + (1 << 5) = 128 - 1
+            E::new( 128, 6 ),   // 128 + (1 << 6) = 192 - 1
+            E::new( 192, 6 ),   // 192 + (1 << 6) = 256 - 1
         ];
 
         let offset = HISTORY_DECODE[usize::from(code)]
@@ -273,8 +279,7 @@ impl<R: Read> Pm2Decoder<R> {
         Ok(byte)
     }
 
-
-    // Calculate how many bytes from history to copy:
+    /// Calculate number of bytes to copy from history 
     fn history_get_count(&mut self, code: u16) -> LhaResult<u16, R> {
         // Decode table for copies. As with history_decode[], small copies
         // are more common, and require fewer bits.
@@ -298,14 +303,13 @@ impl<R: Read> Pm2Decoder<R> {
         }
     }
 
-
-    // Calculate the offset within history at which to start copying
+    /// Calculate the offset within history at which to start copying
     fn history_get_offset(&mut self, code: u16) -> LhaResult<u16, R> {
         let mut result = 0u16;
 
         // calculate number of bits to read
         let bits = match code {
-            // Zero indicates a simple 6-bit value giving the offset.
+            // zero indicates a simple 6-bit value giving the offset
             // xxxxxx
             0 => 6,
             // Mid-range encoded offset value from the offset tree.
@@ -326,13 +330,11 @@ impl<R: Read> Pm2Decoder<R> {
                     bits
                 }
             }
-            // Large copy values start from offset zero.
+            // large copy values start from offset zero.
             _ => return Ok(0)
         };
 
-        // Read a number of bits representing the offset value.  The
-        // number of length of this value is variable, and is calculated
-        // above.
+        // read a number of bits representing the offset value.
         let val: u16 = self.bit_reader.read_bits(bits)?;
         Ok(result | val)
     }
@@ -388,11 +390,16 @@ impl<R: Read> Decoder<R> for Pm2Decoder<R> where R::Error: core::error::Error {
                 }
                 code => {
                     let code = code - 8; // 8..=20
-                    assert!(code < 21);
+                    // SAFETY: code is read from command_tree and the largest value
+                    // of the command tree is 28 = NUM_COMMANDS - 1
+                    unsafe_assert!(code < 21);
                     // read the number of bytes to copy and history offset
                     let count = self.history_get_count(code)?;
                     let offset = self.history_get_offset(code)?;
                     let index = buflen - target.len() - 1;
+                    // SAFETY: target.len() < buf.len() because target is an
+                    // iterator over buf which has yield at least one item
+                    unsafe_assert!(index < buf.len());
                     target = buf[index..].iter_mut();
                     self.copy_from_history(&mut target, offset, count)?
                 }
