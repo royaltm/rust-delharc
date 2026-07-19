@@ -40,10 +40,12 @@ pub mod ext {
     pub const EXT_HEADER_UNIX_TIME:   u8 = 0x54;
     /// The Mac "Capsule" header
     pub const EXT_HEADER_MAC_CAPSULE: u8 = 0x7D;
-    /// The OS/2 "Extended attribute" header
+    /// The OS/2 extended attributes header
     pub const EXT_HEADER_OS2_ATTR1:   u8 = 0x7E;
-    /// Level 3 "Extended attribute" header
+    /// Level 3 extended attributes header
     pub const EXT_HEADER_EXT_ATTRS:   u8 = 0x7F;
+    /// The OS/9 extended attributes header
+    pub const EXT_HEADER_OS9:         u8 = 0xCC;
 }
 
 use ext::*;
