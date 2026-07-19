@@ -277,9 +277,9 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
     /// parsed successfully. If there are no more headers, returns `Ok(false)`.
     ///
     /// # Note
-    /// The remaining file data is being read into a buffer allocated on the
-    /// stack. On the `std` platform, probably the better method is to call
-    /// [`Self::seek_next_file()`] instead.
+    /// The remaining file data is being read and discarded into a buffer
+    /// allocated on the stack. On the `std` platform, probably the better
+    /// method is to call [`Self::seek_next_file()`] instead.
     ///
     /// # Errors
     /// Returns an error if the header could not be read or parsed. In this
