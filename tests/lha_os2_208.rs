@@ -20,12 +20,12 @@ const TESTS_CASES: &[(&str, &str, u64, u64, u16, u32, &str, u8, CompressionMetho
 
 const SUBDIR_CASES: &[(&str, &[(&str, u64, u64, u16, u32, &str, u8, CompressionMethod)])] = &[
     ("subdir.lzh", &[
-        ("subdir",                    0,  0, 0x0000, 0x00000000, "2011-12-03 16:47:56", 1, CompressionMethod::Lhd),
-        ("subdir*subdir2",            0,  0, 0x0000, 0x00000000, "2011-12-03 16:47:58", 1, CompressionMethod::Lhd),
+        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2011-12-03 16:47:56", 1, CompressionMethod::Lhd),
+        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2011-12-03 16:47:58", 1, CompressionMethod::Lhd),
         ("subdir*subdir2*HELLO.TXT", 14, 14, 0x3197, 0xB19B306E, "2011-12-03 16:38:50", 1, CompressionMethod::Lh0)]),
     ("h3_subdir.lzh", &[
-        ("subdir",                    0,  0, 0x0000, 0x00000000, "2011-12-03 21:47:56 UTC", 3, CompressionMethod::Lhd),
-        ("subdir*subdir2",            0,  0, 0x0000, 0x00000000, "2011-12-03 21:47:58 UTC", 3, CompressionMethod::Lhd),
+        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2011-12-03 21:47:56 UTC", 3, CompressionMethod::Lhd),
+        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2011-12-03 21:47:58 UTC", 3, CompressionMethod::Lhd),
         ("subdir*subdir2*HELLO.TXT", 14, 14, 0x3197, 0xB19B306E, "2011-12-03 21:38:50 UTC", 3, CompressionMethod::Lh0)]),
 ];
 

@@ -1,4 +1,4 @@
-//! MS-DOS attributes
+//! MS-DOS specific data types
 use core::fmt;
 use bitflags::bitflags;
 

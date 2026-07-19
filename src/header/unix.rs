@@ -1,4 +1,4 @@
-//! UNIX permissions
+//! UNIX specific data types
 use core::fmt;
 use bitflags::bitflags;
 
@@ -48,15 +48,15 @@ bitflags! {
 }
 
 impl Permissions {
-    /// Return whether these are a directory entry permissions
+    /// Return whether these are a directory entry's permissions
     pub fn is_dir(self) -> bool {
         self.intersection(Permissions::TYPE_MASK) == Permissions::TYPE_DIR
     }
-    /// Return whether these are a file entry permissions
+    /// Return whether these are a file entry's permissions
     pub fn is_file(self) -> bool {
         self.intersection(Permissions::TYPE_MASK) == Permissions::TYPE_FILE
     }
-    /// Return whether these are a symbolic link entry permissions
+    /// Return whether these are a symbolic link entry's permissions
     pub fn is_link(self) -> bool {
         self.intersection(Permissions::TYPE_MASK) == Permissions::TYPE_LINK
     }

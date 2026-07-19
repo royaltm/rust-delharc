@@ -5,68 +5,82 @@ use delharc::header::*;
 mod sink;
 use sink::SinkSum;
 
-const TESTS_CASES: &[(&str, &[(&str, Option<&str>, u64, u64, u16, u32, &str, u8, OsType, CompressionMethod)])] = &[
+use CompressionMethod::*;
+const TESTS_CASES: &[(&str, &[(&str, Option<&str>, u64, u64, u16, u32, &str, u8, OsType, CompressionMethod, &str)])] = &[
     ("abspath.lzh", &[
         ("tmp*absolute_path.txt", None,
-            46,      46, 0x6BC0, 0xBD98D221, "2012-04-05 20:21:38 UTC", 1, OsType::Unix, CompressionMethod::Lh0)
+            46,      46, 0x6BC0, 0xBD98D221, "2012-04-05 20:21:38 UTC", 1, OsType::Unix, Lh0, "-rw-r--r--")
     ]),
     #[cfg(feature = "lh1")]
     ("badterm.lzh", &[
         ("tmp*%1b]2;malicious%07%0a", None,
-             0,       0, 0x0000, 0x00000000, "2012-04-05 21:10:20 UTC", 1, OsType::Unix, CompressionMethod::Lh1)
-    ]),
-    ("dir.lzh",     &[
-        ("dir", None,
-             0,       0, 0x0000, 0x00000000, "2012-04-06 13:08:30 UTC", 1, OsType::Unix, CompressionMethod::Lhd)
-    ]),
-    ("unixsep.lzh", &[
-        ("SUBDIR*SUBDIR2*HELLO.TXT", None,
-            12,      12, 0x9778, 0xAF083B2D, "2010-01-01 00:00:00", 0, OsType::Generic, CompressionMethod::Lh0)
-    ]),
-    ("dotdot.lzh",  &[
-        ("evil1.txt", None,
-            13,      13, 0x3AD2, 0x3E9D1D76, "2013-01-29 20:18:48 UTC", 1, OsType::Unix, CompressionMethod::Lh0),
-        ("foo*evil2.txt", None,
-            18,      18, 0x3D30, 0x4AE45690, "2013-01-29 20:20:35 UTC", 1, OsType::Unix, CompressionMethod::Lh0)
-    ]),
-    ("multiple.lzh", &[
-        ("file1.txt", None,
-            11,      11, 0x3245, 0xF4DB30DF, "2000-01-01 00:00:00 UTC", 1, OsType::Unix, CompressionMethod::Lh0),
-        ("file2-1.txt", None,
-            15,      15, 0x59F1, 0xAB43A3D4, "2000-01-01 00:00:00 UTC", 1, OsType::Unix, CompressionMethod::Lh0),
-        ("file2-2.txt", None,
-            15,      15, 0x39A9, 0x71211740, "2000-01-01 00:00:00 UTC", 1, OsType::Unix, CompressionMethod::Lh0),
-        ("file3.txt", None,
-            11,      11, 0x7225, 0x68626617, "2000-01-01 00:00:00 UTC", 1, OsType::Unix, CompressionMethod::Lh0),
-        ("file4.txt", None,
-            12,      12, 0xABBE, 0xCF822EF4, "2000-01-01 00:00:00 UTC", 1, OsType::Unix, CompressionMethod::Lh0)
-    ]),
-    ("symlink1.lzh", &[
-        ("foo.txt|bar.txt", None,
-             0,       0, 0x0000, 0x00000000, "2013-01-29 19:57:39 UTC", 1, OsType::Unix, CompressionMethod::Lhd),
-        ("foo.txt", None,
-             12,     12, 0x9778, 0xAF083B2D, "2013-01-29 19:58:08 UTC", 1, OsType::Unix, CompressionMethod::Lh0)
-    ]),
-    ("symlink2.lzh", &[
-        ("etc|..*etc", None,
-             0,       0, 0x0000, 0x00000000, "2013-02-03 15:05:54 UTC", 1, OsType::Unix, CompressionMethod::Lhd),
-        ("etc*passwd", None,
-             12,     12, 0x0953, 0xC003391A, "2013-02-03 15:05:17 UTC", 1, OsType::Unix, CompressionMethod::Lh0)
-    ]),
-    ("symlink3.lzh", &[
-        ("etc|*tmp", None,
-             0,       0, 0x0000, 0x00000000, "2013-02-03 15:08:27 UTC", 1, OsType::Unix, CompressionMethod::Lhd),
-        ("etc*passwd", None,
-             12,     12, 0x0953, 0xC003391A, "2013-02-03 15:07:43 UTC", 1, OsType::Unix, CompressionMethod::Lh0)
-    ]),
-    ("truncated.lzh", &[
-        ("GPL-2", None,
-           7004,  18092, 0xA33A, 0x00000000, "2010-01-01 00:00:00", 1, OsType::MsDos, CompressionMethod::Lh5)
+             0,       0, 0x0000, 0x00000000, "2012-04-05 21:10:20 UTC", 1, OsType::Unix, Lh1, "-rw-r--r--")
     ]),
     ("comment.lzh", &[
         ("LhA.guide", Some("Hello, I am a comment!"),
-            37402, 106317, 0xCC70, 0x736765D6, "2014-08-17 14:49:40", 1, OsType::Amiga, CompressionMethod::Lh5)
-    ])
+            37402, 106317, 0xCC70, 0x736765D6, "2014-08-17 14:49:40", 1, OsType::Amiga, Lh5, "---H-")
+    ]),
+    ("dir.lzh",     &[
+        ("dir*", None,
+             0,       0, 0x0000, 0x00000000, "2012-04-06 13:08:30 UTC", 1, OsType::Unix, Lhd, "drwxr-xr-x")
+    ]),
+    ("dotdot.lzh",  &[
+        ("evil1.txt", None,
+            13,      13, 0x3AD2, 0x3E9D1D76, "2013-01-29 20:18:48 UTC", 1, OsType::Unix, Lh0, "-rw-r--r--"),
+        ("foo*evil2.txt", None,
+            18,      18, 0x3D30, 0x4AE45690, "2013-01-29 20:20:35 UTC", 1, OsType::Unix, Lh0, "-rw-r--r--")
+    ]),
+    ("empty_fn.lzh", &[
+        ("Picasso96Install*Picasso96*P96Speed*catalogs*deutsch*P96Speed.catalog", None,
+            1479,  3056, 0x3AC8, 0x2517350F, "1999-02-06 15:06:26", 0, OsType::Generic, Lh5, "---H-"),
+        ("", None,
+            1531,  3158, 0xD7F4, 0xB7B20EC6, "1999-02-06 15:06:26", 0, OsType::Generic, Lh5, "-----"),
+        ("", None,
+            1628,  3052, 0x615C, 0x3E4BE81A, "1999-02-06 15:06:26", 0, OsType::Generic, Lh5, "---H-"),
+        ("Picasso96Install*Picasso96*P96Speed*Compare.dat", None,
+            1265,  3552, 0xFD82, 0xB5DE25D3, "1999-02-06 14:13:40", 0, OsType::Generic, Lh5, "-----"),
+    ]),
+    ("evil_pm2.lzh", &[
+        ("A", None, 19, 4096, 0x0000, 0x00000000, "-", 0, OsType::Generic, Pm2, "A----")
+    ]),
+    ("multiple.lzh", &[
+        ("file1.txt", None,
+            11,      11, 0x3245, 0xF4DB30DF, "2000-01-01 00:00:00 UTC", 1, OsType::Unix, Lh0, "-rw-r--r--"),
+        ("file2-1.txt", None,
+            15,      15, 0x59F1, 0xAB43A3D4, "2000-01-01 00:00:00 UTC", 1, OsType::Unix, Lh0, "-rw-r--r--"),
+        ("file2-2.txt", None,
+            15,      15, 0x39A9, 0x71211740, "2000-01-01 00:00:00 UTC", 1, OsType::Unix, Lh0, "-rw-r--r--"),
+        ("file3.txt", None,
+            11,      11, 0x7225, 0x68626617, "2000-01-01 00:00:00 UTC", 1, OsType::Unix, Lh0, "-rw-r--r--"),
+        ("file4.txt", None,
+            12,      12, 0xABBE, 0xCF822EF4, "2000-01-01 00:00:00 UTC", 1, OsType::Unix, Lh0, "-rw-r--r--")
+    ]),
+    ("symlink1.lzh", &[
+        ("foo.txt|bar.txt", None,
+             0,       0, 0x0000, 0x00000000, "2013-01-29 19:57:39 UTC", 1, OsType::Unix, Lhd, "lrwxrwxrwx"),
+        ("foo.txt", None,
+             12,     12, 0x9778, 0xAF083B2D, "2013-01-29 19:58:08 UTC", 1, OsType::Unix, Lh0, "-rw-r--r--")
+    ]),
+    ("symlink2.lzh", &[
+        ("etc|..*etc", None,
+             0,       0, 0x0000, 0x00000000, "2013-02-03 15:05:54 UTC", 1, OsType::Unix, Lhd, "lrwxrwxrwx"),
+        ("etc*passwd", None,
+             12,     12, 0x0953, 0xC003391A, "2013-02-03 15:05:17 UTC", 1, OsType::Unix, Lh0, "-rw-r--r--")
+    ]),
+    ("symlink3.lzh", &[
+        ("etc|*tmp", None,
+             0,       0, 0x0000, 0x00000000, "2013-02-03 15:08:27 UTC", 1, OsType::Unix, Lhd, "lrwxrwxrwx"),
+        ("etc*passwd", None,
+             12,     12, 0x0953, 0xC003391A, "2013-02-03 15:07:43 UTC", 1, OsType::Unix, Lh0, "-rw-r--r--")
+    ]),
+    ("truncated.lzh", &[
+        ("GPL-2", None,
+           7004,  18092, 0xA33A, 0x00000000, "2010-01-01 00:00:00", 1, OsType::MsDos, Lh5, "A----")
+    ]),
+    ("unixsep.lzh", &[
+        ("SUBDIR*SUBDIR2*HELLO.TXT", None,
+            12,      12, 0x9778, 0xAF083B2D, "2010-01-01 00:00:00", 0, OsType::Generic, Lh0, "A----")
+    ]),
 ];
 
 const CRASH_DECOMPRESS: &[(&str, &str)] = &[
@@ -85,14 +99,11 @@ fn test_regression() -> io::Result<()> {
         let mut lha_reader = delharc::LhaDecodeReader::new(&file)?;
         for filen in 0.. {
             assert!(filen < headers.len());
-            let (path, comment, size_c, size_o, crc16, crc32, modif, level, ostype, compr) = &headers[filen];
+            let (path, comment, size_c, size_o, crc16, crc32, modif, level, ostype, compr, perm) = &headers[filen];
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
             assert_eq!(header.level, *level);
             let path = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
-            if *ostype != OsType::Amiga {
-                assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
-            }
             assert_eq!(header.compression_method().unwrap(), *compr);
             assert_eq!(header.compressed_size, *size_c);
             assert_eq!(header.original_size, *size_o);
@@ -100,6 +111,19 @@ fn test_regression() -> io::Result<()> {
             assert_eq!(header.parse_comment(), comment.map(Into::into));
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
+            assert!(header.parse_os_9_attrs().is_none());
+            if perm.len() == 10 {
+                if *ostype != OsType::Amiga {
+                    assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
+                }
+                assert_eq!(header.parse_unix_permissions().unwrap().to_string(), *perm);
+                assert_eq!(header.parse_unix_uid_gid().unwrap(), (1000, 1000));
+            }
+            else {
+                assert_eq!(header.msdos_attrs.to_string(), *perm);
+                assert!(header.parse_unix_permissions().is_none());
+                assert!(header.parse_unix_uid_gid().is_none());
+            }
             assert_eq!(header.file_crc, *crc16);
             assert_eq!(header.parse_os_type()?, *ostype);
             if *compr == CompressionMethod::Lhd {
@@ -108,6 +132,11 @@ fn test_regression() -> io::Result<()> {
             else if name == &"truncated.lzh" {
                 let e = io::copy(&mut lha_reader, &mut sink).unwrap_err();
                 assert_eq!(e.kind(), io::ErrorKind::UnexpectedEof);
+            }
+            else if name == &"evil_pm2.lzh" {
+                let e = io::copy(&mut lha_reader, &mut sink).unwrap_err();
+                assert_eq!(e.kind(), io::ErrorKind::InvalidData);
+                assert_eq!(e.to_string(), "while decompressing: commands code length table is too large");
             }
             else {
                 io::copy(&mut lha_reader, &mut sink)?;

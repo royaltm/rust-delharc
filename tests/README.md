@@ -1,6 +1,7 @@
 Most of the test archives in the following subdirectories have been copied from the [lhasa] by fragglet: Free Software LHA implementation project.
 
 - `decode`
+- `explzh_723`
 - `larc333`
 - `lengths`
 - `lha213`

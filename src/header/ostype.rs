@@ -99,7 +99,7 @@ impl From<OsType> for &'static str {
         match ostype {
             OsType::Generic => "-",
             OsType::MsDos => "MS-DOS",
-            OsType::Win95 => "Win-95",
+            OsType::Win95 => "Win-9x",
             OsType::WinNt => "Win-NT",
             OsType::Unix => "UNIX",
             OsType::Os2 => "OS/2",
@@ -113,7 +113,7 @@ impl From<OsType> for &'static str {
             OsType::TownsOs => "TownsOS",
             OsType::Os9 => "OS-9",
             OsType::Osk => "OS-9/68K",
-            OsType::Os386 => "OS-9/386",
+            OsType::Os386 => "OS-386",
             OsType::Human68k => "Human68K",
             OsType::Xosk => "OS-9/X68",
             OsType::Lhark => "LHARK",

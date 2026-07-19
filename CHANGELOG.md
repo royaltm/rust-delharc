@@ -13,7 +13,9 @@ General changes:
 Breaking changes:
 * `Decoder::Error` now requires `core::error::Error` instead of `fmt::Debug`.
 * `LhaError` changed to include new error objects `LhaHeaderError` and `DecompressionError` instead of static strings.
+* The way level 0 extended area is parsed by `LhaHeader::read()` has changed. Previously the first byte of the extended area on level 0 was unconditionally treated as OS ID byte and removed from the extended area. Now the whole content of the extended area is stored in the `extended_area` property and the first byte of the `extended_area` is only consulted by the `parse_os_type()` method to check for selected OS identifiers.
 * `CompressionMethod::is_directory()` now takes `self` by value.
+* Fixed, but also altered the way `LhaHeader::parse_pathname()` and `parse_pathname_to_str()` treat files which have none or empty `filename` field but non-empty `directory` field. In this instance a trailing directory separator is appended to the parsed path name. If a level 0 or 1 `filename` entry contains a trailing directory separator and there is no `directory` field, the directory separator will be present at the end of the parsed path. This change helps to detect if an entry is a directory name rather than a file name.
 
 New features:
 * `pm` includes PMarc archiver decoders, enabled now by default.
@@ -37,8 +39,9 @@ Additions:
 * `LhaDecodeReader::into_parts()`, `get_decoder()`, `get_mut_decoder()` and `take_decoder()` added.
 * `get_ref()` and `get_mut()` methods added allowing access to the underlying reader stream.
 * `CompressionMethod::is_compressed()` added.
-* `LhaHeader::parse_unix_permissions()` and a new `Permissions` bitflag object added.
 * `LhaHeader::parse_unix_uid_gid()` added.
+* `LhaHeader::parse_unix_permissions()` and a new `Permissions` bitflag object added.
+* `LhaHeader::parse_os_9_attrs()` and a new `Os9Attrs` bitflag object added.
 * `LhaHeader` now derives `PartialEq` and `Eq`.
 * `fmt::Display` implementation added to `MsDosAttrs` and `OsType`.
 * `LHARK` OS ID recognized.

@@ -41,12 +41,12 @@ const SUBDIR_CASES: &[(&str, &[(&str, u64, u64, u16, u32, &str, u8, CompressionM
         (         "",  0,  0, 0x0000, 0x00000000, "2012-04-24 19:31:19 UTC", 0, Lhd, "dr-xr-xr-x"),
         ("hello.txt", 12, 12, 0x9778, 0xAF083B2D, "2010-01-01 00:00:00 UTC", 0, Lh0, "-rw-r--r--")]),
     ("h1_subdir.lzh", &[
-        ("subdir",                    0,  0, 0x0000, 0x00000000, "2012-04-24 19:31:19 UTC", 1, Lhd, "drwx------"),
-        ("subdir*subdir2",            0,  0, 0x0000, 0x00000000, "2012-04-24 19:31:19 UTC", 1, Lhd, "dr-xr-xr-x"),
+        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2012-04-24 19:31:19 UTC", 1, Lhd, "drwx------"),
+        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2012-04-24 19:31:19 UTC", 1, Lhd, "dr-xr-xr-x"),
         ("subdir*subdir2*hello.txt", 12, 12, 0x9778, 0xAF083B2D, "2010-01-01 00:00:00 UTC", 1, Lh0, "-rw-r--r--")]),
     ("h2_subdir.lzh", &[
-        ("subdir",                    0,  0, 0x0000, 0x00000000, "2012-04-24 19:31:19 UTC", 2, Lhd, "drwx------"),
-        ("subdir*subdir2",            0,  0, 0x0000, 0x00000000, "2012-04-24 19:31:19 UTC", 2, Lhd, "dr-xr-xr-x"),
+        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2012-04-24 19:31:19 UTC", 2, Lhd, "drwx------"),
+        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2012-04-24 19:31:19 UTC", 2, Lhd, "dr-xr-xr-x"),
         ("subdir*subdir2*hello.txt", 12, 12, 0x9778, 0xAF083B2D, "2010-01-01 00:00:00 UTC", 2, Lh0, "-rw-r--r--")]),
 ];
 
@@ -85,6 +85,7 @@ fn test_lha_unix114i() -> io::Result<()> {
             assert_eq!(&last_modified, modif);
             assert_eq!(header.file_crc, *crc16);
             assert_eq!(header.parse_os_type()?, OsType::Unix);
+            assert!(header.parse_os_9_attrs().is_none());
             assert_eq!(header.parse_unix_permissions().unwrap().to_string(), *perm);
             assert_eq!(header.parse_unix_uid_gid().unwrap(), (1000, 1000));
             if *compr == CompressionMethod::Lhd {
@@ -137,6 +138,7 @@ fn test_lha_unix114i() -> io::Result<()> {
             assert_eq!(&last_modified, modif);
             assert_eq!(header.file_crc, *crc16);
             assert_eq!(header.parse_os_type()?, OsType::Unix);
+            assert!(header.parse_os_9_attrs().is_none());
             assert_eq!(header.parse_unix_permissions().unwrap().to_string(), *perm);
             assert_eq!(header.parse_unix_uid_gid().unwrap(), (1000, 1000));
             if *compr == CompressionMethod::Lhd {

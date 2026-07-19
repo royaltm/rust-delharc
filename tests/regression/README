@@ -14,6 +14,10 @@ badterm.lzh         - Archive containing a file that includes an unsafe
 
 dir.lzh             - Archive that just contains a directory.
 
+empty_fn.lzh        - Archive containing compressed files that have zero-length
+                      filenames. This is a segment of Picasso96.lha from
+                      Aminet; see Lhasa bug #67 for more details.
+
 multiple.lzh        - Archive containing multiple stored files with different
                       names, for testing wildcard pattern matching.
 
@@ -41,6 +45,9 @@ symlink3.lzh        - This archive contains a symbolic link with an absolute
 dotdot.lzh          - Archive containing paths with '..'. This could be used
                       to break out of the extract directory and overwrite
                       arbitrary files on the filesystem.
+
+evil_pm2.lzh        - Archive that previously triggered an array overflow in
+                      the -pm2- decoder, reported in GHSA-j2m3-h278-rrg9.
 
 comment.lzh         - Archive created on Amiga with a file note embedded in
                       the file name.

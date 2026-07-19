@@ -258,15 +258,8 @@ impl LhaHeader {
             if raw_header.lha_level == 0 {
                 min_len -= 2; // no extra headers
             }
-            if (header_len as usize) < min_len {
-                return Err(LhaError::HeaderParse(LhaHeaderError::SizeMismatch))
-            }
-            let mut extended_len = (header_len as usize) - min_len;
-            if extended_len != 0 && raw_header.lha_level == 0  {
-                // Get optional os_type from level 0 extended area
-                extended_len -= 1;
-                os_type = parser.read_u8()?;
-            }
+            let extended_len = (header_len as usize).checked_sub(min_len)
+                              .ok_or(LhaHeaderError::SizeMismatch)?;
             if extended_len != 0 {
                 extended_area = parser.read_limit(extended_len)?;
             }
@@ -488,15 +481,16 @@ pub(super) fn parse_pathname_to_str(data: &[u8], path: &mut String) {
     }
 }
 
-#[cfg(feature = "std")]
 #[inline(always)]
-fn is_separator(c: char) -> bool {
-    std::path::is_separator(c)
-}
-
-#[cfg(not(feature = "std"))]
-fn is_separator(c: char) -> bool {
-    matches!(c, '/'|'\\')
+pub(super) fn is_separator(c: char) -> bool {
+    #[cfg(feature = "std")]
+    {
+        std::path::is_separator(c)
+    }
+    #[cfg(not(feature = "std"))]
+    {
+        matches!(c, '/'|'\\')
+    }
 }
 
 pub(super) fn parse_str_nilterm(

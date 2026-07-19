@@ -54,6 +54,7 @@ fn test_lhmelt_16536() -> io::Result<()> {
                 assert_eq!(header.original_size, 0);
                 let mut fullpath = PathBuf::from(path1);
                 fullpath.pop();
+                fullpath.push("");
                 let fullpath = &fullpath.to_str().unwrap();
                 assert_eq!(&header.parse_pathname().to_str().unwrap(), fullpath);
                 assert_eq!(&header.parse_pathname_to_str(), &fullpath.replace(&std::path::MAIN_SEPARATOR.to_string(), "/"));
