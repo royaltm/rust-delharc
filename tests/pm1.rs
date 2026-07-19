@@ -66,7 +66,7 @@ fn test_pm1() -> io::Result<()> {
         assert_eq!(sink.crc32.get_crc(), *crc32);
         assert_eq!(sink.crc16.get_crc(), *crc16);
         assert_eq!(lha_reader.crc_check().unwrap(), *crc16);
-        assert_eq!(lha_reader.next_file().unwrap(), i < TESTS_CASES.len() - 1);
+        assert_eq!(lha_reader.seek_next_file().unwrap(), i < TESTS_CASES.len() - 1);
     }
     Ok(())
 }

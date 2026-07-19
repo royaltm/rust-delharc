@@ -9,7 +9,7 @@ There are many extensions to the base LHA headers, used by many different archiv
 operating systems. This library only allows for parsing some basic properties of the archived files, such as
 file path names and last modification timestamps.
 
-The [LhaHeader] exposes properties and methods to inspect the raw content of header extensions, as well as
+The [`LhaHeader`] exposes properties and methods to inspect the raw content of header extensions, as well as
 extended header data and may be explored by the user program in case extra archive properties are needed to be read.
 
 LHA header levels: 0, 1, 2 and 3 are recognized.

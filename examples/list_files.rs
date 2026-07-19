@@ -13,7 +13,7 @@ use std::{env, fs, io};
 use delharc::*;
 
 #[cfg(feature = "std")]
-fn list_files<R: io::Read>(file: R) -> io::Result<()> {
+fn list_files<R: io::Read + io::Seek>(file: R) -> io::Result<()> {
     let mut lha_reader = LhaDecodeReader::new(file)?;
     println!("L|Compressed| Original |Compr| OS/ Perm |       Date/Time       | File path");
     println!("=|==========|==========|=====|==========|=======================|==============");
@@ -50,7 +50,7 @@ fn list_files<R: io::Read>(file: R) -> io::Result<()> {
             print!(" ({})", comment);
         }
         println!();
-        if !lha_reader.next_file()? {
+        if !lha_reader.seek_next_file()? {
             break
         }
     }

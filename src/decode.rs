@@ -270,11 +270,16 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
     }
     /// Attempt to parse the header of the next archive's entry.
     ///
-    /// The remaining content of the previous file is being skipped if the
+    /// The remaining content of the current file is being skipped if the
     /// current file's content has not been read entirely.
     ///
     /// On success returns `Ok(true)` if the next header has been read and
     /// parsed successfully. If there are no more headers, returns `Ok(false)`.
+    ///
+    /// # Note
+    /// The remaining file data is being read into a buffer allocated on the
+    /// stack. On the `std` platform, probably the better method is to call
+    /// [`Self::seek_next_file()`] instead.
     ///
     /// # Errors
     /// Returns an error if the header could not be read or parsed. In this
@@ -286,10 +291,11 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
     /// Panics if called when the underlying stream reader has been already taken.
     ///
     /// # `no_std`
-    /// To skip the remaining file's content this function uses 8 KB stack-allocated buffer
-    /// when using with `std` feature enabled. Without `std` the buffer size is 512 bytes.
+    /// To skip the remaining file data this function uses 8 KB stack-allocated
+    /// buffer when called with `std` feature enabled. Without `std`, the buffer
+    /// size is 512 bytes.
     ///
-    /// See also [`LhaDecodeReader::next_file_with_sink`].
+    /// See also [`LhaDecodeReader::next_file_with_sink()`].
     pub fn next_file(&mut self) -> Result<bool, LhaDecodeError<R>> {
         #[cfg(feature = "std")]
         {
@@ -304,7 +310,41 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
     ///
     /// See [`LhaDecodeReader::next_file()`] for a description of this method.
     ///
-    /// This version allows to specify the sink buffer size - `BUF` - by the user.
+    /// Unlike `next_file()` this method uses the [`std::io::Seek`] trait to
+    /// skip over the remaining file data, but is only available with `std`
+    /// feature enabled and requires `R` to implement `io::Seek`.
+    #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+    pub fn seek_next_file(&mut self) -> Result<bool, LhaDecodeError<R>>
+        where R: std::io::Seek + Read<Error=std::io::Error>
+    {
+        use std::io::SeekFrom;
+        let limited_rd = self.decoder.take().expect("decoder not empty").into_inner();
+        let remaining = limited_rd.limit();
+        let mut rd = limited_rd.into_inner();
+        if remaining != 0 {
+            let res = match i64::try_from(remaining) {
+                Ok(seek) => rd.seek_relative(seek),
+                Err(..) => {
+                    rd.stream_position().and_then(|current| {
+                        let absolute = current.checked_add(remaining)
+                                      .ok_or_else(|| R::unexpected_eof())?;
+                        rd.seek(SeekFrom::Start(absolute))?;
+                        Ok(())
+                    })
+                }
+            };
+            if let Err(e) = res {
+                return Err(wrap_err(rd, LhaError::Io(e)))
+            }
+        }
+        self.begin_new(rd)
+    }
+    /// Attempt to parse the header of the next archive's entry.
+    ///
+    /// See [`LhaDecodeReader::next_file()`] for a description of this method.
+    ///
+    /// This version allows to specify the sink buffer size, `BUF`, by the user.
     ///
     /// # Panics
     /// This method panics when `BUF` = `0`.
