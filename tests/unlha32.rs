@@ -26,6 +26,9 @@ fn test_unlha32() -> io::Result<()> {
             assert_eq!(header.compressed_size, *size_c);
             assert_eq!(header.original_size, *size_o);
             assert_eq!(&header.parse_pathname_to_str(), &path);
+            assert!(header.parse_os_9_attrs().is_none());
+            assert!(header.parse_unix_permissions().is_none());
+            assert!(header.parse_unix_uid_gid().is_none());
             assert!(header.parse_comment().is_none());
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);

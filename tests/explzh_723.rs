@@ -99,7 +99,7 @@ fn test_explzh_723() -> io::Result<()> {
             assert_eq!(sink.crc32.get_crc(), *crc32);
             assert_eq!(sink.crc16.get_crc(), *crc16);
             assert_eq!(lha_reader.crc_check().unwrap(), *crc16);
-            if !lha_reader.next_file().unwrap() {
+            if !lha_reader.seek_next_file().unwrap() {
                 break;
             }
         }
@@ -124,7 +124,6 @@ fn test_explzh_723() -> io::Result<()> {
             assert_eq!(header.compressed_size, *size_c);
             assert_eq!(header.original_size, *size_o);
             let path1 = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
-            println!("path1: {:?}", path1);
             assert_eq!(&header.parse_pathname().to_str().unwrap(), &path1);
             let path1 = path.replace("*", "/");
             assert_eq!(&header.parse_pathname_to_str(), &path1);
@@ -150,7 +149,7 @@ fn test_explzh_723() -> io::Result<()> {
             assert_eq!(sink.crc32.get_crc(), *crc32);
             assert_eq!(sink.crc16.get_crc(), *crc16);
             assert_eq!(lha_reader.crc_check().unwrap(), *crc16);
-            if !lha_reader.next_file().unwrap() {
+            if !lha_reader.seek_next_file().unwrap() {
                 break;
             }
         }

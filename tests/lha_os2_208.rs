@@ -48,9 +48,12 @@ fn test_lha_os2_208() -> io::Result<()> {
             assert_eq!(&header.parse_pathname().to_str().unwrap(), &path1);
             let path1 = path.replace("*", "/");
             assert_eq!(&header.parse_pathname_to_str(), &path1);
-            assert!(header.parse_comment().is_none());
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
+            assert!(header.parse_os_9_attrs().is_none());
+            assert!(header.parse_unix_permissions().is_none());
+            assert!(header.parse_unix_uid_gid().is_none());
+            assert!(header.parse_comment().is_none());
             assert_eq!(header.file_crc, *crc16);
             if header.level == 0 {
                 assert_eq!(header.parse_os_type()?, OsType::Generic);
@@ -98,6 +101,10 @@ fn test_lha_os2_208() -> io::Result<()> {
             assert_eq!(&header.parse_pathname_to_str(), &path1);
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
+            assert!(header.parse_os_9_attrs().is_none());
+            assert!(header.parse_unix_permissions().is_none());
+            assert!(header.parse_unix_uid_gid().is_none());
+            assert!(header.parse_comment().is_none());
             assert_eq!(header.file_crc, *crc16);
             assert_eq!(header.parse_os_type()?, OsType::Os2);
             if *compr == CompressionMethod::Lhd {

@@ -46,6 +46,12 @@ fn test_lhmelt_16536() -> io::Result<()> {
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
             assert_eq!(header.level, *level);
+            if *level == 0 {
+                assert_eq!(header.parse_os_type()?, OsType::Generic);
+            }
+            else {
+                assert_eq!(header.parse_os_type()?, OsType::MsDos);
+            }
             let path1 = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
             if filen == 1 {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
@@ -80,12 +86,9 @@ fn test_lhmelt_16536() -> io::Result<()> {
                 assert_eq!(&last_modified, modif);
                 assert_eq!(header.file_crc, *crc16);
             }
-            if *level == 0 {
-                assert_eq!(header.parse_os_type()?, OsType::Generic);
-            }
-            else {
-                assert_eq!(header.parse_os_type()?, OsType::MsDos);
-            }
+            assert!(header.parse_os_9_attrs().is_none());
+            assert!(header.parse_unix_permissions().is_none());
+            assert!(header.parse_unix_uid_gid().is_none());
             if filen == 1 {
                 assert!(io::copy(&mut lha_reader, &mut sink).is_err());
                 assert_eq!(sink.length, 0);
