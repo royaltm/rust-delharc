@@ -21,7 +21,7 @@ fn list_files<R: io::Read + io::Seek>(file: R) -> io::Result<()> {
     loop {
         let header = lha_reader.header();
         let filename = header.parse_pathname_to_str();
-        let compression = header.compression_method()?;
+        // let compression = header.compression_method().ok();
         let os_type = header.parse_os_type()?;
         let perm = header.parse_unix_permissions();
         let os9_attr = header.parse_os_9_attrs();
@@ -43,7 +43,7 @@ fn list_files<R: io::Read + io::Seek>(file: R) -> io::Result<()> {
             header.level,
             header.compressed_size,
             header.original_size,
-            compression,
+            str::from_utf8(&header.compression).unwrap_or("???"),
             os_type,
             attr_perm,
             date_time,
