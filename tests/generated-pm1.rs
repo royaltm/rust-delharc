@@ -43,9 +43,9 @@ const TESTS_CASES: &[(&str, u64, u64, u16, u32)] = &[
 ];
 
 #[test]
-fn test_pm1() -> io::Result<()> {
+fn test_generated_pm1() -> io::Result<()> {
     let name = PM1_FILE;
-    let mut lha_reader = delharc::parse_file(format!("tests/pm1/{}", name))?;
+    let mut lha_reader = delharc::parse_file(format!("tests/generated/pm1/{}", name))?;
     println!("-------------\n{:?}", name);
     for (i, (path, size_c, size_o, crc16, crc32)) in TESTS_CASES.iter().enumerate() {
         let mut sink = SinkSum::new();
