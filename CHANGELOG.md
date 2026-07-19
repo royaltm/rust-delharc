@@ -2,7 +2,9 @@ v0.8.0
 
 General changes:
 * Minimum supported rust version changed to Rust 1.95 (if-let guards in matches).
+* Implemented PMarc's archiver `-pm1-` and `-pm2-` compression methods decoders.
 * More unit tests to improve coverage and long randomized tests added.
+* More archives imported from `lhasa` project for integrating testing.
 * Benchmarking added to guide the changes in the critical functions.
 * `examples`: merged `extract` and `extract_nostd` into a single file.
 * `examples`: `list_files` added.
@@ -12,11 +14,11 @@ Breaking changes:
 * `Decoder::Error` now requires `core::error::Error` instead of `fmt::Debug`.
 * `LhaError` changed to include new error objects `LhaHeaderError` and `DecompressionError` instead of static strings.
 * `CompressionMethod::is_directory()` now takes `self` by value.
-* Removed `EXT_HEADER_OS9` constant and added Mac and OS/2 extended header constants.
 
 New features:
+* `pm` includes PMarc archiver decoders, enabled now by default.
 * `extend` expose previously internal implementations of a ring buffer, a static Huffman Tree and a bit-stream reader; allows users to build custom `LhaV2Decoder` variants.
-* `no-unsafe-assertions` remove unsafe assertions that eliminate boundary checks in critical functions; it only affects code if `debug_assertions` are disabled.
+* `no-unsafe-assertions` remove unsafe assertions that eliminate boundary checks in critical functions; it only affects code if `debug_assertions` are disabled. if `debug_assertions` are enabled all unsafe assertions become the run-time assertions.
 * `fast-tree-build` enables more complex but faster static tree building method.
 
 Improvements:
@@ -31,12 +33,15 @@ Improvements:
 
 Additions:
 * New error objects: `LhaHeaderError`, `DecompressionError` and `BuildError`.
-* `LhaHeader` now derives `PartialEq` and `Eq`.
+* `LhaDecodeReader::seek_next_file()` added, using `io::Seek` instead of discarding read data.
+* `LhaDecodeReader::into_parts()`, `get_decoder()`, `get_mut_decoder()` and `take_decoder()` added.
+* `get_ref()` and `get_mut()` methods added allowing access to the underlying reader stream.
+* `CompressionMethod::is_compressed()` added.
 * `LhaHeader::parse_unix_permissions()` and a new `Permissions` bitflag object added.
 * `LhaHeader::parse_unix_uid_gid()` added.
+* `LhaHeader` now derives `PartialEq` and `Eq`.
 * `fmt::Display` implementation added to `MsDosAttrs` and `OsType`.
-* `LhaDecodeReader::into_parts()` and `LhaDecodeReader::take_decoder()` added.
-* `CompressionMethod::is_compressed()` added.
+* `LHARK` OS ID recognized.
 
 Fixes:
 * Remove links to integration tests and examples form the manifest - the files were never included in the crate.
@@ -44,6 +49,8 @@ Fixes:
 * `HuffTree`: ensure a tree is cleared on any error in the `build_tree()` function.
 * `HuffTree` and `DynHuffTree`: removed `fmt::Display` implementation outside of testing.
 * Fixed `LhaV2Decoder::begin_new_block()` to set `remaining_commands` only after successful tree decoding.
+* `LhaV2Decoder`: reimplemented `read_temp_tree()` in such a way that if the `skip` value is too large,
+ignore it, and let the tree building method handle it, instead of returning a specific error.
 
 
 v0.7.0
