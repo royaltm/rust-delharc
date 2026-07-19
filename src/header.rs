@@ -134,7 +134,7 @@ impl LhaHeader {
                         return Utc.timestamp_opt(ts as i64, 0).into()
                     }
                 }
-                [EXT_HEADER_MSDOS_TIME, data @ ..] if data.len() == 24 => {
+                [EXT_HEADER_WINDOWS_TIME, data @ ..] if data.len() == 24 => {
                     if let Some(mtime) = read_u64(&data[8..16]) {
                         return parse_win_filetime(mtime).into()
                     }
@@ -197,12 +197,15 @@ impl LhaHeader {
     /// it's going to be stabilized with:
     /// ```ignore
     /// path.as_os_str().as_encoded_bytes().last()
-    ///     .is_some_and(|&s| s == std::path::MAIN_SEPARATOR_STR.as_bytes()[0]));
+    ///     .is_some_and(|&s| s == std::path::MAIN_SEPARATOR_STR.as_bytes()[0]);
     /// ```
     ///
     /// # `no_std`
     ///
     /// This method is only available with `std` feature enabled.
+    ///
+    /// [`Path`]: std::path::Path
+    /// [`Path::has_trailing_sep()`]: std::path::Path::has_trailing_sep()
     #[cfg(feature = "std")]
     #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     pub fn parse_pathname(&self) -> PathBuf {

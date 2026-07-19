@@ -13,41 +13,47 @@ use super::*;
 pub mod ext {
     /// The "Common" header's CRC-16 field will always be reset to 0 in the parsed header data.
     /// This is the necessary condition to verify header's checksum.
-    pub const EXT_HEADER_COMMON:      u8 = 0x00;
+    pub const EXT_HEADER_COMMON:       u8 = 0x00;
     /// The "File name" header may contain the entry's file name.
-    pub const EXT_HEADER_FILENAME:    u8 = 0x01;
+    pub const EXT_HEADER_FILENAME:     u8 = 0x01;
     /// The "Directory name" header may contain the directory of the entry.
-    pub const EXT_HEADER_PATH:        u8 = 0x02;
+    pub const EXT_HEADER_PATH:         u8 = 0x02;
     /// The "Multi-disc" header
-    pub const EXT_HEADER_MULTI_DISC:  u8 = 0x39;
+    pub const EXT_HEADER_MULTI_DISC:   u8 = 0x39;
     /// The "Comment" header
-    pub const EXT_HEADER_COMMENT:     u8 = 0x3F;
+    pub const EXT_HEADER_COMMENT:      u8 = 0x3F;
     /// The MS-DOS ["Attributes"](super::MsDosAttrs) header
-    pub const EXT_HEADER_MSDOS_ATTRS: u8 = 0x40;
+    pub const EXT_HEADER_MSDOS_ATTRS:  u8 = 0x40;
     /// The "Windows time stamp" header
-    pub const EXT_HEADER_MSDOS_TIME:  u8 = 0x41;
+    pub const EXT_HEADER_WINDOWS_TIME: u8 = 0x41;
+    /// An alias of [`EXT_HEADER_WINDOWS_TIME`]
+    #[deprecated(note="please use `EXT_HEADER_WINDOWS_TIME` instead")]
+    pub const EXT_HEADER_MSDOS_TIME:   u8 = EXT_HEADER_WINDOWS_TIME;
     /// The "File size" header with 64-bit file size information
-    pub const EXT_HEADER_MSDOS_SIZE:  u8 = 0x42;
+    pub const EXT_HEADER_FILE_SIZES:   u8 = 0x42;
+    /// An alias of [`EXT_HEADER_FILE_SIZES`]
+    #[deprecated(note="please use `EXT_HEADER_FILE_SIZES` instead")]
+    pub const EXT_HEADER_MSDOS_SIZE:   u8 = EXT_HEADER_FILE_SIZES;
     /// The UNIX ["Permission"](super::Permissions) header
-    pub const EXT_HEADER_UNIX_PERM:   u8 = 0x50;
+    pub const EXT_HEADER_UNIX_PERM:    u8 = 0x50;
     /// The UNIX "GID UID" header
-    pub const EXT_HEADER_UNIX_UIDGID: u8 = 0x51;
+    pub const EXT_HEADER_UNIX_UIDGID:  u8 = 0x51;
     /// The UNIX "Group name" header
-    pub const EXT_HEADER_UNIX_GROUP:  u8 = 0x52;
+    pub const EXT_HEADER_UNIX_GROUP:   u8 = 0x52;
     /// The UNIX "User name" header
-    pub const EXT_HEADER_UNIX_OWNER:  u8 = 0x53;
+    pub const EXT_HEADER_UNIX_OWNER:   u8 = 0x53;
     /// The UNIX "Time stamp" header
-    pub const EXT_HEADER_UNIX_TIME:   u8 = 0x54;
+    pub const EXT_HEADER_UNIX_TIME:    u8 = 0x54;
     /// The Mac "Capsule" header
-    pub const EXT_HEADER_MAC_CAPSULE: u8 = 0x7D;
+    pub const EXT_HEADER_MAC_CAPSULE:  u8 = 0x7D;
     /// The OS/2 extended attributes header
-    pub const EXT_HEADER_OS2_ATTR1:   u8 = 0x7E;
+    pub const EXT_HEADER_OS2_ATTR1:    u8 = 0x7E;
     /// Level 3 extended attributes header
-    pub const EXT_HEADER_EXT_ATTRS:   u8 = 0x7F;
+    pub const EXT_HEADER_EXT_ATTRS:    u8 = 0x7F;
     /// The OS/9 extended attributes header
-    pub const EXT_HEADER_OS9:         u8 = 0xCC;
+    pub const EXT_HEADER_OS9:          u8 = 0xCC;
     /// The metadata header, currently used by MorphOS to store file comments
-    pub const EXT_HEADER_METADATA:    u8 = 0x71;
+    pub const EXT_HEADER_METADATA:     u8 = 0x71;
 }
 
 use ext::*;
@@ -200,7 +206,7 @@ impl LhaHeader {
     ///
     /// * The ["Common"][EXT_HEADER_COMMON] header for validating the header's CRC-16 checksum.
     /// * The ["MS-DOS Attributes"][EXT_HEADER_MSDOS_ATTRS] header for reading MS-DOS attributes.
-    /// * The ["MS-DOS Size"][EXT_HEADER_MSDOS_SIZE] header for reading 64-bit file size.
+    /// * The ["MS-DOS Size"][EXT_HEADER_FILE_SIZES] header for reading 64-bit file size.
     ///
     /// All extra header data is available as raw bytes and raw extra headers can be easily iterated
     /// with the [`LhaHeader::iter_extra`] function.
@@ -343,7 +349,7 @@ impl LhaHeader {
                         msdos_attrs = MsDosAttrs::from_bits_retain(attrs);
                     }
                 }
-                [EXT_HEADER_MSDOS_SIZE, data @ ..] if raw_header.lha_level >= 2 && data.len() >= 16 => {
+                [EXT_HEADER_FILE_SIZES, data @ ..] if raw_header.lha_level >= 2 && data.len() >= 16 => {
                     if let (Some(compr), Some(orig)) = (read_u64(&data[0..8]), read_u64(&data[8..16])) {
                         compressed_size = compr;
                         original_size = orig;
