@@ -227,7 +227,10 @@ impl LhaHeader {
                 }
                 return path
             }
-            else if self.parse_os_type() == Ok(OsType::Amiga) {
+            else if let Ok(os_type) = self.parse_os_type() &&
+                (os_type == OsType::Amiga ||
+                    (self.level == 0 && os_type == OsType::Generic))
+            {
                 split_data_at_nil_or_end(&self.filename).0
             }
             else {
@@ -280,7 +283,10 @@ impl LhaHeader {
                 }
                 return path
             }
-            else if self.parse_os_type() == Ok(OsType::Amiga) {
+            else if let Ok(os_type) = self.parse_os_type() &&
+                (os_type == OsType::Amiga ||
+                    (self.level == 0 && os_type == OsType::Generic))
+            {
                 split_data_at_nil_or_end(&self.filename).0
             }
             else {
@@ -319,7 +325,7 @@ impl LhaHeader {
                 [EXT_HEADER_FILENAME, data @ ..] => {
                     raw_filename = data;
                 },
-                [EXT_HEADER_COMMENT, data @ ..] => {
+                [EXT_HEADER_COMMENT|EXT_HEADER_METADATA, data @ ..] => {
                     let comment = parse_str_nilterm(data, false, true);
                     if !comment.is_empty() {
                         return Some(comment)
@@ -328,14 +334,17 @@ impl LhaHeader {
                 _ => {}
             }
         }
-        if self.parse_os_type() == Ok(OsType::Amiga) {
+        if self.compression.starts_with(b"-pm") && !self.extended_area.is_empty() {
+            let comment = parse_str_nilterm(&*self.extended_area, false, true);
+            (!comment.is_empty()).then_some(comment)
+        }
+        else if let Ok(os_type) = self.parse_os_type() &&
+           (os_type == OsType::Amiga ||
+                (self.level == 0 && os_type == OsType::Generic))
+        {
             split_data_at_nil_or_end(raw_filename)
             .1
             .map(|data| parse_str_nilterm(data, false, true))
-        }
-        else if self.compression.starts_with(b"-pm") && !self.extended_area.is_empty() {
-            let comment = parse_str_nilterm(&*self.extended_area, false, true);
-            (!comment.is_empty()).then_some(comment)
         }
         else {
             None

@@ -46,6 +46,8 @@ pub mod ext {
     pub const EXT_HEADER_EXT_ATTRS:   u8 = 0x7F;
     /// The OS/9 extended attributes header
     pub const EXT_HEADER_OS9:         u8 = 0xCC;
+    /// The metadata header, currently used by MorphOS to store file comments
+    pub const EXT_HEADER_METADATA:    u8 = 0x71;
 }
 
 use ext::*;

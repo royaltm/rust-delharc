@@ -16,6 +16,7 @@ Breaking changes:
 * The way level 0 extended area is parsed by `LhaHeader::read()` has changed. Previously the first byte of the extended area on level 0 was unconditionally treated as OS ID byte and removed from the extended area. Now the whole content of the extended area is stored in the `extended_area` property and the first byte of the `extended_area` is only consulted by the `parse_os_type()` method to check for selected OS identifiers.
 * `CompressionMethod::is_directory()` now takes `self` by value.
 * Fixed, but also altered the way `LhaHeader::parse_pathname()` and `parse_pathname_to_str()` treat files which have none or empty `filename` field but non-empty `directory` field. In this instance a trailing directory separator is appended to the parsed path name. If a level 0 or 1 `filename` entry contains a trailing directory separator and there is no `directory` field, the directory separator will be present at the end of the parsed path. This change helps to detect if an entry is a directory name rather than a file name.
+* The `nul` character in filename is now a terminator if either an OS ID is explicitly Amiga or if header level is 0 and OS ID is not provided in extended area.
 
 New features:
 * `pm` includes PMarc archiver decoders, enabled now by default.
@@ -45,6 +46,7 @@ Additions:
 * `LhaHeader` now derives `PartialEq` and `Eq`.
 * `fmt::Display` implementation added to `MsDosAttrs` and `OsType`.
 * `LHARK` OS ID recognized.
+* `EXT_HEADER_METADATA=0x71` added and this is where MorphOs stores the file comment on header level 2.
 
 Fixes:
 * Remove links to integration tests and examples form the manifest - the files were never included in the crate.
