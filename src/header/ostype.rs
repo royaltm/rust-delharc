@@ -2,34 +2,61 @@ use core::fmt;
 #[cfg(feature = "std")]
 use std::io;
 
+/// An error variant type returned from
+/// [`LhaHeader::parse_os_type()`](super::LhaHeader::parse_os_type()).
+///
+/// Contains the original OS ID byte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnrecognizedOsType(pub u8);
 
+/// Enumeration of all known operating system identifiers, which indicate 
+/// the origin O/S of an archive file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 #[repr(u8)]
 #[derive(Default)]
 pub enum OsType {
     #[default]
+    /// OS is unkown, usually found in LHA level 0 headers
     Generic =            0x00,
+    /// Microsoft MS/DOS
     MsDos =              b'M',
+    /// Microsoft Windows 95
     Win95 =              b'w',
+    /// Microsoft Windows NT
     WinNt =              b'W',
+    /// Unix
     Unix =               b'U',
+    /// IBM OS/2
     Os2 =                b'2',
+    /// Macintosh OS developped by Apple
     MacOs =              b'm',
+    /// Amiga OS
     Amiga =              b'A',
+    /// Atari TOS
     Atari =              b'a',
+    /// Java Virtual Machine
     Java =               b'J',
+    /// Digital Research CP/M
     Cpm =                b'C',
+    /// Digital Research FlexOS
     FlexOs =             b'F',
+    /// Fujitsu Runser for FM-7
     Runser =             b'R',
+    /// Fujitsu FM Towns OS
     TownsOs =            b'T',
+    /// Microware OS-9
     Os9 =                b'9',
+    /// Microware OS-9/68k
     Osk =                b'K',
+    /// OS/386 (?)
     Os386 =              b'3',
+    /// Sharp X68000 Human68K OS
     Human68k =           b'H',
+    /// OS-9/X68000
     Xosk =               b'X',
+    /// An identifier produced by LHARK tool which runs under DOS
+    Lhark =              b' '
 }
 
 impl From<OsType> for u8 {
@@ -61,6 +88,7 @@ impl TryFrom<u8> for OsType {
             b'3' => OsType::Os386,
             b'H' => OsType::Human68k,
             b'X' => OsType::Xosk,
+            b' ' => OsType::Lhark,
             _ => return Err(UnrecognizedOsType(ostype))
         })
     }
@@ -84,10 +112,11 @@ impl From<OsType> for &'static str {
             OsType::Runser => "Runser",
             OsType::TownsOs => "TownsOS",
             OsType::Os9 => "OS-9",
-            OsType::Osk => "OS/68K",
-            OsType::Os386 => "OS/386",
+            OsType::Osk => "OS-9/68K",
+            OsType::Os386 => "OS-9/386",
             OsType::Human68k => "Human68K",
-            OsType::Xosk => "XOSK",
+            OsType::Xosk => "OS-9/X68",
+            OsType::Lhark => "LHARK",
         }
     }
 }
@@ -141,6 +170,7 @@ mod tests {
             b'3',
             b'H',
             b'X',
+            b' ',
         ];
         for osbyte in oses {
             let os = OsType::try_from(osbyte).unwrap();

@@ -87,7 +87,7 @@ pub struct LhaDecodeReader<R> {
     decoder: Option<DecoderAny<Take<R>>>
 }
 
-/// A pass-through decoder for stored data without any compression.
+/// A pass-through (null) decoder for stored data without any compression
 #[derive(Debug)]
 pub struct PassthroughDecoder<R> {
     inner: R
@@ -119,29 +119,43 @@ pub struct LhaDecodeError<R: Read> {
 #[non_exhaustive]
 #[derive(Debug)]
 pub enum DecoderAny<R> {
+    /// A pass-through (null) decoder for stored data without any compression
     PassthroughDecoder(PassthroughDecoder<R>),
+    /// A phony decoder object, used when compression method is unsupported.
+    ///
+    /// Reading from it will always produce an error!
     UnsupportedDecoder(UnsupportedDecoder<R>),
     #[cfg(feature = "lz")]
     #[cfg_attr(docsrs, doc(cfg(feature = "lz")))]
+    /// A decoder for the `-lzs-` compression method
     LzsDecoder(LzsDecoder<R>),
     #[cfg(feature = "lz")]
     #[cfg_attr(docsrs, doc(cfg(feature = "lz")))]
+    /// A decoder for the `-lz5-` compression method
     Lz5Decoder(Lz5Decoder<R>),
     #[cfg(feature = "lh1")]
     #[cfg_attr(docsrs, doc(cfg(feature = "lh1")))]
+    /// A decoder for the `-lh1-` compression method
     Lh1Decoder(Lh1Decoder<R>),
+    /// A decoder for the `-lh4-` compression method
     Lh4Decoder(Lh5Decoder<R>),
+    /// A decoder for the `-lh5-` compression method
     Lh5Decoder(Lh5Decoder<R>),
+    /// A decoder for the `-lh6-` compression method
     Lh6Decoder(Lh7Decoder<R>),
+    /// A decoder for the `-lh7-` compression method
     Lh7Decoder(Lh7Decoder<R>),
     #[cfg(feature = "lhx")]
     #[cfg_attr(docsrs, doc(cfg(feature = "lhx")))]
+    /// A decoder for the `-lhx-` compression method
     LhxDecoder(LhxDecoder<R>),
     #[cfg(feature = "pm")]
     #[cfg_attr(docsrs, doc(cfg(feature = "pm")))]
+    /// A decoder for the `-pm1-` compression method
     Pm1Decoder(Pm1Decoder<R>),
     #[cfg(feature = "pm")]
     #[cfg_attr(docsrs, doc(cfg(feature = "pm")))]
+    /// A decoder for the `-pm2-` compression method
     Pm2Decoder(Pm2Decoder<R>),
 }
 
@@ -254,17 +268,19 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
         self.crc.reset();
         self.output_length = 0;
     }
-    /// Attempt to parse the next file's header.
+    /// Attempt to parse the header of the next archive's entry.
     ///
-    /// The remaining content of the previous file is being skipped if the current file's content
-    /// has not been read entirely.
+    /// The remaining content of the previous file is being skipped if the
+    /// current file's content has not been read entirely.
     ///
-    /// On success returns `Ok(true)` if the next header has been read and parsed successfully.
-    /// If there are no more headers, returns `Ok(false)`.
+    /// On success returns `Ok(true)` if the next header has been read and
+    /// parsed successfully. If there are no more headers, returns `Ok(false)`.
     ///
     /// # Errors
-    /// Returns an error if the header could not be read or parsed.
-    /// In this instance the underlying stream source will be taken and returned with the error.
+    /// Returns an error if the header could not be read or parsed. In this
+    /// instance the underlying decoder will be destroyed, the stream source
+    /// will be removed from this [`LhaDecodeReader`] and returned with an
+    /// error object.
     ///
     /// # Panic
     /// Panics if called when the underlying stream reader has been already taken.
@@ -272,22 +288,26 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
     /// # `no_std`
     /// To skip the remaining file's content this function uses 8 KB stack-allocated buffer
     /// when using with `std` feature enabled. Without `std` the buffer size is 512 bytes.
-    /// See also [`LhaDecodeReader::next_file_with_sink`].
-    #[cfg(feature = "std")]
-    pub fn next_file(&mut self) -> Result<bool, LhaDecodeError<R>> {
-        self.next_file_with_sink::<{8*1024}>()
-    }
-    #[cfg(not(feature = "std"))]
-    pub fn next_file(&mut self) -> Result<bool, LhaDecodeError<R>> {
-        self.next_file_with_sink::<512>()
-    }
-    /// Attempt to parse the next file's header.
     ///
-    /// Exactly like [`LhaDecodeReader::next_file`] but allows to specify the sink buffer
-    /// size as `BUF`.
+    /// See also [`LhaDecodeReader::next_file_with_sink`].
+    pub fn next_file(&mut self) -> Result<bool, LhaDecodeError<R>> {
+        #[cfg(feature = "std")]
+        {
+            self.next_file_with_sink::<{8*1024}>()
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            self.next_file_with_sink::<512>()
+        }
+    }
+    /// Attempt to parse the header of the next archive's entry.
+    ///
+    /// See [`LhaDecodeReader::next_file()`] for a description of this method.
+    ///
+    /// This version allows to specify the sink buffer size - `BUF` - by the user.
     ///
     /// # Panics
-    /// Panics when `BUF` = `0`.
+    /// This method panics when `BUF` = `0`.
     pub fn next_file_with_sink<const BUF: usize>(&mut self) -> Result<bool, LhaDecodeError<R>> {
         let mut limited_rd = self.decoder.take().expect("decoder not empty").into_inner();
         if limited_rd.limit() != 0 &&
@@ -518,6 +538,7 @@ impl<R: Read> Decoder<R> for DecoderAny<R> where R::Error: error::Error {
 }
 
 impl<R: Read> PassthroughDecoder<R> {
+    /// Create a new decoder instance from the given data read stream
     pub fn new(inner: R) -> Self {
         PassthroughDecoder { inner }
     }
@@ -545,6 +566,7 @@ impl<R: Read> Decoder<R> for PassthroughDecoder<R> where R::Error: error::Error 
 }
 
 impl<R: Read> UnsupportedDecoder<R> {
+    /// Create a new phony decoder instance from the given data read stream
     pub fn new(inner: R) -> Self {
         UnsupportedDecoder { inner }
     }

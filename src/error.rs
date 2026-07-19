@@ -5,6 +5,9 @@ use std::{io, collections::TryReserveError};
 use alloc::collections::TryReserveError;
 use crate::stub_io::Read;
 
+/// The result returned from functions in this crate.
+///
+/// `R` is the type of the data reader object.
 pub type LhaResult<T, R> = Result<T, LhaError<<R as Read>::Error>>;
 
 /// `delharc` error enum.

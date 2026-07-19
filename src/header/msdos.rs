@@ -6,43 +6,54 @@ bitflags! {
     #[derive(Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     /// MS-DOS attributes
     pub struct MsDosAttrs: u16 {
+        /// The file has a READ-ONLY attribute set
         const READ_ONLY = 0b00000000_00000001;
+        /// The file has a HIDDEN attribute set
         const HIDDEN    = 0b00000000_00000010;
+        /// The file has a SYSTEM attribute set
         const SYSTEM    = 0b00000000_00000100;
+        /// The file has a VOLUME attribute set
         const VOLUME    = 0b00000000_00001000;
+        /// The file is a directory
         const SUBDIR    = 0b00000000_00010000;
+        /// The file has an ARCHIVE attribute set
         const ARCHIVE   = 0b00000000_00100000;
+        /// The file is a symbolic link.
+        ///
+        /// This is not MS-DOS standard attribute, but apparently LHA for
+        /// X680x0 sets this bit to indicate a symbolic link.
         const SYMLINK   = 0b00000000_01000000;
+        /// These bits are never used
         const RESERVED  = 0b11111111_10000000;
     }
 }
 
 impl MsDosAttrs {
-    /// Return whether a read-only flag is set.
+    /// Return whether a read-only flag is set
     pub fn is_read_only(self) -> bool {
         self.intersects(MsDosAttrs::READ_ONLY)
     }
-    /// Return whether a hidden flag is set.
+    /// Return whether a hidden flag is set
     pub fn is_hidden(self) -> bool {
         self.intersects(MsDosAttrs::HIDDEN)
     }
-    /// Return whether a system flag is set.
+    /// Return whether a system flag is set
     pub fn is_system(self) -> bool {
         self.intersects(MsDosAttrs::SYSTEM)
     }
-    /// Return whether a system flag is set.
+    /// Return whether a system flag is set
     pub fn is_volume(self) -> bool {
         self.intersects(MsDosAttrs::VOLUME)
     }
-    /// Return whether a system flag is set.
+    /// Return whether a system flag is set
     pub fn is_subdir(self) -> bool {
         self.intersects(MsDosAttrs::SUBDIR)
     }
-    /// Return whether an archive flag is set.
+    /// Return whether an archive flag is set
     pub fn is_archive(self) -> bool {
         self.intersects(MsDosAttrs::ARCHIVE)
     }
-    /// Return whether a symlink flag is set.
+    /// Return whether a symlink flag is set
     pub fn is_symlink(self) -> bool {
         self.intersects(MsDosAttrs::SYMLINK)
     }

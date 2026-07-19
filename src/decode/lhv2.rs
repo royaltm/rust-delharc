@@ -61,12 +61,15 @@ macro_rules! impl_lhav2_decoder {
 }
 
 #[derive(Debug)]
+/// [`LhaV2Decoder`] configuration for `-lh4` and `-lh5-` compression methods
 pub struct Lh5DecoderCfg;
 #[derive(Debug)]
+/// [`LhaV2Decoder`] configuration for `-lh6` and `-lh7-` compression methods
 pub struct Lh7DecoderCfg;
 #[cfg(feature = "lhx")]
 #[cfg_attr(docsrs, doc(cfg(feature = "lhx")))]
 #[derive(Debug)]
+/// [`LhaV2Decoder`] configuration for `-lhx-` compression methods
 pub struct LhxDecoderCfg;
 
 impl_lhav2_decoder!(Lh5DecoderCfg, HISTORY_BITS=14, OFFSET_BITS=4);

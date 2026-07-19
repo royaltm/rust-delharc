@@ -2,28 +2,46 @@ use core::fmt;
 #[cfg(feature = "std")]
 use std::io;
 
+/// Enumeration of all known compression methods
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompressionMethod {
     /// Special "meta" method marking a directory. Also used for symlinks.
     Lhd,
+    /// A variant for `-lzs-` compression method
     Lzs,
+    /// A variant for `-lz4-` compression method (no compression)
     Lz4,
+    /// A variant for `-lz5-` compression method
     Lz5,
+    /// A variant for `-lh0-` compression method (no compression)
     Lh0,
+    /// A variant for `-lh1-` compression method
     Lh1,
+    /// A variant for `-lh4-` compression method
     Lh4,
+    /// A variant for `-lh5-` compression method
     Lh5,
+    /// A variant for `-lh6-` compression method
     Lh6,
+    /// A variant for `-lh7-` compression method
     Lh7,
+    /// A variant for `-lhx-` compression method
     Lhx,
+    /// A variant for `-pm0-` compression method (no compression)
     Pm0,
+    /// A variant for `-pm1-` compression method
     Pm1,
+    /// A variant for `-pm2-` compression method
     Pm2,
 }
 
+/// An error variant type returned from
+/// [`LhaHeader::compression_method()`](super::LhaHeader::compression_method()).
+///
+/// Contains the original compression identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UnrecognizedCompressionMethod([u8;5]);
+pub struct UnrecognizedCompressionMethod(pub [u8;5]);
 
 impl TryFrom<&[u8;5]> for CompressionMethod {
     type Error = UnrecognizedCompressionMethod;

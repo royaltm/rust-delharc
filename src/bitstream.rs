@@ -9,7 +9,9 @@ const BITBUF_BITSIZE: u32 = BitBuf::BITS;
 /// The trait is implemented for all objects that can receive bits using
 /// [`BitRead::read_bits()`].
 pub trait UBits: Copy {
+    /// The size of this integer type in bits
     const BITS: u32;
+    /// Convert the bit buffer to this integer value by truncating unused bits
     fn from_bits(bitbuf: BitBuf) -> Self;
 }
 
@@ -18,14 +20,14 @@ pub trait BitRead {
     /// The error type returned from the unferlying data reader.
     type Error;
     /// Read the next single bit from the stream. Return `true` if the bit
-    /// is `1` and `false` otherwise.
+    /// is `1` and `false` if it's `0`.
     fn read_bit(&mut self) -> Result<bool, LhaError<Self::Error>>;
     /// Reads the next `n` bits from the stream.
     ///
     /// For example reading 4 bits into the `u8` type will result in: `0b0000abcd` where
     /// `a`, `b`, `c`, `d` are consecutive MSB -> LSB bits that were read from the source.
     ///
-    /// Returns `0` if `n` is `0`.
+    /// Returns `0` if `n` is `0` without reading from the underlying reader.
     ///
     /// # Errors
     /// Returns an error if `n` exceed the bit capacity of `T`.

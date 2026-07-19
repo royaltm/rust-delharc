@@ -45,8 +45,8 @@ compression method features. Otherwise the library will be compiled in the `no_s
 | `-lzs-`    | LzsDecoder         | lz      | LArc, 2kb sliding window
 | `-lz5-`    | Lz5Decoder         | lz      | LArc, 4kb sliding window
 | `-pm0-`    | PassthroughDecoder |         | no compression
-| `-pm1-`    | Pm1Decoder         | pm      | PMarc, 16 Kb sliding window, built-in static huffman
-| `-pm2-`    | Pm2Decoder         | pm      | PMarc,  8 Kb sliding window, static huffman
+| `-pm1-`    | Pm1Decoder         | pm      | PMarc, 16 Kb sliding window, built-in huffman, history list
+| `-pm2-`    | Pm2Decoder         | pm      | PMarc,  8 Kb sliding window, static huffman, history list
 
 */
 #![cfg_attr(feature = "std", doc = r##"
@@ -134,6 +134,7 @@ The `extend` feature is not enable by default.
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(redundant_imports)]
 #![deny(unused_imports)]
+#![deny(missing_docs)]
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;
@@ -165,7 +166,7 @@ const _: usize = (size_of::<usize>() >= size_of::<u32>()) as usize - 1;
 
 pub use decode::LhaDecodeReader;
 pub use header::{
-    LhaHeader, CompressionMethod, OsType, TimestampResult, MsDosAttrs
+    LhaHeader, CompressionMethod, OsType, TimestampResult, MsDosAttrs, Permissions
 };
 pub use error::{LhaError, LhaResult};
 #[cfg(not(feature = "std"))]

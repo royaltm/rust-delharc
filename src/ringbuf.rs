@@ -55,6 +55,10 @@ pub struct RingArrayBuf<const N: usize> {
 }
 
 /// The ring buffer history iterator.
+///
+/// At each iteration from this object, the yielded value is also
+/// being [`pushed`](RingBuffer::push()) to the ring buffer,
+/// advancing the buffer cursor.
 pub struct HistoryIter<'a, T> {
     index: usize,
     ringbuf: &'a mut T

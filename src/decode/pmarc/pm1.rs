@@ -36,9 +36,12 @@ pub struct Pm1Decoder<R> {
     progress: Option<Progress>,
     ringbuf: Box<RingArrayBuf<RING_BUFFER_SIZE>>,
     history_list: Box<HistoryLinkedList>,
-    output_stream_pos: u16, // saturating on u16::MAX
+    /// saturating count of output bytes,
+    /// the range of history offset depends on this
+    output_stream_pos: u16,
+    /// this needs to be read at the start of file
+    byte_decode_tree: [u8;5],
     byte_decode_tree_ready: bool,
-    byte_decode_tree: [u8;5]
 }
 
 // Simon Howard:
@@ -331,12 +334,12 @@ impl<R: Read> Pm1Decoder<R> {
 
         type E = VarLenEntry;
         const COPY_RANGES: [VarLenEntry;6] = [
-            E::new(    0,  6 ),  //    0 +  (1 << 6) =    64
-            E::new(   64,  8 ),  //   64 +  (1 << 8) =   320
-            E::new(    0,  6 ),  //    0 +  (1 << 6) =    64
-            E::new(   64,  9 ),  //   64 +  (1 << 9) =   576
-            E::new(  576, 11 ),  //  576 + (1 << 11) =  2624
-            E::new( 2624, 13 ),  // 2624 + (1 << 13) = 10816
+            E::new(    0,  6 ),  //    0 +  (1 << 6) - 1 =    63
+            E::new(   64,  8 ),  //   64 +  (1 << 8) - 1 =   319
+            E::new(    0,  6 ),  //    0 +  (1 << 6) - 1 =    63
+            E::new(   64,  9 ),  //   64 +  (1 << 9) - 1 =   575
+            E::new(  576, 11 ),  //  576 + (1 << 11) - 1 =  2623
+            E::new( 2624, 13 ),  // 2624 + (1 << 13) - 1 = 10815
 
             // Simon Howard:
             // The above table entries are used after a certain number of
@@ -401,14 +404,14 @@ impl<R: Read> Pm1Decoder<R> {
                         .clamp(8, range.bits);
         }
 
-        // Calculate the number of bytes back into the history buffer to read
-        let history_distance = range.decode_variable_length(&mut self.bit_reader)?;
-        if history_distance >= pos {
+        // calculate the number of bytes back into the history buffer to read
+        let offset = range.decode_variable_length(&mut self.bit_reader)?;
+        if offset >= pos {
             return Err(LhaError::Decompress(DecompressionError::HistoryDistanceOverflow))
         }
 
-        // Start copying from the ring buffer
-        self.copy_from_history(target, history_distance, count);
+        // start copying from the ring buffer
+        self.copy_from_history(target, offset, count);
         Ok(())
     }
 
@@ -420,12 +423,12 @@ impl<R: Read> Pm1Decoder<R> {
         // Table used to decode byte values.
         type E = VarLenEntry;
         const BYTE_RANGES: [VarLenEntry;6] = [
-            E::new(   0, 4 ),  //   0 + (1 << 4) = 16
-            E::new(  16, 4 ),  //  16 + (1 << 4) = 32
-            E::new(  32, 5 ),  //  32 + (1 << 5) = 64
-            E::new(  64, 6 ),  //  64 + (1 << 6) = 128
-            E::new( 128, 6 ),  // 128 + (1 << 6) = 192
-            E::new( 192, 6 ),  // 192 + (1 << 6) = 256
+            E::new(   0, 4 ),  //   0 + (1 << 4) - 1 = 15
+            E::new(  16, 4 ),  //  16 + (1 << 4) - 1 = 31
+            E::new(  32, 5 ),  //  32 + (1 << 5) - 1 = 63
+            E::new(  64, 6 ),  //  64 + (1 << 6) - 1 = 127
+            E::new( 128, 6 ),  // 128 + (1 << 6) - 1 = 191
+            E::new( 192, 6 ),  // 192 + (1 << 6) - 1 = 255
         ];
 
         if self.byte_decode_tree[0] == 0 {

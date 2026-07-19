@@ -25,7 +25,7 @@ fn list_files<R: io::Read>(file: R) -> io::Result<()> {
         let os_type = header.parse_os_type()?;
         let perm = header.parse_unix_permissions();
         let os_perm: &dyn fmt::Display = match os_type {
-            OsType::Generic|OsType::MsDos => {
+            OsType::Generic|OsType::MsDos|OsType::Lhark => {
                 &header.msdos_attrs as _
             }
             OsType::Unix if let Some(perm) = perm.as_ref() => {

@@ -3,6 +3,8 @@
 //! Original C version: (c) 2011, 2012, Simon Howard lhasa/lib/pma_common.c
 //!
 //! Rust version: (c) 2026, Rafał Michalski
+#[cfg(not(feature = "std"))]
+use alloc::boxed::Box;
 use bytemuck::{Zeroable, allocation::zeroed_box};
 
 #[derive(Debug, Clone, Copy, Zeroable)]
