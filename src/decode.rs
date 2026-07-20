@@ -31,9 +31,9 @@ pub use lhv2::*;
 #[cfg_attr(docsrs, doc(cfg(feature = "pm")))]
 pub use pmarc::*;
 
-/// The trait implemented by decompression engines.
+/// The interface used by decompression engines.
 pub trait Decoder<R> {
-    /// The error type required by ther underlying reader.
+    /// The error type required by the underlying reader.
     type Error: error::Error;
     /// Consume the decoder and return the underlying reader.
     fn into_inner(self) -> R;
@@ -65,7 +65,8 @@ pub trait Decoder<R> {
 /// calculated by `LhaDecodeReader` during data decoding, should be verified using
 /// [`LhaDecodeReader::crc_check()`].
 ///
-/// To parse and decode the next archive file, call [`LhaDecodeReader::next_file()`].
+/// To parse and decode the next archive file, call [`LhaDecodeReader::next_file()`]
+/// or [`LhaDecodeReader::seek_next_file()`].
 ///
 /// After parsing the next LHA header, a decompressed content of a file can be simply
 /// read from the `LhaDecodeReader`, which will decompress it using a proper decoder,
@@ -310,9 +311,9 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
     ///
     /// See [`LhaDecodeReader::next_file()`] for a description of this method.
     ///
-    /// Unlike `next_file()` this method uses the [`std::io::Seek`] trait to
-    /// skip over the remaining file data, but is only available with `std`
-    /// feature enabled and requires `R` to implement `io::Seek`.
+    /// Unlike [`Self::next_file()`] this method uses the [`std::io::Seek`]
+    /// trait to skip over the remaining file data, but is only available with
+    /// `std` feature enabled and requires `R` to implement `io::Seek`.
     #[cfg(feature = "std")]
     #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     pub fn seek_next_file(&mut self) -> Result<bool, LhaDecodeError<R>>
@@ -357,7 +358,10 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
         }
         self.begin_new(limited_rd.into_inner())
     }
-    /// Return a reference to the last parsed file's [LhaHeader].
+    /// Return a reference to the last parsed archive header.
+    ///
+    /// If this `LhaDecodeReader` has been initialized using [`Default::default()`]
+    /// the returned `LhaHeader` fields will contain zeros.
     pub fn header(&self) -> &LhaHeader {
         &self.header
     }
@@ -429,7 +433,7 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
     pub fn len(&self) -> u64 {
         self.header.original_size - self.output_length
     }
-    /// Return whether the current file has been finished reading or if the file was empty.
+    /// Return whether the current file has been finished reading or if the file is empty.
     pub fn is_empty(&self) -> bool {
         self.header.original_size == self.output_length
     }
@@ -439,12 +443,12 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
     }
     /// Return whether an underlying stream reader is absent from the decoder.
     ///
-    /// An attempt to read file's content in this state will result in a panic.
+    /// An attempt to read file's content in the abosent state will result in a panic.
     pub fn is_absent(&self) -> bool {
         self.decoder.is_none()
     }
     /// Return whether the CRC-16 checksum, computed during file decompression,
-    /// matches the file checksum in the LHA header.
+    /// matches the file checksum in the archive header.
     ///
     /// # Note
     /// This method should be called only **AFTER** the whole file has been
@@ -453,7 +457,7 @@ impl<R: Read> LhaDecodeReader<R> where R::Error: error::Error {
         self.crc.sum16() == self.header.file_crc
     }
     /// Return the CRC-16 checksum, computed during file decompression, if it
-    /// matches the file checksum in the LHA header.
+    /// matches the file checksum in the archive header.
     ///
     /// Otherwise return an [`LhaError::Checksum`] error.
     ///

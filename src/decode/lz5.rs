@@ -47,13 +47,13 @@ impl<R: Read> Lz5Decoder<R> {
             for (p, i) in buffer[offset..].iter_mut().zip((0..=255u8).rev()) {
                 *p = i;
             }
-            // 128 zeroes (3968)
+            // 128 zeros (3968)
             let offset = offset + 256;
             buffer[offset..offset + 128].fill(0);
             // 110 spaces (4078)
             let offset = offset + 128;
             buffer[offset..offset + 110].fill(b' ');
-            // a margin of zeroes (4096)
+            // a margin of zeros (4096)
         });
         // set the start offset
         ringbuf.set_cursor(START_OFFSET);

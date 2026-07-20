@@ -14,11 +14,11 @@ bitflags! {
         const R_OTHER    = 0b00000000_00000100;
         /// Mask of the other permission bits
         const PERM_OTHER = 0b00000000_00000111;
-        /// Users in a group have an executable permission
+        /// Group memebers have an executable permission
         const X_GROUP    = 0b00000000_00001000;
-        /// Users in a group have a write permission
+        /// Group memebers have a write permission
         const W_GROUP    = 0b00000000_00010000;
-        /// Users in a group have a read permission
+        /// Group memebers have a read permission
         const R_GROUP    = 0b00000000_00100000;
         /// Mask of the group permission bits
         const PERM_GROUP = 0b00000000_00111000;
@@ -30,11 +30,11 @@ bitflags! {
         const R_USER     = 0b00000001_00000000;
         /// Mask of the user permission bits
         const PERM_USER  = 0b00000001_11000000;
-        /// Sticky bit - a restricted deletion flag
+        /// Sticky - a restricted deletion flag
         const STICKY     = 0b00000010_00000000;
-        /// Set-group-id bit
+        /// Set-group-id flag
         const SET_GID    = 0b00000100_00000000;
-        /// Set-user-id bit
+        /// Set-user-id flag
         const SET_UID    = 0b00001000_00000000;
         /// Bits determining a type of the entry
         const TYPE_MASK  = 0b11110000_00000000;

@@ -404,7 +404,7 @@ impl HuffTree {
     /// method will always return a single `value`, without reading any bits from the stream.
     ///
     /// # Panics
-    /// Panics if a tree has not been initialized or if it has been cleared without rebuilding it.
+    /// Panics if this tree has not been initialized or if it has been cleared without rebuilding it.
     pub fn read_entry<R: BitRead>(&self, mut path: R) -> Result<u16, LhaError<R::Error>> {
         let tree = &self.tree;
         let mut node = &tree[0]; // panics if tree uninitialized

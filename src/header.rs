@@ -38,7 +38,8 @@ pub struct LhaHeader {
     pub compressed_size: u64,
     /// Original file size.
     pub original_size: u64,
-    /// A raw filename for level 1 or 0 headers, might be empty. Always being empty for levels 2 or 3.
+    /// A raw filename for level 1 or 0 headers, might be empty. Always
+    /// empty in header levels 2 or 3.
     ///
     /// In this instance the filename is stored in extra headers.
     pub filename: Box<[u8]>,
@@ -49,10 +50,10 @@ pub struct LhaHeader {
     /// * Level 0 and 1 - MS-DOS format (no time zone).
     /// * Level 2 and 3 - Unix timestamp (UTC).
     ///
-    /// The "last modified" timestamp can also be found in the extended area and extra headers, as well as
-    /// other kinds of timestamps (- last access, created).
+    /// The "last modified" timestamp can also be found in the extended area and
+    /// extra headers, as well as other kinds of timestamps (last access, created).
     pub last_modified: u32,
-    /// A raw OS-TYPE.
+    /// A raw OS ID value.
     pub os_type: u8,
     /// Uncompressed file's CRC-16.
     pub file_crc: u16,
@@ -60,7 +61,10 @@ pub struct LhaHeader {
     ///
     /// Extended area is only present on header levels 0 and 1.
     ///
-    /// Some tools store the first byte of this area to OS ID in level 0 headers.
+    /// The first byte of this area could be the OS ID in level 0 headers.
+    ///
+    /// It is unknown if this area is used on any level 1 header,
+    /// although the header structure allows for this area to exist.
     pub extended_area: Box<[u8]>,
     /// The size of the first extra header.
     ///
@@ -197,11 +201,11 @@ impl LhaHeader {
         CompressionMethod::try_from(&self.compression)
     }
     /// Attempt to parse the `filename` field and search extended headers for
-    /// the directory and an alternative file name field and return a complete
+    /// the "directory" and a "file name" extra header and return a complete
     /// path to the file or a directory.
     ///
-    /// This function converts all non-ASCII or control characters to `%xx`
-    /// sequences and all system specific directory separator characters to `_`
+    /// This function converts all non-ASCII or control characters to "`%xx`"
+    /// sequences and all system specific directory separator characters to "`_`"
     /// in file names.
     ///
     /// Malicious path components, like `..`, `.` or `//` are stripped from the
@@ -219,11 +223,11 @@ impl LhaHeader {
     /// * This method makes its best effort to return a non-absolute path name,
     ///   however it is not guaranteed, so make sure the path is not absolute
     ///   before creating a file or a directory.
-    /// * If the archive OS is [`OsType::Amiga`] the file name parsing terminates
-    ///   before the `nul` character.
+    /// * If the archive OS is [`OsType::Amiga`] or is level 0 header the file
+    ///   name parsing terminates before the `nul` character.
     ///
     /// It is known that some early Amiga archivers created a directory entry
-    /// with `-lh0` and not `-lhd-` compression type. In this instance the
+    /// with `-lh0-` and not `-lhd-` compression type. In this instance the
     /// returned path from this function  will end with a directory separator.
     ///
     /// To check if the [`Path`] ends with a directory separator, call
@@ -287,7 +291,7 @@ impl LhaHeader {
         path
     }
     /// Attempt to parse the `filename` field and search extended headers for
-    /// the directory and an alternative file name field and return a complete
+    /// the "directory" and a "file name" extra header and return a complete
     /// path to the file or a directory, separated by '`/`' characters.
     /// 
     /// This method is like [`LhaHeader::parse_pathname`] but will return a
@@ -347,14 +351,17 @@ impl LhaHeader {
     }
     /// Attempts to find and return the file comment field in extended header data.
     ///
+    /// The extra headers are searched for [`EXT_HEADER_COMMENT`] or [`EXT_HEADER_METADATA`]
+    /// header types and the content of the first found header is returned.
+    ///
     /// The routine converts all non-ASCII or control characters to `%xx` sequences.
     ///
     /// # Notes
     /// Some archives made on [`OsType::Amiga`] can have a comment embedded in the filename field
-    /// after the `nul` character. If the comment could not be found in extended data, an attempt
-    /// is made to extract the comment from the filename if the archive OS supports it.
+    /// after the `nul` character. If the comment could not be found in extra headers, an attempt
+    /// is made to extract the comment from the filename field if the archive OS supports it.
     ///
-    /// If the compression type is `-pm?-` returns the whole extended area as a comment.
+    /// If the compression type is `-pm?-` the whole extended area is returned as a comment.
     pub fn parse_comment(&self) -> Option<Cow<'_, str>> {
         let mut raw_filename = &self.filename[..];
         for header in self.iter_extra() {
@@ -387,13 +394,13 @@ impl LhaHeader {
             None
         }
     }
-    /// Attempt to parse the extra headers, the extended area of header levels 0,
-    /// to find the unix User-ID and Group-ID fields, and on success return a
+    /// Attempt to parse the extra headers, the extended area of header level 0,
+    /// to find the UNIX User-ID and Group-ID fields, and on success return a
     /// tuple of `(UID, GID)`.
     ///
     /// # Note
     /// The UID and GID values should be considered with a reservation, especially
-    //  if an archive was not created on a UNIX operating system.
+    /// if an archive was not created on a UNIX operating system.
     pub fn parse_unix_uid_gid(&self) -> Option<(u16, u16)> {
         for header in self.iter_extra() {
             if let [EXT_HEADER_UNIX_UIDGID, data @ ..] = header &&
@@ -418,7 +425,7 @@ impl LhaHeader {
         None
     }
     /// Attempt to parse the extra headers, the extended area of header level 0,
-    /// to find the unix permissions, and on success return an instance of
+    /// to find the UNIX permissions, and on success return an instance of
     /// [`Permissions`] flags.
     ///
     /// # Note
@@ -434,7 +441,7 @@ impl LhaHeader {
         }
     }
     /// Attempt to parse the extra headers, the extended area of header level 0,
-    /// to find the unix permissions, and on success return an instance of
+    /// to find the OS-9 permissions, and on success return an instance of
     /// [`Os9Attrs`] flags.
     ///
     /// # Note

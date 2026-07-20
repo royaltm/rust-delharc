@@ -13,6 +13,8 @@ pub trait RingBuffer: Default + Zeroable + Index<usize, Output=u8> {
     /// with predetermined values.
     fn initialize_with(&mut self, init: impl FnOnce(&mut [u8]));
     /// Return the current value of the internal cursor.
+    ///
+    /// The value returned must be always in the range `0..Self::BUFFER_SIZE`.
     fn cursor(&self) -> usize;
     /// Set the current value of the internal cursor.
     ///
@@ -78,7 +80,7 @@ macro_rules! index_mask {
 }
 
 impl<const N: usize> Default for RingArrayBuf<N> {
-    /// The ring buffer is filled with zeroes to match [`Zeroable::zeroed()`].
+    /// The ring buffer is filled with zeros to match [`Zeroable::zeroed()`].
     fn default() -> Self {
         assert!(N.is_power_of_two(), "invalid RingArrayBuf size: should be a power of two!");
         let buffer = [0u8; N];

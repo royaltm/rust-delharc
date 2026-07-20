@@ -30,7 +30,7 @@ struct VarLenEntry {
 }
 
 /// A read wrapper for PMarc version 1 which when the end of file
-/// is reached yields zeroes forever instead of ending the stream.
+/// is reached yields zeros forever instead of ending the stream.
 ///
 /// There seem to be archive files that actually depend on this
 /// ability to read "beyond" the length of the compressed data.

@@ -6,7 +6,7 @@ type BitBuf = usize;
 const BITBUF_BYTESIZE: usize = size_of::<BitBuf>();
 const BITBUF_BITSIZE: u32 = BitBuf::BITS;
 
-/// The trait is implemented for all objects that can receive bits using
+/// This trait is implemented for all primitives that can receive bits using
 /// [`BitRead::read_bits()`].
 pub trait UBits: Copy {
     /// The size of this integer type in bits
@@ -15,9 +15,9 @@ pub trait UBits: Copy {
     fn from_bits(bitbuf: BitBuf) -> Self;
 }
 
-/// This trait allows reading individual bits from a data stream.
+/// This interface is for reading individual bits from a data stream.
 pub trait BitRead {
-    /// The error type returned from the unferlying data reader.
+    /// The error type returned from the underlying data reader.
     type Error;
     /// Read the next single bit from the stream. Return `true` if the bit
     /// is `1` and `false` if it's `0`.
