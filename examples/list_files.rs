@@ -67,7 +67,7 @@ fn main() -> io::Result<()> {
         println!("Archive: {}\r\n{}", file_name, "=".repeat(88));
         let file = fs::File::open(file_name)?;
         list_files(file)?;
-        println!("{}\r\n", "-".repeat(79));
+        println!("{}\r\n", "-".repeat(88));
         listed = true;
     }
     if !listed {
