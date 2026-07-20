@@ -126,7 +126,7 @@ impl LhaHeader {
                         has_dir
                     }
                     else if let Some(&last) = self.filename.last() {
-                        is_separator(last.into())
+                        is_dir_separator(last.into())
                     }
                     else {
                         false
@@ -280,7 +280,7 @@ impl LhaHeader {
             parse_pathname(data, &mut path);
             // level 0|1 filename field ends with / ?
             if !path.as_os_str().is_empty() &&
-               let Some(&last) = data.last() && is_separator(last.into())
+               let Some(&last) = data.last() && is_dir_separator(last.into())
             {
                 path.push(""); /* end the path with a separator */
             }
@@ -336,7 +336,7 @@ impl LhaHeader {
             parse_pathname_to_str(data, &mut path);
             // level 0|1 filename field ends with / ?
             if !path.is_empty() &&
-               let Some(&last) = data.last() && is_separator(last.into())
+               let Some(&last) = data.last() && is_dir_separator(last.into())
             {
                 path.push('/'); /* end the path with a separator */
             }
@@ -508,6 +508,11 @@ impl LhaHeader {
                     .map(Ok)
         }
     }
+}
+
+#[inline(always)]
+fn is_dir_separator(c: char) -> bool {
+    matches!(c, '/'|'\\')
 }
 
 /// Returns a `NaiveDateTime` on success from MS-DOS timestamp format.
