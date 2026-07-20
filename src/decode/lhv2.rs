@@ -355,7 +355,7 @@ impl<C: LhaDecoderConfig, R: Read> Decoder<R> for LhaV2Decoder<C, R>
 mod tests {
     use std::{io, fs, time::{Instant, Duration}};
     use super::*;
-    use super::super::DecoderAny;
+    use super::super::{build_random_tree_lengths, DecoderAny};
 
     #[test]
     fn lhav2_works() {
@@ -382,41 +382,7 @@ mod tests {
     #[test]
     #[ignore = "long tests"]
     fn lhav2_long_tests() {
-        use rand::{Rng, RngExt, RngReader, seq::SliceRandom};
-
-        // build a random tree lengths with an upper num of values and max depth
-        fn build_random_lengths(
-                max_values: usize,
-                mut max_depth: u8,
-                final_size: usize,
-                rng: &mut impl Rng,
-                out: &mut Vec<u8>
-            )
-        {
-            out.clear();
-            let mut max_leaves = 2usize;
-            for level in 1..max_depth {
-                let n = out.len();
-                let remaining = max_values - n;
-                let num_leaves;
-                if let Some(margin) = (max_leaves * 2).checked_sub(remaining)  {
-                    if remaining <= max_leaves {
-                        max_depth = level;
-                        break
-                    }
-                    num_leaves = margin;
-                }
-                else {
-                    num_leaves = rng.random_range(0..max_leaves);
-                };
-                max_leaves = (max_leaves - num_leaves) * 2;
-                out.resize(n + num_leaves, level);
-            }
-            out.resize(out.len() + max_leaves, max_depth);
-            assert!(final_size >= out.len(), "final_size: {} < out.len: {}", final_size, out.len());
-            out.resize(final_size, 0);
-            out.shuffle(rng);
-        }
+        use rand::{RngExt, RngReader};
 
         let mut rng = rand::rng();
         let mut decoder = Lh5Decoder::new(RngReader(&mut rng));
@@ -450,7 +416,7 @@ mod tests {
                     // println!("-lh5-: temp single: {:?}", decoder.offset_tree.inspect()[0]);
                 }
                 max => {
-                    build_random_lengths(max, 10, NUM_TEMP_CODELEN, &mut rng, &mut code_lengths);
+                    build_random_tree_lengths(max, 10, NUM_TEMP_CODELEN, &mut rng, &mut code_lengths);
                     decoder.offset_tree.build_tree(&code_lengths).unwrap();
                     // println!("-lh5-: temp max: {} \n{}", max, decoder.offset_tree);
                 }
@@ -474,7 +440,7 @@ mod tests {
                     // println!("-lh5-: command single: {:?}", decoder.command_tree.inspect()[0]);
                 }
                 max => {
-                    build_random_lengths(max, (NUM_TEMP_CODELEN - 1) as u8, NUM_COMMANDS, &mut rng, &mut code_lengths);
+                    build_random_tree_lengths(max, (NUM_TEMP_CODELEN - 1) as u8, NUM_COMMANDS, &mut rng, &mut code_lengths);
                     decoder.command_tree.build_tree(&code_lengths).unwrap();
                     // println!("-lh5-: command max: {} \n{}", max, decoder.command_tree);
                 }
@@ -498,7 +464,7 @@ mod tests {
                     // println!("-lh5-: offset single: {:?}", decoder.offset_tree.inspect()[0]);
                 }
                 max => {
-                    build_random_lengths(max, 10, Lh5DecoderCfg::HISTORY_BITS as usize, &mut rng, &mut code_lengths);
+                    build_random_tree_lengths(max, 10, Lh5DecoderCfg::HISTORY_BITS as usize, &mut rng, &mut code_lengths);
                     decoder.offset_tree.build_tree(&code_lengths).unwrap();
                     // println!("-lh5-: offset max: {} \n{}", max, decoder.offset_tree);
                 }

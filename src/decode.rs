@@ -711,6 +711,45 @@ use unsafe_assert;
 
 #[cfg(feature = "std")]
 #[cfg(test)]
+/// build a random tree lengths with an upper num of values and max depth
+/// this is used by unit tests only
+fn build_random_tree_lengths(
+        max_values: usize,
+        mut max_depth: u8,
+        final_size: usize,
+        rng: &mut impl rand::Rng,
+        out: &mut Vec<u8>
+    )
+{
+    use rand::{RngExt, seq::SliceRandom};
+
+    out.clear();
+    let mut max_leaves = 2usize;
+    for level in 1..max_depth {
+        let n = out.len();
+        let remaining = max_values - n;
+        let num_leaves;
+        if let Some(margin) = (max_leaves * 2).checked_sub(remaining)  {
+            if remaining <= max_leaves {
+                max_depth = level;
+                break
+            }
+            num_leaves = margin;
+        }
+        else {
+            num_leaves = rng.random_range(0..max_leaves);
+        };
+        max_leaves = (max_leaves - num_leaves) * 2;
+        out.resize(n + num_leaves, level);
+    }
+    out.resize(out.len() + max_leaves, max_depth);
+    assert!(final_size >= out.len(), "final_size: {} < out.len: {}", final_size, out.len());
+    out.resize(final_size, 0);
+    out.shuffle(rng);
+}
+
+#[cfg(feature = "std")]
+#[cfg(test)]
 mod tests {
     use std::io;
     use crate::OsType;

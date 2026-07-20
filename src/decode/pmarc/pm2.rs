@@ -414,6 +414,7 @@ impl<R: Read> Decoder<R> for Pm2Decoder<R> where R::Error: core::error::Error {
 mod tests {
     use std::{io, fs, time::{Instant, Duration}};
     use super::*;
+    use super::super::super::{build_random_tree_lengths};
 
     #[test]
     fn pmarc2_works() {
@@ -421,5 +422,140 @@ mod tests {
         println!("Pm2Decoder<File> {}", size_of::<Pm2Decoder<fs::File>>());
         println!("RingArrayBuf<RING_BUFFER_SIZE> {}", size_of::<RingArrayBuf<RING_BUFFER_SIZE>>());
         let _ = Pm2Decoder::new(io::empty());
+    }
+
+    #[test]
+    #[ignore = "long tests"]
+    fn pmarc2_long_tests() {
+        use rand::{RngExt, RngReader};
+
+        let mut rng = rand::rng();
+        let mut decoder = Pm2Decoder::new(RngReader(&mut rng));
+        let mut rng = rand::rng();
+        let mut buf = Vec::new();
+        let mut code_lengths = Vec::new();
+        buf.resize(1024, 0);
+        let mut max_command = 0;
+        let mut max_offset = 0;
+        let mut i = 0usize;
+        let start = Instant::now();
+        let limit = Duration::from_secs(59);
+        while start.elapsed() <= limit {
+            i += 1;
+            // let mut err = 0u64;
+            let mut max = 0;
+            for _ in 0..1000 {
+                if decoder.read_command_tree().is_err() {
+                    // err += 1;
+                }
+                else {
+                    max = max.max(decoder.command_tree.len());
+                }
+            }
+            max_command = max_command.max(max);
+            // println!("-pm2-: read_command_tree: {} errors: {}/1000", max, err);
+            match rng.random_range(1..=NUM_COMMANDS) {
+                1 => {
+                    decoder.command_tree.set_single(rng.random_range(0..NUM_COMMANDS as u16));
+                    // println!("-pm2-: command single: {:?}", decoder.command_tree.inspect()[0]);
+                }
+                max => {
+                    build_random_tree_lengths(max, 127, NUM_COMMANDS, &mut rng, &mut code_lengths);
+                    decoder.command_tree.build_tree(&code_lengths).unwrap();
+                    // println!("-pm2-: command max: {} \n{}", max, decoder.command_tree);
+                }
+            }
+
+            // let mut err = 0u64;
+            let mut max = 0;
+            let offset_lengths = match decoder.tree_state {
+                RebuildState::Unbuilt => 5,
+                RebuildState::Build1k => 6,
+                RebuildState::Build2k => 7,
+                RebuildState::Build4k|
+                RebuildState::Continuing => 8
+            };
+            for _ in 0..1000 {
+                if decoder.read_offset_tree(offset_lengths).is_err() {
+                    // err += 1;
+                }
+                else {
+                    max = max.max(decoder.offset_tree.len());
+                }
+            }
+            max_offset = max_offset.max(max);
+            // println!("-pm2-: read_offset_tree({}): {} errors: {}/1000", offset_lengths, max, err);
+            match rng.random_range(1..=offset_lengths as usize) {
+                1 => {
+                    decoder.offset_tree.set_single(rng.random_range(0..offset_lengths as u16));
+                    // println!("-pm2-: offset single: {:?}", decoder.offset_tree.inspect()[0]);
+                }
+                max => {
+                    build_random_tree_lengths(max, 7, offset_lengths as usize, &mut rng, &mut code_lengths);
+                    decoder.offset_tree.build_tree(&code_lengths).unwrap();
+                    // println!("-pm2-: offset max: {} \n{}", max, decoder.offset_tree);
+                }
+            }
+            if decoder.tree_rebuild_remaining == 0 {
+                match decoder.tree_state {
+                    RebuildState::Unbuilt => {
+                        decoder.tree_state = RebuildState::Build1k;
+                        decoder.tree_rebuild_remaining = 1024;
+                    }
+                    RebuildState::Build1k => {
+                        decoder.tree_state = RebuildState::Build2k;
+                        decoder.tree_rebuild_remaining = 1024;
+                    }
+                    RebuildState::Build2k => {
+                        decoder.tree_state = RebuildState::Build4k;
+                        decoder.tree_rebuild_remaining = 2048;
+                    }
+                    RebuildState::Build4k => {
+                        decoder.tree_state = RebuildState::Continuing;
+                        decoder.tree_rebuild_remaining = 4096;
+                    }
+                    RebuildState::Continuing => {
+                        decoder.tree_rebuild_remaining = 4096;
+                    }
+                }
+            }
+            'decode: loop {
+                for n in 1..=1024 {
+                    let len = n.min(decoder.tree_rebuild_remaining as usize);
+                    let last_pass_before_rebuild = len == decoder.tree_rebuild_remaining as usize;
+                    let res = decoder.fill_buffer(&mut buf[0..len]);
+                    if last_pass_before_rebuild {
+                        match res {
+                            Ok(()) => {
+                                assert_ne!(decoder.tree_state, RebuildState::Unbuilt);
+                                if decoder.tree_state == RebuildState::Build1k {
+                                    assert_eq!(decoder.tree_rebuild_remaining, 1024);
+                                }
+                                else if decoder.tree_state == RebuildState::Build2k {
+                                    assert_eq!(decoder.tree_rebuild_remaining, 1024);
+                                }
+                                else if decoder.tree_state == RebuildState::Build4k {
+                                    assert_eq!(decoder.tree_rebuild_remaining, 2048);
+                                }
+                                else if decoder.tree_state == RebuildState::Continuing {
+                                    assert_eq!(decoder.tree_rebuild_remaining, 4096);
+                                }
+                            }
+                            Err(_err) => {
+                                // println!("-pm2-: error: {}", _err);
+                                assert_eq!(decoder.tree_rebuild_remaining, 0);
+                            }                    
+                        }
+                        break 'decode
+                    }
+                    else {
+                        res.unwrap();
+                    }
+                }
+            }
+        }
+        println!("-pm2- read_command_tree: {}", max_command);
+        println!("-pm2- read_offset_tree: {}", max_offset);
+        println!("-pm2- iterations: {}", i);
     }
 }

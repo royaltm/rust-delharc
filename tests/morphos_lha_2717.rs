@@ -97,9 +97,8 @@ fn test_morphos_lha_2717() -> io::Result<()> {
 #[test]
 #[ignore = "long tests"]
 fn test_morphos_lha_2717_long() -> io::Result<()> {
-    let mut allow_long_test = false;
     if let Ok(val) = std::env::var("TEST_LONG_FILES") && val != "0" {
-        allow_long_test = true;
+        test_morphos_lha_2717_impl(true)?;
     }
-    test_morphos_lha_2717_impl(allow_long_test)
+    Ok(())
 }
