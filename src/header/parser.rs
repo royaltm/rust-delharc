@@ -206,7 +206,7 @@ impl LhaHeader {
     ///
     /// * The ["Common"][EXT_HEADER_COMMON] header for validating the header's CRC-16 checksum.
     /// * The ["MS-DOS Attributes"][EXT_HEADER_MSDOS_ATTRS] header for reading MS-DOS attributes.
-    /// * The ["MS-DOS Size"][EXT_HEADER_FILE_SIZES] header for reading 64-bit file size.
+    /// * The ["File size"][EXT_HEADER_FILE_SIZES] header for reading 64-bit file size.
     ///
     /// All extra header data is available as raw bytes and raw extra headers can be easily iterated
     /// with the [`LhaHeader::iter_extra`] function.
