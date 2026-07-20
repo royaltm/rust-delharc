@@ -16,8 +16,14 @@ use crate::{
 };
 use super::{Decoder, unsafe_assert};
 
+/// The maximum size of the command tree code-length table
 const NUM_COMMANDS: usize = 510;
-const NUM_TEMP_CODELEN: usize = 20;
+
+/// The number of bits read to determine temporary tree code-length table size
+const TEMP_CODELEN_BITS: u32 = 5;
+/// The size of the temporary tree code-length table
+const NUM_TEMP_CODELEN: usize = (1 << TEMP_CODELEN_BITS) - 1;
+
 /// The maximum number of allowed [`LhaDecoderConfig::HISTORY_BITS`].
 pub const MAX_HISTORY_BITS: usize = 24;
 
@@ -96,7 +102,8 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         let mut ringbuf = zeroed_box::<C::RingBuffer>();
         ringbuf.initialize(b' ');
         let command_tree = HuffTree::with_leaf_capacity(NUM_COMMANDS);
-        let offset_tree = HuffTree::with_leaf_capacity(NUM_TEMP_CODELEN);
+        let offset_tree = HuffTree::with_leaf_capacity(
+            NUM_TEMP_CODELEN.max(C::HISTORY_BITS as usize));
         LhaV2Decoder {
             bit_reader,
             ringbuf,
@@ -125,7 +132,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
                              .map(|count| (offset as u32, count));
     }
 
-    // Read code length value, usually 0..=7 but might be higher
+    /// Read code length value, usually 0..=7 but might be higher
     fn read_code_length(&mut self) -> LhaResult<u8, R> {
         let mut len: u8 = self.bit_reader.read_bits(3)?;
         if len == 7 {
@@ -137,7 +144,7 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         Ok(len)
     }
 
-    // skip_range: 0, 1 or 2
+    /// skip_range: 0, 1 or 2
     fn read_code_skip(&mut self, skip_range: u16) -> LhaResult<usize, R> {
         let (bits, increment) = match skip_range {
             0 => return Ok(1),
@@ -151,18 +158,16 @@ impl<C: LhaDecoderConfig, R: Read> LhaV2Decoder<C, R> {
         let mut code_lengths = [0u8; NUM_TEMP_CODELEN];
 
         // number of codes to read
-        let num_codes: usize = self.bit_reader.read_bits(5)?;
+        let num_codes = self.bit_reader.read_bits::<usize>(TEMP_CODELEN_BITS)?
+                      & ((1 << TEMP_CODELEN_BITS) - 1);
         // println!("num codes: {:?}", num_codes);
+        assert!(num_codes <= NUM_TEMP_CODELEN);
 
         // single code only
         if num_codes == 0 {
             let code = self.bit_reader.read_bits(5)?;
             self.offset_tree.set_single(code);
             return Ok(());
-        }
-
-        if num_codes > NUM_TEMP_CODELEN {
-            return Err(LhaError::Decompress(DecompressionError::TemporaryCodeTableOverflow))
         }
 
         let mut code_iter = code_lengths[0..num_codes].iter_mut();

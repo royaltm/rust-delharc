@@ -77,8 +77,6 @@ pub enum BuildError {
 pub enum DecompressionError {
     /// Attempted to decompress a file with unsupported compression method
     UnsupportedCompression,
-    /// LHv2 - too many code lengths requested for a temporary tree
-    TemporaryCodeTableOverflow,
     /// LHv2/PMarc-v2 - too many code lengths requested for a command tree
     CommandCodeTableOverflow,
     /// LHv2 - too many code lengths requested for a history offset tree
@@ -153,7 +151,6 @@ impl fmt::Display for DecompressionError {
         use DecompressionError::*;
         match self {
             UnsupportedCompression => "unsupported compression method",
-            TemporaryCodeTableOverflow => "temporary code length table is too large",
             CommandCodeTableOverflow => "commands code length table is too large",
             OffsetCodeTableOverflow => "offset code length table is too large",
             CommandOverflow => "command code is too large",
