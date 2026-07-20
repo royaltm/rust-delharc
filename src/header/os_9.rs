@@ -23,10 +23,10 @@ bitflags! {
         const E_OTHER     = 0b00100000;
         /// Mask of the other permission bits
         const PERM_OTHER  = 0b00111000;
-        /// Shareable (locked) bit.
+        /// Non-shareable (locked) bit.
         ///
         /// The file can only be open by a single process.
-        const SHAREABLE   = 0b01000000;
+        const N_SHAREABLE = 0b01000000;
         /// The entry is a directory
         const TYPE_DIR    = 0b10000000;
     }
@@ -61,9 +61,9 @@ impl Os9Attrs {
     pub fn is_readable(self) -> bool {
         self.intersects(Os9Attrs::R_OTHER|Os9Attrs::R_USER)
     }
-    /// Return whether a shareable flag is set.
-    pub fn is_shareable(self) -> bool {
-        self.intersects(Os9Attrs::SHAREABLE)
+    /// Return whether a non-shareable flag is set.
+    pub fn is_non_shareable(self) -> bool {
+        self.intersects(Os9Attrs::N_SHAREABLE)
     }
 }
 
@@ -74,7 +74,7 @@ impl fmt::Display for Os9Attrs {
         if self.is_dir() {
             flags[0] = b'd';
         }
-        if self.is_shareable() {
+        if self.is_non_shareable() {
             flags[1] = b's';
         }
         let mut mask = Os9Attrs::PERM_OTHER;
@@ -161,7 +161,7 @@ mod tests {
         assert!(!Os9Attrs::PERM_USER.other().is_executable());
         assert!(!Os9Attrs::PERM_USER.other().is_writable());
         assert!(!Os9Attrs::PERM_USER.other().is_readable());
-        assert!(Os9Attrs::SHAREABLE.is_shareable());
+        assert!(Os9Attrs::N_SHAREABLE.is_non_shareable());
         assert!(Os9Attrs::TYPE_DIR.is_dir());
         assert!(!Os9Attrs::TYPE_DIR.is_file());
         assert!(!Os9Attrs::empty().is_executable());
@@ -173,7 +173,7 @@ mod tests {
         assert!(!Os9Attrs::empty().user().is_executable());
         assert!(!Os9Attrs::empty().user().is_writable());
         assert!(!Os9Attrs::empty().user().is_readable());
-        assert!(!Os9Attrs::empty().is_shareable());
+        assert!(!Os9Attrs::empty().is_non_shareable());
         assert!(!Os9Attrs::empty().is_dir());
         assert!(Os9Attrs::empty().is_file());
         assert_eq!(Os9Attrs::empty().to_string(),     "--------");
@@ -185,26 +185,26 @@ mod tests {
         assert_eq!(Os9Attrs::W_OTHER.to_string(),     "---w----");
         assert_eq!(Os9Attrs::E_OTHER.to_string(),     "--e-----");
         assert_eq!(Os9Attrs::PERM_OTHER.to_string(),  "--ewr---");
-        assert_eq!(Os9Attrs::SHAREABLE.to_string(),   "-s------");
+        assert_eq!(Os9Attrs::N_SHAREABLE.to_string(),   "-s------");
         assert_eq!(Os9Attrs::TYPE_DIR.to_string(),    "d-------");
         assert_eq!((Os9Attrs::TYPE_DIR|
-                    Os9Attrs::SHAREABLE|
+                    Os9Attrs::N_SHAREABLE|
                     Os9Attrs::PERM_OTHER|
                     Os9Attrs::PERM_USER).to_string(), "dsewrewr");
-        assert_eq!((Os9Attrs::SHAREABLE|
+        assert_eq!((Os9Attrs::N_SHAREABLE|
                     Os9Attrs::PERM_OTHER|
                     Os9Attrs::PERM_USER).to_string(), "-sewrewr");
         assert_eq!((Os9Attrs::TYPE_DIR|
                     Os9Attrs::PERM_OTHER|
                     Os9Attrs::PERM_USER).to_string(), "d-ewrewr");
         assert_eq!((Os9Attrs::TYPE_DIR|
-                    Os9Attrs::SHAREABLE|
+                    Os9Attrs::N_SHAREABLE|
                     Os9Attrs::E_OTHER|
                     Os9Attrs::E_USER).to_string(),    "dse--e--");
-        assert_eq!((Os9Attrs::SHAREABLE|
+        assert_eq!((Os9Attrs::N_SHAREABLE|
                     Os9Attrs::R_OTHER|
                     Os9Attrs::R_USER).to_string(),    "-s--r--r");
-        assert_eq!((Os9Attrs::SHAREABLE|
+        assert_eq!((Os9Attrs::N_SHAREABLE|
                     Os9Attrs::W_OTHER|
                     Os9Attrs::W_USER).to_string(),    "-s-w--w-");
         assert_eq!((Os9Attrs::R_USER|
@@ -217,7 +217,7 @@ mod tests {
             ("drwxrwxrwx", Os9Attrs::TYPE_DIR|Os9Attrs::PERM_OTHER|Os9Attrs::PERM_USER),
             ("drwxrwxrwx", Os9Attrs::all()),
             ("----------", Os9Attrs::empty()),
-            ("----------", Os9Attrs::SHAREABLE),
+            ("----------", Os9Attrs::N_SHAREABLE),
             ("-rwx------", Os9Attrs::PERM_USER),
             ("-r--------", Os9Attrs::R_USER),
             ("--w-------", Os9Attrs::W_USER),
@@ -227,8 +227,8 @@ mod tests {
             ("-----w--w-", Os9Attrs::W_OTHER),
             ("------x--x", Os9Attrs::E_OTHER),
             ("drw-r--r--", Os9Attrs::TYPE_DIR|Os9Attrs::R_OTHER|Os9Attrs::W_USER|Os9Attrs::R_USER),
-            ("-rwxr-xr-x", Os9Attrs::SHAREABLE|Os9Attrs::PERM_USER|Os9Attrs::R_OTHER|Os9Attrs::E_OTHER),
-            ("drwxr-xr-x", Os9Attrs::TYPE_DIR|Os9Attrs::SHAREABLE|Os9Attrs::PERM_USER|Os9Attrs::R_OTHER|Os9Attrs::E_OTHER),
+            ("-rwxr-xr-x", Os9Attrs::N_SHAREABLE|Os9Attrs::PERM_USER|Os9Attrs::R_OTHER|Os9Attrs::E_OTHER),
+            ("drwxr-xr-x", Os9Attrs::TYPE_DIR|Os9Attrs::N_SHAREABLE|Os9Attrs::PERM_USER|Os9Attrs::R_OTHER|Os9Attrs::E_OTHER),
             ("-rwxr-xr-x", Os9Attrs::PERM_USER|Os9Attrs::R_OTHER|Os9Attrs::E_OTHER)]
         {
             assert_eq!(Permissions::from(perm).to_string(), expected);
