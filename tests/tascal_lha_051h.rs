@@ -7,11 +7,11 @@ use sink::SinkSum;
 
 use CompressionMethod::*;
 const TESTS_CASES: &[(&str, &str, u64, u64, u16, u32, &str, u8, CompressionMethod)] = &[
-    ("abspath.lzh ", "Mounted Volume*subdir*subdir2*hello.txt",
+    ("abspath.lzh", "Mounted Volume*subdir*subdir2*hello.txt",
                     12,    12, 0x9778, 0xAF083B2D, "2025-06-29 00:11:44 UTC", 2, Lh0),
-    ("lh0.lzh",      "Mounted Volume*gpl-2.gz",
+    ("lh0.lzh",     "Mounted Volume*gpl-2.gz",
                   6829,  6829, 0xB6D5, 0xE4690583, "2025-06-28 23:46:06 UTC", 2, Lh0),
-    ("lh5.lzh",    "Mounted Volume*gpl-2",
+    ("lh5.lzh",     "Mounted Volume*gpl-2",
                   6996, 18092, 0xA33A, 0x4E46F4A1, "2025-06-28 23:46:06 UTC", 2, Lh5),
 ];
 
