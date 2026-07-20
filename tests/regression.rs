@@ -40,6 +40,7 @@ const TESTS_CASES: &[(&str, &[(&str, Option<&str>, u64, u64, u16, u32, &str, u8,
         ("Picasso96Install*Picasso96*P96Speed*Compare.dat", None,
             1265,  3552, 0xFD82, 0xB5DE25D3, "1999-02-06 14:13:40", 0, OsType::Generic, Lh5, "-----"),
     ]),
+    #[cfg(feature = "pm")]
     ("evil_pm2.lzh", &[
         ("A", None, 19, 4096, 0x0000, 0x00000000, "-", 0, OsType::Generic, Pm2, "A----")
     ]),

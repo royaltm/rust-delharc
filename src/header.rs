@@ -136,7 +136,7 @@ impl LhaHeader {
     ///
     /// Header level 0 doesn't have an OS ID field, but in this instance a first byte of
     /// the extended area, if present, will be parsed as an `os_type` field.
-    /// Only UNIX and OS/9 will be recognized in this way.
+    /// Only UNIX, OS-9 and OS-9/68k will be recognized in this way.
     pub fn parse_os_type(&self) -> Result<OsType, UnrecognizedOsType> {
         if self.level > 0 {
             OsType::try_from(self.os_type)
@@ -423,7 +423,7 @@ impl LhaHeader {
     ///
     /// # Note
     /// The [`Permissions`] object properly identifies permission flags only
-    /// if the file was created on UNIX, OS-9 or OS-9/68K operating systems.
+    /// if the file was created on UNIX, OS-9 or OS-9/68k operating systems.
     ///
     /// The permissions are converted from OS-9 attributes on non UNIX
     /// originating file.
@@ -439,7 +439,7 @@ impl LhaHeader {
     ///
     /// # Note
     /// The [`Os9Attrs`] object properly identifies attributes flags only
-    /// if the file was created on OS-9 or OS-9/68K operating systems.
+    /// if the file was created on OS-9 or OS-9/68k operating systems.
     pub fn parse_os_9_attrs(&self) -> Option<Os9Attrs> {
         match self.parse_extended_attrs()? {
             Err(os9_attr) => Some(os9_attr),

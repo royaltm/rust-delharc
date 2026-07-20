@@ -60,20 +60,22 @@ jobs:
         run: |
           cargo build --verbose --no-default-features
           cargo test --verbose --no-default-features
-          cargo build --verbose --no-default-features --features=lz,lh1,lhx,fast-tree-build
-          cargo test --verbose --no-default-features --features=lz,lh1,lhx,fast-tree-build
-          cargo build --verbose --no-default-features --features=lz,lh1,lhx,extend,fast-tree-build
-          cargo test --verbose --no-default-features --features=lz,lh1,lhx,extend,fast-tree-build
+          cargo build --verbose --no-default-features --features=lz,lh1,pm,lhx,fast-tree-build
+          cargo test --verbose --no-default-features --features=lz,lh1,pm,lhx,fast-tree-build
+          cargo build --verbose --no-default-features --features=lz,lh1,pm,lhx,extend,fast-tree-build
+          cargo test --verbose --no-default-features --features=lz,lh1,pm,lhx,extend,fast-tree-build
           cargo build --verbose --no-default-features --features=std
           cargo test --verbose --no-default-features --features=std
           cargo build --verbose --no-default-features --features=std,lz
           cargo test --verbose --no-default-features --features=std,lz
           cargo build --verbose --no-default-features --features=std,lh1
           cargo test --verbose --no-default-features --features=std,lh1
-          cargo build --verbose --features=std,lz,lh1,lhx,extend,fast-tree-build
-          cargo test --verbose --features=std,lz,lh1,lhx,extend,fast-tree-build
-          cargo build -r --verbose --features=std,lz,lh1,lhx,extend,fast-tree-build
-          cargo test -r --verbose --features=std,lz,lh1,lhx,extend,fast-tree-build
+          cargo build --verbose --no-default-features --features=std,pm
+          cargo test --verbose --no-default-features --features=std,pm
+          cargo build --verbose --features=std,lz,lh1,pm,lhx,extend,fast-tree-build
+          cargo test --verbose --features=std,lz,lh1,pm,lhx,extend,fast-tree-build
+          cargo build -r --verbose --features=std,lz,lh1,pm,lhx,extend,fast-tree-build
+          cargo test -r --verbose --features=std,lz,lh1,pm,lhx,extend,fast-tree-build
           cargo build --verbose --all-features
           cargo test --verbose --all-features
           cargo build -r --verbose --all-features
