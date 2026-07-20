@@ -40,6 +40,7 @@ fn test_lha_x68k_213() -> io::Result<()> {
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
             assert_eq!(header.level, *level);
+            assert!(!header.is_directory());
             if header.level == 0 && *compr == CompressionMethod::Lhd {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
             }
@@ -89,9 +90,11 @@ fn test_lha_x68k_213() -> io::Result<()> {
             let header = lha_reader.header();
             assert_eq!(header.level, *level);
             if header.compression_method().unwrap() == CompressionMethod::Lhd {
+                assert!(header.is_directory());
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
             }
             else {
+                assert!(!header.is_directory());
                 assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             }
             assert_eq!(header.compression_method().unwrap(), *compr);

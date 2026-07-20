@@ -38,6 +38,7 @@ fn test_lharc_atari_313a() -> io::Result<()> {
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
             assert_eq!(header.level, *level);
+            assert!(!header.is_directory());
             assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             assert_eq!(header.compression_method().unwrap(), *compr);
             assert_eq!(header.compressed_size, *size_c);

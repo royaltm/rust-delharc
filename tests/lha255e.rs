@@ -24,6 +24,7 @@ fn test_lha255e() -> io::Result<()> {
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
             assert_eq!(header.level, *level);
+            assert!(!header.is_directory());
             assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             let path1 = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
             assert_eq!(&header.parse_pathname().to_str().unwrap(), &path1);

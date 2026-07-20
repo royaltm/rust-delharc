@@ -38,6 +38,7 @@ fn test_lha_os9_211c() -> io::Result<()> {
             //     println!("{:x?}", ext);
             // }
             assert_eq!(header.level, *level);
+            assert!(!header.is_directory());
             assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             assert_eq!(header.compression_method().unwrap(), *compr);
             assert_eq!(header.compressed_size, *size_c);

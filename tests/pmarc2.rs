@@ -34,6 +34,7 @@ fn test_pmarc2() -> io::Result<()> {
                 assert!(header.parse_comment().is_none());
             }
             assert_eq!(header.level, 0);
+            assert!(!header.is_directory());
             assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             let path1 = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
             assert_eq!(&header.parse_pathname().to_str().unwrap(), &path1);

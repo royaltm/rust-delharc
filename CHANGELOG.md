@@ -17,6 +17,7 @@ Breaking changes:
 * `CompressionMethod::is_directory()` now takes `self` by value.
 * Fixed, but also altered the way `LhaHeader::parse_pathname()` and `parse_pathname_to_str()` treat files which have none or empty `filename` field but non-empty `directory` field. In this instance a trailing directory separator is appended to the parsed path name. If a level 0 or 1 `filename` entry contains a trailing directory separator and there is no `directory` field, the directory separator will be present at the end of the parsed path. This change helps to detect if an entry is a directory name rather than a file name.
 * The `nul` character in filename is now a terminator if either an OS ID is explicitly Amiga or if header level is 0 and OS ID is not provided in extended area.
+* `LhaHeader::is_directory()` now returns `true` also for `-lh0-` compression methods under specific conditions.
 
 New features:
 * `pm` includes PMarc archiver decoders, enabled now by default.

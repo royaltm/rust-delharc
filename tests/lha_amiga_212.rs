@@ -36,6 +36,7 @@ fn test_lha_amiga_212() -> io::Result<()> {
             let path1 = path.replace("*", "/");
             assert_eq!(&header.parse_pathname_to_str(), &path1);
             assert!(header.parse_comment().is_none());
+            assert!(!header.is_directory());
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
             assert_eq!(header.file_crc, *crc16);

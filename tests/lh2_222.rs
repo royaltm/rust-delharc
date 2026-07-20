@@ -55,6 +55,7 @@ fn test_lha2_222() -> io::Result<()> {
             else {
                 assert_eq!(header.parse_os_type()?, OsType::MsDos);
             }
+            assert!(!header.is_directory());
             assert_eq!(header.msdos_attrs.to_string(), *attr);
             assert_eq!(header.compression_method().unwrap(), *compr);
             assert_eq!(header.compressed_size, *size_c);

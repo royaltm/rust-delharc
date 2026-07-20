@@ -68,6 +68,7 @@ fn test_lha_unix114i() -> io::Result<()> {
             // }
 
             assert_eq!(header.level, *level);
+            assert_eq!(header.is_directory(), *compr == CompressionMethod::Lhd);
             if header.level == 0 && *compr == CompressionMethod::Lhd {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
             }
@@ -89,9 +90,11 @@ fn test_lha_unix114i() -> io::Result<()> {
             assert_eq!(header.parse_unix_permissions().unwrap().to_string(), *perm);
             assert_eq!(header.parse_unix_uid_gid().unwrap(), (1000, 1000));
             if *compr == CompressionMethod::Lhd {
+                assert!(header.is_directory());
                 assert!(io::copy(&mut lha_reader, &mut sink).is_err());
             }
             else {
+                assert!(!header.is_directory());
                 io::copy(&mut lha_reader, &mut sink)?;
             }
             assert_eq!(sink.length, *size_o as u64);

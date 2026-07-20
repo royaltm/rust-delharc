@@ -70,6 +70,7 @@ fn test_explzh_723() -> io::Result<()> {
             else {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             }
+            assert!(!header.is_directory());
             assert_eq!(header.compression_method().unwrap(), *compr);
             assert_eq!(header.compressed_size, *size_c);
             assert_eq!(header.original_size, *size_o);
@@ -115,9 +116,11 @@ fn test_explzh_723() -> io::Result<()> {
             let header = lha_reader.header();
             assert_eq!(header.level, *level);
             if header.compression_method().unwrap() == CompressionMethod::Lhd {
+                assert!(header.is_directory());
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
             }
             else {
+                assert!(!header.is_directory());
                 assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             }
             assert_eq!(header.compression_method().unwrap(), *compr);

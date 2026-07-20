@@ -56,6 +56,7 @@ fn test_lhmelt_16536() -> io::Result<()> {
             if filen == 1 {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
                 assert_eq!(header.compression_method().unwrap(), CompressionMethod::Lhd);
+                assert!(header.is_directory());
                 assert_eq!(header.compressed_size, 0);
                 assert_eq!(header.original_size, 0);
                 let mut fullpath = PathBuf::from(path1);
@@ -75,6 +76,7 @@ fn test_lhmelt_16536() -> io::Result<()> {
                 assert_eq!(header.file_crc, 0);
             }
             else {
+                assert!(!header.is_directory());
                 assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
                 assert_eq!(header.compression_method().unwrap(), *compr);
                 assert_eq!(header.compressed_size, *size_c);

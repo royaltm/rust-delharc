@@ -21,19 +21,19 @@ const TESTS_CASES: &[(&str, &str, u64, u64, u16, u32, &str, u8, CompressionMetho
     ("h2_lh5.lzh", "gpl-2",    7004, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 2, Lh5),
 ];
 
-const SUBDIR_CASES: &[(&str, &[(&str, u64, u64, u16, u32, &str, u8, CompressionMethod)])] = &[
+const SUBDIR_CASES: &[(&str, &[(&str, u64, u64, u16, u32, &str, u8, CompressionMethod, bool)])] = &[
     ("h0_subdir.lzh", &[
-        ("",                          0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 0, Lhd),
-        ("",                          0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 0, Lhd),
-        ("hello.txt",                12, 12, 0x9778, 0xAF083B2D, "2010-01-01 06:00:00 UTC", 0, Lh0)]),
+        ("",                          0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 0, Lhd, true),
+        ("",                          0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 0, Lhd, true),
+        ("hello.txt",                12, 12, 0x9778, 0xAF083B2D, "2010-01-01 06:00:00 UTC", 0, Lh0, false)]),
     ("h1_subdir.lzh", &[
-        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 1, Lhd),
-        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 1, Lhd),
-        ("subdir*subdir2*hello.txt", 12, 12, 0x9778, 0xAF083B2D, "2010-01-01 06:00:00 UTC", 1, Lh0)]),
+        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 1, Lhd, true),
+        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 1, Lhd, true),
+        ("subdir*subdir2*hello.txt", 12, 12, 0x9778, 0xAF083B2D, "2010-01-01 06:00:00 UTC", 1, Lh0, false)]),
     ("h2_subdir.lzh", &[
-        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 2, Lhd),
-        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 2, Lhd),
-        ("subdir*subdir2*hello.txt", 12, 12, 0x9778, 0xAF083B2D, "2010-01-01 06:00:00 UTC", 2, Lh0)]),
+        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 2, Lhd, true),
+        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 2, Lhd, true),
+        ("subdir*subdir2*hello.txt", 12, 12, 0x9778, 0xAF083B2D, "2010-01-01 06:00:00 UTC", 2, Lh0, false)]),
 ];
 
 #[test]
@@ -50,6 +50,7 @@ fn test_lha_osk_201() -> io::Result<()> {
             //     println!("{:x?}", ext);
             // }
             assert_eq!(header.level, *level);
+            assert!(!header.is_directory());
             if header.level == 0 && *compr == CompressionMethod::Lhd {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
             }
@@ -93,7 +94,7 @@ fn test_lha_osk_201() -> io::Result<()> {
         let mut lha_reader = delharc::parse_file(format!("tests/lha_osk_201/{}", name))?;
         for filen in 0.. {
             assert!(filen < headers.len());
-            let (path, size_c, size_o, crc16, crc32, modif, level, compr) = &headers[filen];
+            let (path, size_c, size_o, crc16, crc32, modif, level, compr, is_dir) = &headers[filen];
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
             // println!("{:x?}", header);
@@ -101,6 +102,7 @@ fn test_lha_osk_201() -> io::Result<()> {
             //     println!("{:x?}", ext);
             // }
             assert_eq!(header.level, *level);
+            assert_eq!(header.is_directory(), *is_dir);
             if header.level == 0 && header.compression_method().unwrap() == CompressionMethod::Lhd {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
             }

@@ -25,16 +25,16 @@ const TESTS_CASES: &[(u64, &str, &str, u64, u64, u16, u32, &str, u8, Compression
     (0x17E0, "sfx.run", "gpl-2",  7095, 18092, 0xA33A, 0x4E46F4A1, "1980-06-12 21:03:18", 0, Lh4),
 ];
 
-const EMPTY_DIR: &[(&str, &[(&str, u64, u64, u16, u32, &str, CompressionMethod)])] = &[
+const EMPTY_DIR: &[(&str, &[(&str, u64, u64, u16, u32, &str, CompressionMethod, bool)])] = &[
     ("lh0_dirs_bug.lzh", &[
-        ("MainDir*00_File.txt",       6, 6, 0x348A, 0x4D952A57, "2022-01-11 20:59:38", Lh0),
-        ("MainDir*01_Dir*File01.txt", 6, 6, 0x348A, 0x4D952A57, "2022-01-11 20:59:38", Lh0),
+        ("MainDir*00_File.txt",       6, 6, 0x348A, 0x4D952A57, "2022-01-11 20:59:38", Lh0, false),
+        ("MainDir*01_Dir*File01.txt", 6, 6, 0x348A, 0x4D952A57, "2022-01-11 20:59:38", Lh0, false),
         // This entry compression method should be -lhd- but instead it has empty filename
         // to indicate a directory, and thus it should end with a directory separator when
         // the pathname is parsed
-        ("MainDir*02_EmptyDir*",      0, 0, 0x0000, 0x00000000, "2022-01-11 20:58:38", Lh0),
-        ("MainDir*03_Dir*File01.txt", 6, 6, 0x348A, 0x4D952A57, "2022-01-11 20:59:38", Lh0),
-        ("MainDir*04_File.txt",       6, 6, 0x348A, 0x4D952A57, "2022-01-11 20:59:38", Lh0),
+        ("MainDir*02_EmptyDir*",      0, 0, 0x0000, 0x00000000, "2022-01-11 20:58:38", Lh0, true),
+        ("MainDir*03_Dir*File01.txt", 6, 6, 0x348A, 0x4D952A57, "2022-01-11 20:59:38", Lh0, false),
+        ("MainDir*04_File.txt",       6, 6, 0x348A, 0x4D952A57, "2022-01-11 20:59:38", Lh0, false),
     ])
 ];
 
@@ -64,6 +64,7 @@ fn test_lha_amiga_122() -> io::Result<()> {
             let path1 = path.replace("*", "/");
             assert_eq!(&header.parse_pathname_to_str(), &path1);
             assert!(header.parse_comment().is_none());
+            assert!(!header.is_directory());
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
             assert!(header.parse_os_9_attrs().is_none());
@@ -103,11 +104,12 @@ fn test_lha_amiga_122_dirs() -> io::Result<()> {
         let mut lha_reader = delharc::LhaDecodeReader::new(&file)?;
         for filen in 0.. {
             assert!(filen < headers.len());
-            let (path, size_c, size_o, crc16, crc32, modif, compr) = &headers[filen];
+            let (path, size_c, size_o, crc16, crc32, modif, compr, is_dir) = &headers[filen];
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
             assert_eq!(header.level, 1);
             assert_eq!(header.msdos_attrs, MsDosAttrs::empty());
+            assert_eq!(header.is_directory(), *is_dir);
             let path1 = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
             assert_eq!(&header.parse_pathname().to_str().unwrap(), &path1);
             let path1 = path.replace("*", "/");

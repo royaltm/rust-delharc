@@ -93,9 +93,43 @@ impl Default for LhaHeader {
 
 impl LhaHeader {
     /// Return whether the archive is an empty directory or a symbolic link.
+    ///
+    /// This function returns `true` if either:
+    /// * The compression method is `-lhd-`,
+    /// * The compression method is `-lh0-` and the length of file data is `0`
+    ///   and either the filename is missing, but the directory is present, or
+    ///   a level `0|1` filename ends with a directory separator.
+    ///
+    /// Otherwise this function returns `false`.
     pub fn is_directory(&self) -> bool {
         self.compression_method().ok()
-            .map(CompressionMethod::is_directory)
+            .map(|cmp| match cmp {
+                CompressionMethod::Lhd => true,
+                CompressionMethod::Lh0 if self.original_size == 0 => {
+                    let mut has_dir = false;
+                    for header in self.iter_extra() {
+                        match header {
+                            [EXT_HEADER_FILENAME, data @ ..] if !data.is_empty() => {
+                                return false
+                            }
+                            [EXT_HEADER_PATH, data @ ..] if !data.is_empty() => {
+                                has_dir = true;
+                            }
+                            _ => {}
+                        }
+                    }
+                    if self.filename.is_empty() {
+                        has_dir
+                    }
+                    else if let Some(&last) = self.filename.last() {
+                        is_separator(last.into())
+                    }
+                    else {
+                        false
+                    }
+                }
+                _ => false
+            })
             .unwrap_or(false)
     }
     /// Attempt to parse the `os_type` field and return the `OsType` enum on success.
