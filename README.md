@@ -12,9 +12,9 @@ A [Rust] library for parsing and extracting content of [LHA/LZH] archives.
 What it does
 ------------
 
-This library provides ways to parse the content of **LHA** headers and allows to read files, compressed with some of the methods used by the archive format.
+This library provides ways to parse the content of **LHA** headers and allows to read files, compressed with the methods used by the archive format.
 
-Files using this format usually have `.lzh` or `.lha` extensions. Some formats, such as the retro chip-tune [YM] format, use **LHA** as its default packaging method. The entire content of the [Aminet] has also been packaged using this format.
+Files using this format usually have `.lzh` or `.lha` extensions, or `.pma` in case of the CP/M archiver. Some formats, such as the retro chip-tune [YM] format, use **LHA** as its default packaging method. The entire content of the [Aminet] has also been packaged using this format.
 
 
 What it doesn't do
@@ -39,12 +39,12 @@ For more information, please see the [Documentation][Docs Link].
 No std
 ------
 
-Since version 0.6 `delharc` can be used without the `std` library. In this instance the `alloc`
+Since version 0.6, `delharc` can be used without the `std` library. In this instance the `alloc`
 external crate will be required instead.
 
 ```toml
 [dependencies.delharc]
-version = "0.7"
+version = "0.8"
 default-features = false
 features = ["lh1", "lz", "pm"] # select desired features
 ```
@@ -60,20 +60,33 @@ types throughout the library. Instead of relying on `io::Error` for fallible res
 defines its own `error::LhaError` which encapsulates an I/O error type.
 
 With `std` library enabled, `error::LhaError` converts to `io::Error` via the `From` trait and
-`stub_io::Read` is implemented for all types that implement `io::Read`.
+`stub_io::Read` is implemented for all `io::Read` implementations.
 
 For `std` users the difference from previous versions is that methods previously returning
 `io::Result` now return `Result<_, LhaError<io::Error>>`. This might break cases when result
 `Err(error)` from calls to `delharc` methods is returned as is without the `?` or `From` conversion.
 
-Now, when using `default-features = false` the `std` feature needs to be added back along with other
-compression method features.
+Now, when using `default-features = false` the `std` feature needs to be added back.
+
+
+Upgrading
+---------
+
+A lot has happened in version `0.8`, including some **breaking** changes. Please consult the [CHANGELOG](CHANGELOG.md) for the full list of updates.
 
 
 Rust Version
 ------------
 
 `delharc` requires Rustc version 1.95 or greater.
+
+
+Acknowledgements
+----------------
+
+The decompression functions in this library, with minor modifications, were implemented in Rust by the author of this project, based on [LHASA - Free Software LHA implementation] in C.
+
+Many thanks to [Simon Howard] for collecting and reverse engineering all these algorithms into one very good and understandable source code.
 
 
 License
@@ -102,3 +115,4 @@ at your option.
 [Coverage img]: https://coveralls.io/repos/github/royaltm/rust-delharc/badge.svg?branch=master
 [rustc version link]: https://github.com/royaltm/rust-delharc#rust-version
 [rustc version img]: https://img.shields.io/badge/rustc-1.95+-lightgray.svg
+[Simon Howard]: https://github.com/fragglet
