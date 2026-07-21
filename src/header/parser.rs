@@ -691,4 +691,44 @@ mod tests {
         assert_eq!(expect, &path);
         path.clear();
     }
+
+    #[test]
+    fn header_parse_errors() {
+        let mut data: &[u8];
+        data = &[]; assert!(LhaHeader::read(&mut data).unwrap().is_none());
+        data = &[0]; assert!(LhaHeader::read(&mut data).unwrap().is_none());
+        data = &[0, 0xff]; assert!(LhaHeader::read(&mut data).unwrap().is_none());
+        let test_error = |mut data: &[u8], expect| {
+            let err = LhaHeader::read(&mut data).unwrap_err();
+            assert!(matches!(err, LhaError::HeaderParse(ref e) if e == &expect),
+                        "{:?} != {:?}", err, expect);
+        };
+        test_error(b"\x01\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x04", LhaHeaderError::UnknownLevel);
+        test_error(b"\x08\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x03\0\0M\0\0\0\0\0\0\0\0",
+                                            LhaHeaderError::Level3Signature);
+        test_error(b"\xff\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x01\0",
+                                            LhaHeaderError::ExtendedHeaderSize);
+        test_error(b"\xff\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x02\0",
+                                            LhaHeaderError::ExtendedHeaderSize);
+        test_error(b"\x04\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x03\0\0M\xff\0\0\0\x01\0\0\0",
+                                            LhaHeaderError::ExtendedHeaderSize);
+        test_error(b"\x04\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x03\0\0M\xff\0\0\0\x02\0\0\0",
+                                            LhaHeaderError::ExtendedHeaderSize);
+        test_error(b"\x15\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x00\0\0\0",
+                                            LhaHeaderError::SizeMismatch);
+        test_error(b"\x18\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x01\0\0\0M\0\0",
+                                            LhaHeaderError::SizeMismatch);
+        test_error(b"\x19\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\0\0",
+                                            LhaHeaderError::LongSizeMismatch);
+        test_error(b"\x1C\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\0\0",
+                                            LhaHeaderError::LongSizeMismatch);
+        test_error(b"\x16\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x00\0\0\0",
+                                            LhaHeaderError::WrappingSumMismatch);
+        test_error(b"\x19\xCF-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x01\0\0\0M\x03\0",
+                                            LhaHeaderError::SkipSizeMismatch);
+        test_error(b"\x24\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x05\0\0\0\0\x05\0\0\0\0\0\0",
+                                            LhaHeaderError::CommonHeader);
+        test_error(b"\x1F\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x05\0\0\0\0\0\0",
+                                            LhaHeaderError::Crc16Mismatch);
+    }
 }

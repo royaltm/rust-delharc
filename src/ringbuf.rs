@@ -164,6 +164,7 @@ mod tests {
     #[test]
     fn ringbuf_works() {
         let mut buffer = TestRingBuffer::zeroed();
+        println!("{:?}", buffer);
         assert_eq!(buffer.cursor(), 0);
         for i in 0..32 {
             assert_eq!(buffer[i], 0);

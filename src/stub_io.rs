@@ -174,7 +174,7 @@ impl<R: io::Read> Read for R {
 /// An error when reading from slice without `std`.
 #[cfg(not(feature = "std"))]
 #[cfg_attr(docsrs, doc(cfg(not(feature = "std"))))]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnexpectedEofError;
 
 #[cfg(not(feature = "std"))]
@@ -246,5 +246,55 @@ impl Read for &'_[u8] {
 
         *self = b;
         Ok(amt)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(not(feature = "std"))]
+    #[test]
+    fn stub_io_no_std_works() {
+        use alloc::{boxed::Box, string::ToString};
+        assert_eq!((&[][..]).read_all(&mut[]).unwrap(), 0);
+        assert_eq!((&[][..]).read_all(&mut[0]).unwrap(), 0);
+        assert_eq!((&[][..]).read_exact(&mut[0]).unwrap_err(), UnexpectedEofError);
+        assert_eq!((&[][..]).take(0).read_exact(&mut[0]).unwrap_err(), UnexpectedEofError);
+        let mut data: Box<&[u8]> = Box::new(&[]);
+        assert_eq!(data.read_all(&mut[]).unwrap(), 0);
+        assert_eq!(data.read_all(&mut[0]).unwrap(), 0);
+        assert_eq!(data.read_exact(&mut[0]).unwrap_err(), UnexpectedEofError);
+        assert_eq!(<Box<&[u8]> as Read>::unexpected_eof(), UnexpectedEofError);
+        let data: &mut &mut _ = &mut &mut data;
+        assert_eq!(data.read_all(&mut[]).unwrap(), 0);
+        assert_eq!(data.read_all(&mut[0]).unwrap(), 0);
+        assert_eq!(data.read_exact(&mut[0]).unwrap_err(), UnexpectedEofError);
+        assert_eq!(<&mut &[u8] as Read>::unexpected_eof(), UnexpectedEofError);
+        assert_eq!(UnexpectedEofError.to_string(), "failed to fill whole buffer");
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn stub_io_std_works() {
+        use std::io;
+        #[derive(Debug, Eq, PartialEq)]
+        struct Interrupted(bool);
+        impl io::Read for Interrupted {
+            fn read(&mut self, _buf: &mut[u8]) -> io::Result<usize> {
+                if !self.0 {
+                    self.0 = true;
+                    Err(io::ErrorKind::Interrupted.into())
+                }
+                else {
+                    Err(io::ErrorKind::UnexpectedEof.into())
+                }
+            }
+        }
+        assert_eq!((&[][..]).read_all(&mut[]).unwrap(), 0);
+        assert_eq!((&[][..]).read_all(&mut[0]).unwrap(), 0);
+        assert_eq!(Interrupted(false).read_all(&mut[0]).unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
+        assert_eq!(Interrupted(true).take(0).get_ref(), &Interrupted(true));
+        assert_eq!(Interrupted(true).take(0).get_mut(), &mut Interrupted(true));
     }
 }

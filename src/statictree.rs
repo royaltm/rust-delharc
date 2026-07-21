@@ -536,7 +536,7 @@ mod tests {
     fn hufftree_works() {
         assert_eq!(HuffTree::MAX_LEAVES, 0x4000);
         assert_eq!(HuffTree::MAX_NODES,  0x8000 - 1);
-        let mut tree = HuffTree::new();
+        let mut tree = HuffTree::default();
         println!("{}", tree);
         tree.set_single(42);
         validate_tree(&tree, 1);
@@ -719,14 +719,15 @@ mod tests {
         let vec = &mut Vec::with_capacity(256);
         // random garbage failure test
         vec.resize(256, 0);
-        for n in 1..=100_000 {
+        for _n in 1..=100_000 {
             rng.fill(vec);
-            match tree.build_tree(&vec) {
-                Ok(()) => println!("random test: {n} OK"),
-                Err(_err) => {
-                    // println!("random test: {n} ERR: {}", err);
-                }
-            }
+            let _res = tree.build_tree(&vec);
+            // match _res {
+            //     Ok(()) => println!("random test: {_n} OK"),
+            //     Err(_err) => {
+            //         // println!("random test: {_n} ERR: {}", err);
+            //     }
+            // }
         }
     }
 

@@ -122,14 +122,11 @@ impl LhaHeader {
                             _ => {}
                         }
                     }
-                    if self.filename.is_empty() {
-                        has_dir
-                    }
-                    else if let Some(&last) = self.filename.last() {
+                    if let Some(&last) = self.filename.last() {
                         is_dir_separator(last.into())
                     }
                     else {
-                        false
+                        has_dir
                     }
                 }
                 _ => false
@@ -167,15 +164,13 @@ impl LhaHeader {
     pub fn parse_last_modified(&self) -> TimestampResult {
         for header in self.iter_extra() {
             match header {
-                [EXT_HEADER_UNIX_TIME, data @ ..] => {
-                    if let Some(ts) = data.get(0..4).and_then(read_u32) {
-                        return Utc.timestamp_opt(ts as i64, 0).into()
-                    }
+                [EXT_HEADER_UNIX_TIME, data @ ..]
+                if let Some(ts) = data.get(0..4).and_then(read_u32) => {
+                    return Utc.timestamp_opt(ts as i64, 0).into()
                 }
-                [EXT_HEADER_WINDOWS_TIME, data @ ..] if data.len() == 24 => {
-                    if let Some(mtime) = read_u64(&data[8..16]) {
-                        return parse_win_filetime(mtime).into()
-                    }
+                [EXT_HEADER_WINDOWS_TIME, data @ ..]
+                if data.len() == 24 && let Some(mtime) = read_u64(&data[8..16]) => {
+                    return parse_win_filetime(mtime).into()
                 }
                 _ => {}
             }
@@ -550,4 +545,52 @@ pub fn parse_win_filetime(filetime: u64) -> LocalResult<DateTime<Utc>> {
         return Utc.timestamp_opt(secs, nanos)
     }
     LocalResult::None
+}
+
+
+// #[cfg(feature = "std")]
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn header_works() {
+        let mut header = LhaHeader {
+            level: 0,
+            compression: *b"-lh0-",
+            compressed_size: 0,
+            original_size: 0,
+            first_header_len: 7,
+            extra_headers: Box::new(*b"\x01name\0\0"),
+            .. Default::default()
+        };
+        assert!(!header.is_directory());
+
+        header.extra_headers = Box::new(*b"\x02dir\xff\0\0");
+        assert!(header.is_directory());
+
+        header.first_header_len = 3;
+        header.extra_headers = Box::new(*b"\x01\x07\0\x02dir\xff\0\0");
+        assert!(header.is_directory());
+
+        header.first_header_len = 0;
+        header.extra_headers = Default::default();
+        assert!(!header.is_directory());
+
+        header.filename = Box::new(*b"name/");
+        assert!(header.is_directory());
+
+        header.filename = Box::new(*b"name\\");
+        assert!(header.is_directory());
+
+        header.filename = Box::new(*b"name");
+        assert!(!header.is_directory());
+
+        header.first_header_len = 3;
+        header.extra_headers = Box::new(*b"\x3f\x03\0\x71\0\0");
+        assert!(header.parse_comment().is_none());
+
+        header.extended_area = Box::new(*b"T");
+        assert_eq!(header.parse_os_type().unwrap(), OsType::Generic);
+    }
 }
