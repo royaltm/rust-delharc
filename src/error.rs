@@ -190,6 +190,8 @@ impl<E: error::Error + 'static> error::Error for LhaError<E> {
         use LhaError::*;
         match self {
             Io(e) => Some(e),
+            HeaderParse(e) => Some(e),
+            Decompress(e) => Some(e),
             _ => None
         }
     }
@@ -214,6 +216,13 @@ impl<E> From<BuildError> for LhaError<E> {
 }
 
 #[cfg(feature = "std")]
+impl From<io::Error> for LhaError<io::Error> {
+    fn from(err: io::Error) -> LhaError<io::Error> {
+        LhaError::Io(err)
+    }
+}
+
+#[cfg(feature = "std")]
 impl From<LhaError<io::Error>> for io::Error {
     fn from(err: LhaError<io::Error>) -> Self {
         use LhaError::*;
@@ -222,5 +231,44 @@ impl From<LhaError<io::Error>> for io::Error {
             Io(e) => e,
             err => Error::new(ErrorKind::InvalidData, err),
         }
+    }
+}
+
+#[cfg(feature = "std")]
+#[cfg(test)]
+mod tests {
+    use core::error::Error;
+    use super::*;
+
+   #[test]
+    fn errors_works() {
+        let mut vec = <Vec<u8>>::new();
+        assert_eq!(LhaHeaderError::try_from(vec.try_reserve(usize::MAX).unwrap_err()).unwrap(),
+                   LhaHeaderError::OutOfMemory);
+        assert_eq!(BuildError::try_from(vec.try_reserve(usize::MAX).unwrap_err()).unwrap(),
+                   BuildError::OutOfMemory);
+        assert_eq!(LhaHeaderError::OutOfMemory.to_string(), "memory allocation failed");
+        assert_eq!(BuildError::OutOfMemory.to_string(), "memory allocation failed");
+
+        assert_eq!(LhaError::from(std::io::Error::other("I/O error")).to_string(), "I/O error");
+        assert_eq!(LhaError::<std::io::Error>::from(LhaHeaderError::OutOfMemory).to_string(),
+                   "while parsing LHA header: memory allocation failed");
+        assert_eq!(DecompressionError::from(BuildError::OutOfMemory).to_string(),
+                   "while building a tree: memory allocation failed");
+        assert_eq!(LhaError::<std::io::Error>::from(DecompressionError::UnsupportedCompression).to_string(),
+                   "while decompressing: unsupported compression method");
+        assert_eq!(LhaError::<std::io::Error>::from(BuildError::OutOfMemory).to_string(),
+                   "while decompressing: while building a tree: memory allocation failed");
+        assert_eq!(LhaError::<std::io::Error>::Checksum.to_string(),
+                   "CRC-16 file checksum mismatch");
+
+        let err = LhaError::<std::io::Error>::Checksum;
+        assert!(err.source().is_none());
+        let err = LhaError::Io(std::io::Error::other("error"));
+        assert!(err.source().unwrap().downcast_ref::<std::io::Error>().is_some());
+        let err: LhaError<std::io::Error> = LhaError::HeaderParse(LhaHeaderError::OutOfMemory);
+        assert!(err.source().unwrap().downcast_ref::<LhaHeaderError>().is_some());
+        let err: LhaError<std::io::Error> = LhaError::Decompress(DecompressionError::UnsupportedCompression);
+        assert!(err.source().unwrap().downcast_ref::<DecompressionError>().is_some());
     }
 }

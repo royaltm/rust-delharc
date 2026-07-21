@@ -702,6 +702,7 @@ mod tests {
             let err = LhaHeader::read(&mut data).unwrap_err();
             assert!(matches!(err, LhaError::HeaderParse(ref e) if e == &expect),
                         "{:?} != {:?}", err, expect);
+            assert!(err.to_string().starts_with("while parsing LHA header: "));
         };
         test_error(b"\x01\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x04", LhaHeaderError::UnknownLevel);
         test_error(b"\x08\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x03\0\0M\0\0\0\0\0\0\0\0",
