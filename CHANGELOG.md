@@ -3,8 +3,8 @@ v0.8.0
 General changes:
 * Minimum supported rust version changed to Rust 1.95 (if-let guards in matches).
 * Implemented PMarc's archiver `-pm1-` and `-pm2-` compression methods decoders.
-* More unit tests to improve coverage and long randomized tests added.
-* More archives imported from `lhasa` project for integrating testing.
+* More unit tests to improve coverage and fuzz tests added.
+* More archive test files imported from `lhasa` project.
 * Benchmarking added to guide the changes in the critical functions.
 * `examples`: merged `extract` and `extract_nostd` into a single file.
 * `examples`: `list_files` added.
@@ -12,21 +12,21 @@ General changes:
 
 Breaking changes:
 * `Decoder::Error` now requires `core::error::Error` instead of `fmt::Debug`.
-* `LhaError` changed to include new error objects `LhaHeaderError` and `DecompressionError` instead of static strings.
-* The way level 0 extended area is parsed by `LhaHeader::read()` has changed. Previously the first byte of the extended area on level 0 was unconditionally treated as OS ID byte and removed from the extended area. Now the whole content of the extended area is stored in the `extended_area` property and the first byte of the `extended_area` is only consulted by the `parse_os_type()` method to check for selected OS identifiers.
+* `LhaError` changed to include new error enums instead of static strings.
+* The way extended area is parsed on level 0 headers by `LhaHeader::read()` has changed. Previously the first byte of the extended area on level 0 was unconditionally treated as OS ID byte and removed from the extended area. Now the whole content of the extended area is stored in the `extended_area` property and the first byte of the `extended_area` is only consulted by the `parse_os_type()` method to check for selected OS identifiers.
 * `CompressionMethod::is_directory()` now takes `self` by value.
 * Fixed, but also altered the way `LhaHeader::parse_pathname()` and `parse_pathname_to_str()` treat files which have none or empty `filename` field but non-empty `directory` field. In this instance a trailing directory separator is appended to the parsed path name. If a level 0 or 1 `filename` entry contains a trailing directory separator and there is no `directory` field, the directory separator will be present at the end of the parsed path. This change helps to detect if an entry is a directory name rather than a file name.
-* The `nul` character in filename is now a terminator if either an OS ID is explicitly Amiga or if header level is 0 and OS ID is not provided in extended area.
+* The `nul` character in filename is now a terminator if either an OS ID is explicitly Amiga or if header level is 0 and OS ID is not provided in the extended area.
 * `LhaHeader::is_directory()` now returns `true` also for `-lh0-` compression methods under specific conditions.
 
 New features:
-* `pm` includes PMarc archiver decoders, enabled now by default.
-* `extend` expose previously internal implementations of a ring buffer, a static Huffman Tree and a bit-stream reader; allows users to build custom `LhaV2Decoder` variants.
+* `pm` activates PMarc archiver decoders, enabled now by default.
+* `extend` expose previously internal implementations of a ring buffer, a static Huffman Tree and a bit-stream reader; this allows users to build custom `LhaV2Decoder` variants or build the custom implementations more easily.
 * `no-unsafe-assertions` remove unsafe assertions that eliminate boundary checks in critical functions; it only affects code if `debug_assertions` are disabled. if `debug_assertions` are enabled all unsafe assertions become the run-time assertions.
-* `fast-tree-build` enables more complex but faster static tree building method.
+* `fast-tree-build` enables more complex, but faster static tree building method.
 
 Improvements:
-* Error objects implement `core::error::Error`.
+* All error objects now implement `core::error::Error`.
 * Replace potential temporary large stack allocations in decoders with `bytemuck::zeroed_box()`.
 * Reimplemented and simplified tree building methods of the dynamic Huffman Tree used by `lhv1` decoder.
 * Static and dynamic Huffman Tree implementations refactored to use unsafe assertions instead of unsafe slice accesses, which can be disabled with the `no-unsafe-assertions` feature.
@@ -46,11 +46,11 @@ Additions:
 * `LhaHeader::parse_os_9_attrs()` and a new `Os9Attrs` bitflag object added.
 * `LhaHeader` now derives `PartialEq` and `Eq`.
 * `fmt::Display` implementation added to `MsDosAttrs` and `OsType`.
-* `LHARK` OS ID recognized.
+* `LHARK` OS ID is now recognized.
 * `EXT_HEADER_METADATA=0x71` added and this is where MorphOs stores the file comment on header level 2.
 
 Fixes:
-* Remove links to integration tests and examples form the manifest - the files were never included in the crate.
+* Remove links to integration tests and examples from the manifest - the files were never included in the crate.
 * Replace open-ended ranges with inclusive ones to be able to yield MAX values when iterating.
 * `HuffTree`: ensure a tree is cleared on any error in the `build_tree()` function.
 * `HuffTree` and `DynHuffTree`: removed `fmt::Display` implementation outside of testing.
