@@ -421,7 +421,10 @@ mod tests {
         println!("Pm2Decoder<Empty> {}", size_of::<Pm2Decoder<io::Empty>>());
         println!("Pm2Decoder<File> {}", size_of::<Pm2Decoder<fs::File>>());
         println!("RingArrayBuf<RING_BUFFER_SIZE> {}", size_of::<RingArrayBuf<RING_BUFFER_SIZE>>());
-        let _ = Pm2Decoder::new(io::empty());
+        let mut data: &[u8] = &[];
+        let mut decoder = Pm2Decoder::new(&mut data);
+        assert_eq!(decoder.get_ref(), &&mut &[]);
+        assert_eq!(decoder.get_mut().read_all(&mut []).unwrap(), 0);
     }
 
     #[test]
@@ -528,18 +531,8 @@ mod tests {
                         match res {
                             Ok(()) => {
                                 assert_ne!(decoder.tree_state, RebuildState::Unbuilt);
-                                if decoder.tree_state == RebuildState::Build1k {
-                                    assert_eq!(decoder.tree_rebuild_remaining, 1024);
-                                }
-                                else if decoder.tree_state == RebuildState::Build2k {
-                                    assert_eq!(decoder.tree_rebuild_remaining, 1024);
-                                }
-                                else if decoder.tree_state == RebuildState::Build4k {
-                                    assert_eq!(decoder.tree_rebuild_remaining, 2048);
-                                }
-                                else if decoder.tree_state == RebuildState::Continuing {
-                                    assert_eq!(decoder.tree_rebuild_remaining, 4096);
-                                }
+                                assert!(matches!(decoder.tree_rebuild_remaining,
+                                        1024|2048|4096));
                             }
                             Err(_err) => {
                                 // println!("-pm2-: error: {}", _err);

@@ -752,6 +752,8 @@ fn build_random_tree_lengths(
 mod tests {
     #[cfg(not(feature = "std"))]
     use alloc::string::ToString;
+    #[cfg(not(feature = "std"))]
+    use crate::UnexpectedEofError;
     #[cfg(feature = "std")]
     use std::{io, error::Error};
     use crate::OsType;
@@ -766,6 +768,9 @@ mod tests {
         assert_eq!(err.get_ref(), &&[0u8;2]);
         assert_eq!(err.get_mut(), &mut &[0u8;2]);
         assert_eq!(err.into_inner(), &[0u8;2]);
+        #[cfg(not(feature = "std"))]
+        assert_eq!(<LhaDecodeReader::<&[u8]> as Read>::unexpected_eof(),
+                   LhaError::Io(UnexpectedEofError));
     }
 
     #[cfg(feature = "std")]
@@ -832,8 +837,21 @@ mod tests {
 
     #[should_panic]
     #[test]
-    fn decode_panics() {
+    fn decode_into_inner_panics() {
         LhaDecodeReader::<&[u8]>::default().into_inner();
+    }
+
+    #[should_panic]
+    #[test]
+    fn decode_next_file_panics() {
+        let _ = LhaDecodeReader::<&[u8]>::default().next_file();
+    }
+
+    #[cfg(feature = "std")]
+    #[should_panic]
+    #[test]
+    fn decode_seek_next_file_panics() {
+        let _ = LhaDecodeReader::<std::fs::File>::default().seek_next_file();
     }
 
     #[test]
@@ -910,6 +928,7 @@ mod tests {
         assert!(matches!(reader.get_mut_decoder().unwrap(), &mut DecoderAny::UnsupportedDecoder(..))); 
         assert_eq!(reader.get_ref().unwrap(), &&mut &[]); 
         assert_eq!(reader.get_mut().unwrap(), &mut &mut &[]);
+        assert!(!reader.next_file().unwrap());
 
         static HEADER_1A: &[u8] = {
             static INNER: [[u8; 16];11] = [

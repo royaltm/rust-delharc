@@ -378,10 +378,30 @@ mod tests {
         println!("Lh7::RingBuffer {}", size_of::<<Lh7DecoderCfg as LhaDecoderConfig>::RingBuffer>());
         #[cfg(feature = "lhx")]
         println!("Lhx::RingBuffer {}", size_of::<<LhxDecoderCfg as LhaDecoderConfig>::RingBuffer>());
-        let _ = Lh7Decoder::new(io::empty());
-        let _ = Lh5Decoder::new(io::empty());
         #[cfg(feature = "lhx")]
         let _ = LhxDecoder::new(io::empty());
+        let mut data: &[u8] = &[];
+        let mut decoder = Lh5Decoder::new(&mut data);
+        assert_eq!(decoder.get_ref(), &&mut &[]);
+        assert_eq!(decoder.get_mut().read_all(&mut []).unwrap(), 0);
+        let mut data: &[u8] = &[];
+        let mut decoder = Lh7Decoder::new(&mut data);
+        assert_eq!(decoder.get_ref(), &&mut &[]);
+        assert_eq!(decoder.get_mut().read_all(&mut []).unwrap(), 0);
+
+        let mut data: &[u8] = &[0xff;32];
+        let mut decoder = Lh5Decoder::new(&mut data);
+        assert!(matches!(
+            decoder.read_code_length().unwrap_err(),
+            LhaError::Decompress(DecompressionError::CodeLengthOverflow)));
+        let mut data: &[u8] = &[0xff;31];
+        let mut decoder = Lh5Decoder::new(&mut data);
+        assert!(matches!(
+            decoder.read_code_length().unwrap_err(),
+            LhaError::Io(err) if err.kind() == io::ErrorKind::UnexpectedEof));
+        let mut data = vec![0xff;30]; data.push(0xfe);
+        let mut decoder = Lh5Decoder::new(io::Cursor::new(data));
+        assert_eq!(decoder.read_code_length().unwrap(), 251);
     }
 
     #[test]
@@ -415,16 +435,15 @@ mod tests {
             }
             max_temp = max_temp.max(max);
             // println!("-lh5-: read_temp_tree: {} errors: {}/1000", max, err);
-            match rng.random_range(1..=NUM_TEMP_CODELEN) {
-                1 => {
-                    decoder.offset_tree.set_single(rng.random_range(0..=31));
-                    // println!("-lh5-: temp single: {:?}", decoder.offset_tree.inspect()[0]);
-                }
-                max => {
-                    build_random_tree_lengths(max, 10, NUM_TEMP_CODELEN, &mut rng, &mut code_lengths);
-                    decoder.offset_tree.build_tree(&code_lengths).unwrap();
-                    // println!("-lh5-: temp max: {} \n{}", max, decoder.offset_tree);
-                }
+            if rng.random_bool(0.1) {
+                decoder.offset_tree.set_single(rng.random_range(0..=31));
+                // println!("-lh5-: temp single: {:?}", decoder.offset_tree.inspect()[0]);
+            }
+            else {
+                let max = rng.random_range(1..=NUM_TEMP_CODELEN);
+                build_random_tree_lengths(max, 10, NUM_TEMP_CODELEN, &mut rng, &mut code_lengths);
+                decoder.offset_tree.build_tree(&code_lengths).unwrap();
+                // println!("-lh5-: temp max: {} \n{}", max, decoder.offset_tree);
             }
 
             // let mut err = 0u64;
@@ -439,16 +458,15 @@ mod tests {
             }
             max_command = max_command.max(max);
             // println!("-lh5-: read_command_tree: {} errors: {}/1000", max, err);
-            match rng.random_range(1..=NUM_COMMANDS) {
-                1 => {
-                    decoder.command_tree.set_single(rng.random_range(0..NUM_COMMANDS as u16));
-                    // println!("-lh5-: command single: {:?}", decoder.command_tree.inspect()[0]);
-                }
-                max => {
-                    build_random_tree_lengths(max, (NUM_TEMP_CODELEN - 1) as u8, NUM_COMMANDS, &mut rng, &mut code_lengths);
-                    decoder.command_tree.build_tree(&code_lengths).unwrap();
-                    // println!("-lh5-: command max: {} \n{}", max, decoder.command_tree);
-                }
+            if rng.random_bool(0.1) {
+                decoder.command_tree.set_single(rng.random_range(0..NUM_COMMANDS as u16));
+                // println!("-lh5-: command single: {:?}", decoder.command_tree.inspect()[0]);
+            }
+            else {
+                let max = rng.random_range(2..=NUM_COMMANDS);
+                build_random_tree_lengths(max, (NUM_TEMP_CODELEN - 1) as u8, NUM_COMMANDS, &mut rng, &mut code_lengths);
+                decoder.command_tree.build_tree(&code_lengths).unwrap();
+                // println!("-lh5-: command max: {} \n{}", max, decoder.command_tree);
             }
 
             // let mut err = 0u64;
@@ -463,16 +481,15 @@ mod tests {
             }
             max_offset = max_offset.max(max);
             // println!("-lh5-: read_offset_tree: {} errors: {}/1000", max, err);
-            match rng.random_range(1..=Lh5DecoderCfg::HISTORY_BITS as usize) {
-                1 => {
-                    decoder.offset_tree.set_single(rng.random_range(0..Lh5DecoderCfg::HISTORY_BITS as u16));
-                    // println!("-lh5-: offset single: {:?}", decoder.offset_tree.inspect()[0]);
-                }
-                max => {
-                    build_random_tree_lengths(max, 10, Lh5DecoderCfg::HISTORY_BITS as usize, &mut rng, &mut code_lengths);
-                    decoder.offset_tree.build_tree(&code_lengths).unwrap();
-                    // println!("-lh5-: offset max: {} \n{}", max, decoder.offset_tree);
-                }
+            if rng.random_bool(0.1) {
+                decoder.offset_tree.set_single(rng.random_range(0..Lh5DecoderCfg::HISTORY_BITS as u16));
+                // println!("-lh5-: offset single: {:?}", decoder.offset_tree.inspect()[0]);
+            }
+            else {
+                let max = rng.random_range(1..=Lh5DecoderCfg::HISTORY_BITS as usize);
+                build_random_tree_lengths(max, 10, Lh5DecoderCfg::HISTORY_BITS as usize, &mut rng, &mut code_lengths);
+                decoder.offset_tree.build_tree(&code_lengths).unwrap();
+                // println!("-lh5-: offset max: {} \n{}", max, decoder.offset_tree);
             }
 
             decoder.remaining_commands = u16::MAX;

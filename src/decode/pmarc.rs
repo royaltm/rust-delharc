@@ -66,9 +66,22 @@ impl<R: Read> Read for NoEofReader<R> {
         Ok(buf.len())
 
     }
-    #[inline]
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Self::Error> {
-        self.read_all(buf)?;
-        Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "std")]
+    use std::io;
+    #[cfg(not(feature = "std"))]
+    use crate::UnexpectedEofError;
+    use super::*;
+
+    #[test]
+    fn pmarc_works() {
+        assert!(matches!(VarLenEntry::new(100, 3), VarLenEntry { offs: 100, bits: 3}));
+        #[cfg(feature = "std")]
+        assert_eq!(<NoEofReader::<&[u8]> as Read>::unexpected_eof().kind(), io::ErrorKind::UnexpectedEof);
+        #[cfg(not(feature = "std"))]
+        assert_eq!(<NoEofReader::<&[u8]> as Read>::unexpected_eof(), UnexpectedEofError);
     }
 }

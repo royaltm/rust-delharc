@@ -161,7 +161,10 @@ mod tests {
         println!("Lh1Decoder<File> {}", size_of::<Lh1Decoder<fs::File>>());
         println!("DynHuffTree {}", size_of::<DynHuffTree>());
         println!("RingArrayBuf<RING_BUFFER_SIZE> {}", size_of::<RingArrayBuf<RING_BUFFER_SIZE>>());
-        let _ = Lh1Decoder::new(io::empty());
+        let mut data: &[u8] = &[];
+        let mut decoder = Lh1Decoder::new(&mut data);
+        assert_eq!(decoder.get_ref(), &&mut &[]);
+        assert_eq!(decoder.get_mut().read_all(&mut []).unwrap(), 0);
     }
 
     #[test]

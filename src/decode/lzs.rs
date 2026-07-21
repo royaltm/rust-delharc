@@ -115,7 +115,10 @@ mod tests {
         println!("LzsDecoder<Empty> {}", size_of::<LzsDecoder<io::Empty>>());
         println!("LzsDecoder<fs::File> {}", size_of::<LzsDecoder<fs::File>>());
         println!("RingArrayBuf<RING_BUFFER_SIZE> {}", size_of::<RingArrayBuf<RING_BUFFER_SIZE>>());
-        let _ = LzsDecoder::new(io::empty());
+        let mut data: &[u8] = &[];
+        let mut decoder = LzsDecoder::new(&mut data);
+        assert_eq!(decoder.get_ref(), &&mut &[]);
+        assert_eq!(decoder.get_mut().read_all(&mut []).unwrap(), 0);
     }
 
     #[test]
