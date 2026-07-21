@@ -234,7 +234,6 @@ impl From<LhaError<io::Error>> for io::Error {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

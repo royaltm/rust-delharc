@@ -232,6 +232,7 @@ impl LhaHeader {
         // reset wrapping checksum which should not include the first 2 bytes
         parser.csum = Wrapping(0);
 
+        // read base header
         let mut raw_header = LhaRawBaseHeader::default();
         parser.read_exact(bytes_of_mut(&mut raw_header))?;
         if raw_header.lha_level > 3 {
@@ -311,15 +312,11 @@ impl LhaHeader {
         let mut compressed_size = u32::from_le_bytes(raw_header.compressed_size) as u64;
         let mut header_crc: Option<u16> = None;
         // read extra headers
-        let min_header_len = if raw_header.lha_level == 3 { 5 } else { 3 };
         let mut extra_header_len = first_header_len as usize;
         while extra_header_len != 0 {
-            if extra_header_len < min_header_len {
-                return Err(LhaError::HeaderParse(LhaHeaderError::ExtendedHeaderSize))
-            }
             // check long header length (level 2, 3)
             if long_header_len != 0 {
-                if (long_header_len as usize).saturating_sub(extra_header_len - 2) < parser.len {
+                if (long_header_len as usize).saturating_sub(extra_header_len) < parser.len - 2 {
                     return Err(LhaError::HeaderParse(LhaHeaderError::LongSizeMismatch))
                 }
             }
@@ -327,43 +324,55 @@ impl LhaHeader {
                 // otherwise check skip size (level 1)
                 return Err(LhaError::HeaderParse(LhaHeaderError::SkipSizeMismatch))
             }
+            // append a single header
             parser.read_limit_no_checksums(extra_header_len, &mut extra_headers)?;
+            assert!(extra_header_len <= extra_headers.len());
             let start = extra_headers.len() - extra_header_len;
-            let header = &mut extra_headers[start..];
-            match header {
-                // we need to extract the CRC-16 from header and clear it in order to calculate checksum
-                [EXT_HEADER_COMMON, data @ ..] => {
-                    if header_crc.is_some() {
-                        return Err(LhaError::HeaderParse(LhaHeaderError::CommonHeader))
-                    }
-                    if let Some(crc) = data.get_mut(0..2) {
-                        header_crc = read_u16(crc);
-                        for p in crc.iter_mut() {
-                            *p = 0;
+            // slice off the last header with the length of the next header
+            let header_with_len = &mut extra_headers[start..];
+            {
+                // split off the next header's length from the header body
+                let (header, next_header_len) = if raw_header.lha_level == 3 {
+                    header_with_len.split_last_chunk_mut::<4>().map(|(h, chunk)|
+                        (h, u32::from_le_bytes(*chunk) as usize))
+                }
+                else {
+                    header_with_len.split_last_chunk_mut::<2>().map(|(h, chunk)|
+                        (h, u16::from_le_bytes(*chunk) as usize))
+                }
+                // header body must not be empty
+                .filter(|(h, _)| !h.is_empty())
+                .ok_or(LhaHeaderError::ExtendedHeaderSize)?;
+                // check the header's content
+                match header {
+                    // we need to extract the CRC-16 from header and clear it in order to calculate checksum
+                    [EXT_HEADER_COMMON, data @ ..] => {
+                        if header_crc.is_some() {
+                            return Err(LhaError::HeaderParse(LhaHeaderError::CommonHeader))
+                        }
+                        if let Some(crc) = data.get_mut(0..2) {
+                            header_crc = read_u16(crc);
+                            for p in crc.iter_mut() {
+                                *p = 0;
+                            }
                         }
                     }
-                }
-                [EXT_HEADER_MSDOS_ATTRS, data @ ..]|
-                [EXT_HEADER_EXT_ATTRS,   data @ ..] if data.len() >= 2 => {
-                    if let Some(attrs) = read_u16(&data[0..2]) {
+                    [EXT_HEADER_MSDOS_ATTRS, data @ ..]|
+                    [EXT_HEADER_EXT_ATTRS,   data @ ..] if data.len() >= 2 => {
+                        let attrs = read_u16(&data[0..2]).unwrap();
                         msdos_attrs = MsDosAttrs::from_bits_retain(attrs);
                     }
-                }
-                [EXT_HEADER_FILE_SIZES, data @ ..] if raw_header.lha_level >= 2 && data.len() >= 16 => {
-                    if let (Some(compr), Some(orig)) = (read_u64(&data[0..8]), read_u64(&data[8..16])) {
-                        compressed_size = compr;
-                        original_size = orig;
+                    [EXT_HEADER_FILE_SIZES, data @ ..] if raw_header.lha_level >= 2 && data.len() >= 16 => {
+                        compressed_size = read_u64(&data[0..8]).unwrap();
+                        original_size   = read_u64(&data[8..16]).unwrap();
                     }
+                    _ => {}
                 }
-                _ => {}
+                // next header
+                extra_header_len = next_header_len;
             }
-            parser.update_checksums_no_wrapping_sum(header);
-            extra_header_len = if raw_header.lha_level == 3 {
-                u32::from_le_bytes(*header.last_chunk::<4>().unwrap()) as usize
-            }
-            else {
-                u16::from_le_bytes(*header.last_chunk::<2>().unwrap()) as usize
-            }
+            // update parser length and checksum from the last chunk
+            parser.update_checksums_no_wrapping_sum(header_with_len);
         }
 
         // validate long header length
@@ -565,21 +574,19 @@ mod tests {
     fn path_parser_works() {
         assert_eq!("", parse_filename(b""));
         assert_eq!("Hello World!", parse_filename(b"Hello World!"));
-        if std::path::is_separator('/') {
-            assert_eq!("_Hello_World_", parse_filename(b"/Hello/World/"));
-        }
+        assert!(std::path::is_separator('/'));
+        assert_eq!("_Hello_World_", parse_filename(b"/Hello/World/"));
+        #[cfg(target_family = "windows")]
         if std::path::is_separator('\\') {
             assert_eq!("_Hello_World_", parse_filename(br"\Hello\World\"));
         }
         assert_eq!("Hello%00World%7f", parse_filename(b"Hello\x00World\x7f"));
         assert_eq!("Hello%01World%ff", parse_filename(b"Hello\x01World\xff"));
         assert_eq!("Hello", parse_str_nilterm(b"Hello\x00World\xff", true, false));
-        if std::path::is_separator('/') {
-            assert_eq!("He_llo", parse_str_nilterm(b"He/llo\x00World\xff", true, false));
-            assert_eq!("He/llo", parse_str_nilterm(b"He/llo\x00World\xff", true, true));
-            assert_eq!("He/llo%00World%ff", parse_str_nilterm(b"He/llo\x00World\xff", false, true));
-            assert_eq!("_Hello%1fWorld%80", parse_filename(b"/Hello\x1fWorld\x80"));
-        }
+        assert_eq!("He_llo", parse_str_nilterm(b"He/llo\x00World\xff", true, false));
+        assert_eq!("He/llo", parse_str_nilterm(b"He/llo\x00World\xff", true, true));
+        assert_eq!("He/llo%00World%ff", parse_str_nilterm(b"He/llo\x00World\xff", false, true));
+        assert_eq!("_Hello%1fWorld%80", parse_filename(b"/Hello\x1fWorld\x80"));
         let mut path = PathBuf::new();
         parse_pathname(b"", &mut path);
         assert!(path.is_relative());
@@ -704,16 +711,25 @@ mod tests {
                         "{:?} != {:?}", err, expect);
             assert!(err.to_string().starts_with("while parsing LHA header: "));
         };
+        let test_error_eof = |mut data: &[u8]| {
+            let err = LhaHeader::read(&mut data).unwrap_err();
+            assert!(matches!(err, LhaError::Io(ref e) if e.kind() == std::io::ErrorKind::UnexpectedEof),
+                    "{:?} != EOF", err);
+        };
         test_error(b"\x01\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x04", LhaHeaderError::UnknownLevel);
         test_error(b"\x08\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x03\0\0M\0\0\0\0\0\0\0\0",
                                             LhaHeaderError::Level3Signature);
-        test_error(b"\xff\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x01\0",
+        test_error(b"\xff\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x01\0\0",
                                             LhaHeaderError::ExtendedHeaderSize);
-        test_error(b"\xff\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x02\0",
+        test_error(b"\xff\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x02\0\0\0",
                                             LhaHeaderError::ExtendedHeaderSize);
-        test_error(b"\x04\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x03\0\0M\xff\0\0\0\x01\0\0\0",
+        test_error(b"\x04\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x03\0\0M\xff\0\0\0\x01\0\0\0\0",
                                             LhaHeaderError::ExtendedHeaderSize);
-        test_error(b"\x04\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x03\0\0M\xff\0\0\0\x02\0\0\0",
+        test_error(b"\x04\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x03\0\0M\xff\0\0\0\x02\0\0\0\0\0",
+                                            LhaHeaderError::ExtendedHeaderSize);
+        test_error(b"\x04\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x03\0\0M\xff\0\0\0\x03\0\0\0\0\0\0",
+                                            LhaHeaderError::ExtendedHeaderSize);
+        test_error(b"\x04\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x03\0\0M\xff\0\0\0\x04\0\0\0\0\0\0\0",
                                             LhaHeaderError::ExtendedHeaderSize);
         test_error(b"\x15\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x00\0\0\0",
                                             LhaHeaderError::SizeMismatch);
@@ -722,6 +738,17 @@ mod tests {
         test_error(b"\x19\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\0\0",
                                             LhaHeaderError::LongSizeMismatch);
         test_error(b"\x1C\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\0\0",
+                                            LhaHeaderError::LongSizeMismatch);
+        test_error(b"\x22\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x03\0\0\x03\0\0\0\0",
+                                            LhaHeaderError::LongSizeMismatch);
+        test_error_eof(b"\x21\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x03\0\0\x03\0\0\0\0");
+        data = b"\x20\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x03\0\0\x03\0\0\0\0";
+        LhaHeader::read(&mut data).unwrap();
+        test_error(b"\x1F\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x03\0\0\x03\0\0\0\0",
+                                            LhaHeaderError::LongSizeMismatch);
+        data = b"\x1E\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x03\0\0\x03\0\0\0\0";
+        LhaHeader::read(&mut data).unwrap();
+        test_error(b"\x1D\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x02\0\0M\x03\0\0\x03\0\0\0\0",
                                             LhaHeaderError::LongSizeMismatch);
         test_error(b"\x16\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x00\0\0\0",
                                             LhaHeaderError::WrappingSumMismatch);
