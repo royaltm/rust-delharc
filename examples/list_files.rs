@@ -2,7 +2,7 @@
 //!
 //! This program lists all files contained in an archive file.
 //!
-//! This program expects a single argument - a path to the archive file.
+//! This program expects arguments - paths to the archive files.
 //!
 //! This program runs only with `std` feature enabled.
 #[cfg(feature = "std")]
