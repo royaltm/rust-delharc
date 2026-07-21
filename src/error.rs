@@ -1,3 +1,4 @@
+//! Error objects used by `delharc`.
 use core::{fmt, error};
 #[cfg(feature = "std")]
 use std::{io, collections::TryReserveError};
@@ -10,7 +11,7 @@ use crate::stub_io::Read;
 /// `R` is the type of the data reader object.
 pub type LhaResult<T, R> = Result<T, LhaError<<R as Read>::Error>>;
 
-/// `delharc` error enum.
+/// `delharc` main error enum.
 ///
 /// With `std` feature enabled `E` is [`std::io::Error`] and
 /// [`LhaError`] can be converted to [`std::io::Error`] using
@@ -28,7 +29,9 @@ pub enum LhaError<E> {
     Checksum,
 }
 
-/// An enum of [`LhaHeader`] errors
+/// An enum of errors related to parsing of [`LhaHeader`]
+///
+/// [`LhaHeader`]: crate::LhaHeader
 #[derive(Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum LhaHeaderError {
@@ -71,7 +74,7 @@ pub enum BuildError {
     OutOfMemory,
 }
 
-/// An enum of errors returned from decompression algorithms.
+/// An enum of errors returned from compression decoding algorithms.
 #[derive(Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DecompressionError {

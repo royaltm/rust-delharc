@@ -149,7 +149,7 @@ The `extend` feature is not enabled by default.
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 pub mod crc;
-mod error;
+pub mod error;
 pub mod stub_io;
 pub mod decode;
 pub mod header;
