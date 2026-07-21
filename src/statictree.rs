@@ -525,6 +525,12 @@ mod tests {
         assert_eq!(leaves.len(), num_leaves);
     }
 
+    #[should_panic]
+    #[test]
+    fn hufftree_panics() {
+        HuffTree::with_leaf_capacity(HuffTree::MAX_LEAVES + 1);
+    }
+
     #[test]
     fn hufftree_works() {
         assert_eq!(HuffTree::MAX_LEAVES, 0x4000);
@@ -582,6 +588,8 @@ mod tests {
         println!("{}", tree);
         validate_tree(&tree, 9);
         assert_eq!(tree.len(), 9 + 8);
+        assert_eq!(tree.tree.capacity(), 9 + 8);
+        tree.try_reserve_for_leaves(9).unwrap();
         assert_eq!(tree.tree.capacity(), 9 + 8);
         let bits: &[u8] = &[0b01001011, 0b10011011, 0b11001110, 0b11111011, 0b11100000];
         let mut path = BitStream::new(bits);

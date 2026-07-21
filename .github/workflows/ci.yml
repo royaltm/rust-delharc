@@ -100,15 +100,17 @@ jobs:
           cargo run --example extract --all-features
           cargo run -r --example extract --features=lh1,lz,lhx,extend,fast-tree-build
           cargo run -r --example extract --features=lh1,lz,lhx,extend
-          find tests -name '*.l*' -type f|xargs -- cargo run --example=list_files --
-          cargo build --no-default-features --features=lh1,lz,lhx
-          cargo test --no-default-features --features=lh1,lz,lhx
-          cargo build --no-default-features --features=lh1,lz,lhx,extend,fast-tree-build
-          cargo test --no-default-features --features=lh1,lz,lhx,extend,fast-tree-build
+          find tests -name '*.l*' -o -name '*.pma' -type f|xargs -- cargo run --example=list_files --
+          cargo build --no-default-features --features=lh1,lz,pm,lhx
+          cargo test --no-default-features --features=lh1,lz,pm,lhx
+          cargo build --no-default-features --features=lh1,lz,pm,lhx,extend,fast-tree-build
+          cargo test --no-default-features --features=lh1,lz,pm,lhx,extend,fast-tree-build
+          cargo build --features=lhx,extend
+          cargo test --features=lhx,extend
+          cargo test --features=lhx,extend -- --ignored
           cargo build --all-features
           cargo test --all-features
           cargo test --all-features -- --ignored
-          cargo test --features=lhx,extend,fast-tree-build -- --ignored
           grcov . \
               --binary-path ./target/debug/ \
               --branch \
