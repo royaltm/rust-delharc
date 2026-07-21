@@ -84,7 +84,7 @@ Rust Version
 Acknowledgements
 ----------------
 
-The decompression functions in this library, with minor modifications, were implemented in Rust by the author of this project, based on [LHASA - Free Software LHA implementation] in C.
+The decompression functions in this library, with minor modifications, were implemented in Rust by the author of this project, based on [LHASA - Free Software LHA implementation](https://fragglet.github.io/lhasa/) written in C.
 
 Many thanks to [Simon Howard] for collecting and reverse engineering all these algorithms into one very good and understandable source code.
 
