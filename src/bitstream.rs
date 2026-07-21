@@ -222,16 +222,27 @@ mod tests {
 
         let mut somebits: &[u8] = &[1,2,3,4,5,6,7,8];
         let mut brdr = BitStream::new(&mut somebits);
-        match BITBUF_BITSIZE {
-            #[cfg(target_pointer_width = "64")]
-            64 => {
-                assert_eq!(brdr.read_bits::<usize>(BITBUF_BITSIZE).unwrap(), 0x0102030405060708);
-            }
-            #[cfg(target_pointer_width = "32")]
-            32 => {
-                assert_eq!(brdr.read_bits::<usize>(BITBUF_BITSIZE).unwrap(), 0x01020304);
-            }
-            _ => unimplemented!()
+        assert_eq!(brdr.get_ref(), &&mut &[1,2,3,4,5,6,7,8]);
+        assert_eq!(brdr.get_mut(), &mut &mut &[1,2,3,4,5,6,7,8]);
+        assert!(matches!(brdr.by_ref(), &mut BitStream {..}));
+        assert!(matches!((&mut brdr.by_ref()).read_bits::<usize>(u32::MAX).unwrap_err(),
+                    LhaError::Decompress(DecompressionError::BitSizeOverflow)));
+        assert!(matches!((&mut brdr.by_ref()).read_bits::<u8>(u8::BITS + 1).unwrap_err(),
+                    LhaError::Decompress(DecompressionError::BitSizeOverflow)));
+        assert!(matches!((&mut brdr.by_ref()).read_bits::<u16>(u16::BITS + 1).unwrap_err(),
+                    LhaError::Decompress(DecompressionError::BitSizeOverflow)));
+        assert!(matches!((&mut brdr.by_ref()).read_bits::<u32>(u32::BITS + 1).unwrap_err(),
+                    LhaError::Decompress(DecompressionError::BitSizeOverflow)));
+
+        #[cfg(target_pointer_width = "64")]
+        {
+            assert_eq!(BITBUF_BITSIZE, 64);
+            assert_eq!(brdr.read_bits::<usize>(BITBUF_BITSIZE).unwrap(), 0x0102030405060708);
+        }
+        #[cfg(target_pointer_width = "32")]
+        {
+            assert_eq!(BITBUF_BITSIZE, 32);
+            assert_eq!(brdr.read_bits::<usize>(BITBUF_BITSIZE).unwrap(), 0x01020304);
         }
     }
 }

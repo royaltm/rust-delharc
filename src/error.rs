@@ -234,14 +234,15 @@ impl From<LhaError<io::Error>> for io::Error {
     }
 }
 
-#[cfg(feature = "std")]
+
 #[cfg(test)]
 mod tests {
-    use core::error::Error;
     use super::*;
 
-   #[test]
+    #[cfg(feature = "std")]
+    #[test]
     fn errors_works() {
+        use core::error::Error;
         let mut vec = <Vec<u8>>::new();
         assert_eq!(LhaHeaderError::try_from(vec.try_reserve(usize::MAX).unwrap_err()).unwrap(),
                    LhaHeaderError::OutOfMemory);
@@ -270,5 +271,64 @@ mod tests {
         assert!(err.source().unwrap().downcast_ref::<LhaHeaderError>().is_some());
         let err: LhaError<std::io::Error> = LhaError::Decompress(DecompressionError::UnsupportedCompression);
         assert!(err.source().unwrap().downcast_ref::<DecompressionError>().is_some());
+
+        assert_eq!(LhaError::from(std::io::Error::other("error")).to_string(), "error");
+    }
+
+    #[test]
+    fn error_messages_works() {
+        #[cfg(not(feature = "std"))]
+        use alloc::string::ToString;
+
+        assert_eq!(LhaError::<&str>::from(LhaHeaderError::UnknownLevel).to_string(),
+                   "while parsing LHA header: unknown header level");
+        assert_eq!(LhaError::<&str>::from(LhaHeaderError::Level3Signature).to_string(),
+                   "while parsing LHA header: level 3 signature mismatch");
+        assert_eq!(LhaError::<&str>::from(LhaHeaderError::ExtendedHeaderSize).to_string(),
+                   "while parsing LHA header: not enough bytes in the extended header");
+        assert_eq!(LhaError::<&str>::from(LhaHeaderError::WrappingSumMismatch).to_string(),
+                   "while parsing LHA header: wrapping checksum mismatch");
+        assert_eq!(LhaError::<&str>::from(LhaHeaderError::Crc16Mismatch).to_string(),
+                   "while parsing LHA header: CRC-16 checksum mismatch");
+        assert_eq!(LhaError::<&str>::from(LhaHeaderError::SizeMismatch).to_string(),
+                   "while parsing LHA header: size validation failed");
+        assert_eq!(LhaError::<&str>::from(LhaHeaderError::LongSizeMismatch).to_string(),
+                   "while parsing LHA header: long size validation failed");
+        assert_eq!(LhaError::<&str>::from(LhaHeaderError::SkipSizeMismatch).to_string(),
+                   "while parsing LHA header: skip size validation failed");
+        assert_eq!(LhaError::<&str>::from(LhaHeaderError::CommonHeader).to_string(),
+                   "while parsing LHA header: duplicate CRC-16 header found");
+        assert_eq!(LhaError::<&str>::from(LhaHeaderError::HeaderNotFound).to_string(),
+                   "while parsing LHA header: header not found");
+        assert_eq!(LhaError::<&str>::from(LhaHeaderError::OutOfMemory).to_string(),
+                   "while parsing LHA header: memory allocation failed");
+
+        assert_eq!(LhaError::<&str>::from(BuildError::CodeLengthOverflow).to_string(),
+                   "while decompressing: while building a tree: too many code lengths");
+        assert_eq!(LhaError::<&str>::from(BuildError::LeavesUndeflow).to_string(),
+                   "while decompressing: while building a tree: not enough leaf nodes in code lengths");
+        assert_eq!(LhaError::<&str>::from(BuildError::LeavesOverflow).to_string(),
+                   "while decompressing: while building a tree: too many leaf nodes in code lengths");
+        assert_eq!(LhaError::<&str>::from(BuildError::OutOfMemory).to_string(),
+                   "while decompressing: while building a tree: memory allocation failed");
+
+        assert_eq!(LhaError::<&str>::from(DecompressionError::UnsupportedCompression).to_string(),
+                   "while decompressing: unsupported compression method");
+        assert_eq!(LhaError::<&str>::from(DecompressionError::CommandCodeTableOverflow).to_string(),
+                   "while decompressing: commands code length table is too large");
+        assert_eq!(LhaError::<&str>::from(DecompressionError::OffsetCodeTableOverflow).to_string(),
+                   "while decompressing: offset code length table is too large");
+        assert_eq!(LhaError::<&str>::from(DecompressionError::CommandOverflow).to_string(),
+                   "while decompressing: command code is too large");
+        assert_eq!(LhaError::<&str>::from(DecompressionError::OffsetOverflow).to_string(),
+                   "while decompressing: offset code is too large");
+        #[cfg(feature = "pm")]
+        assert_eq!(LhaError::<&str>::from(DecompressionError::HistoryDistanceOverflow).to_string(),
+                   "while decompressing: history distance is too large");
+        assert_eq!(LhaError::<&str>::from(DecompressionError::CodeLengthOverflow).to_string(),
+                   "while decompressing: code length is too large");
+        assert_eq!(LhaError::<&str>::from(DecompressionError::BitSizeOverflow).to_string(),
+                   "while decompressing: too many bits requested");
+        assert_eq!(LhaError::<&str>::Io("other error").to_string(), "other error");
     }
 }

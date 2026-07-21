@@ -151,6 +151,8 @@ mod tests {
         assert!(result.to_utc().is_none());
         assert!(result.to_naive_utc().is_none());
         assert!(result.to_naive_local().is_none());
+        #[cfg(feature = "std")]
+        assert!(result.to_local().is_none());
         assert_eq!(result.to_string().as_str(), "-");
         let result: TimestampResult = parse_win_filetime(u64::MAX).into();
         assert!(result.is_none());
@@ -159,6 +161,8 @@ mod tests {
         assert!(result.to_utc().is_none());
         assert!(result.to_naive_utc().is_none());
         assert!(result.to_naive_local().is_none());
+        #[cfg(feature = "std")]
+        assert!(result.to_local().is_none());
         assert_eq!(result.to_string().as_str(), "-");
         let result: TimestampResult = parse_msdos_datetime(0b00000000_00100001_00000000_00000000).into();
         assert!(!result.is_none());
@@ -167,6 +171,8 @@ mod tests {
         assert!(result.to_utc().is_some());
         assert!(result.to_naive_utc().is_some());
         assert!(result.to_naive_local().is_some());
+        #[cfg(feature = "std")]
+        assert!(result.to_local().is_some());
         assert_eq!(result.to_utc().unwrap(), Utc.with_ymd_and_hms(1980, 1, 1, 0, 0, 0).unwrap());
         assert_eq!(result.to_string().as_str(), "1980-01-01 00:00:00");
         let result: TimestampResult = parse_msdos_datetime(0b11111111_10011111_10111111_01111101).unwrap().into();
@@ -182,6 +188,8 @@ mod tests {
         assert!(result.to_utc().is_some());
         assert!(result.to_naive_utc().is_some());
         assert!(result.to_naive_local().is_some());
+        #[cfg(feature = "std")]
+        assert!(result.to_local().is_some());
         assert_eq!(result.to_utc().unwrap(), Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap());
         assert_eq!(result.to_string().as_str(), "1970-01-01 00:00:00 UTC");
     }

@@ -175,6 +175,7 @@ mod tests {
         for osbyte in oses {
             let os = OsType::try_from(osbyte).unwrap();
             assert_eq!(u8::from(os), osbyte);
+            assert!(!os.to_string().is_empty());
         }
         let err = OsType::try_from(0xff).unwrap_err();
         assert!(err.to_string().starts_with("Unrecognized OS type: "));

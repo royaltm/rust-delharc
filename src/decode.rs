@@ -110,7 +110,7 @@ pub struct UnsupportedDecoder<R> {
 /// Alternatively, the error can be converted to the underlying [`LhaError`]
 /// using [`From`] trait, thus discarding the contained reader.
 ///
-/// Use [`core::error::Error::source()`] to access the underlying error.
+/// Use [`error::Error::source()`] to access the underlying error.
 pub struct LhaDecodeError<R: Read> {
     read: R,
     source: LhaError<R::Error>
@@ -652,10 +652,10 @@ impl<R: Read> LhaDecodeError<R> {
     }
 }
 
-impl<R: Read> core::error::Error for LhaDecodeError<R>
-    where LhaError<R::Error>: core::error::Error + 'static
+impl<R: Read> error::Error for LhaDecodeError<R>
+    where LhaError<R::Error>: error::Error + 'static
 {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         Some(&self.source)
     }
 }
@@ -748,53 +748,129 @@ fn build_random_tree_lengths(
     out.shuffle(rng);
 }
 
-#[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
-    use std::io;
+    #[cfg(not(feature = "std"))]
+    use alloc::string::ToString;
+    #[cfg(feature = "std")]
+    use std::{io, error::Error};
     use crate::OsType;
     use super::*;
 
     #[test]
     fn decode_error_works() {
-        let rd = io::Cursor::new(vec![0u8;3]);
+        let mut data: &[u8] = &[0u8;3];
+        let rd = &mut data;
         let mut err = LhaDecodeReader::new(rd).unwrap_err();
         assert_eq!(err.to_string(), "LHA decode error: while parsing LHA header: header not found");
-        assert_eq!(err.get_ref().get_ref(), &vec![0u8;3]);
-        assert_eq!(err.get_mut().get_mut(), &mut vec![0u8;3]);
-        let rd = err.into_inner();
-        assert_eq!(rd.position(), 1);
-        assert_eq!(rd.into_inner(), vec![0u8;3]);
+        assert_eq!(err.get_ref(), &&[0u8;2]);
+        assert_eq!(err.get_mut(), &mut &[0u8;2]);
+        assert_eq!(err.into_inner(), &[0u8;2]);
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn decode_std_error_works() {
+        static HEADER_BAD: &[u8] = {
+            b"\x01\0-lh0-\0\0\0\0\0\0\0\0\0\0\0\0\x20\x04"
+        };
+        let mut reader = LhaDecodeReader::default();
+        println!("{:?}", reader);
+        let mut data: &[u8] = HEADER_BAD;
+        let err = reader.begin_new(&mut data).unwrap_err();
+        assert_eq!(err.source().unwrap()
+                      .downcast_ref::<LhaError::<io::Error>>().unwrap()
+                      .source().unwrap()
+                      .downcast_ref::<LhaHeaderError>().unwrap(),
+                        &LhaHeaderError::UnknownLevel);
+        assert!(matches!(LhaError::from(err), LhaError::HeaderParse(LhaHeaderError::UnknownLevel)));
+
+        let rdlimit = io::Cursor::new(Vec::new()).take(u64::MAX);
+        let header = reader.header().clone();
+        let mut reader = LhaDecodeReader::default();
+        reader.begin_with_header_and_decoder(header.clone(),
+                    DecoderAny::new_from_compression(CompressionMethod::Lh0, rdlimit));
+        reader.seek_next_file().unwrap();
+
+        assert_eq!(data, &[]);
+
+        struct PhonySeek;
+        impl io::Read for PhonySeek {
+            fn read(&mut self, _buf: &mut[u8]) -> io::Result<usize> {
+                Err(io::ErrorKind::UnexpectedEof.into())
+            }
+        }
+        impl io::Seek for PhonySeek {
+            fn seek(&mut self, _style: io::SeekFrom) -> io::Result<u64> {
+                Err(io::ErrorKind::UnexpectedEof.into())
+            }
+        }
+
+        let rdlimit = PhonySeek.take(u64::MAX);
+        let mut reader = LhaDecodeReader::<PhonySeek>::default();
+        reader.begin_with_header_and_decoder(header.clone(),
+                    DecoderAny::new_from_compression(CompressionMethod::Lh0, rdlimit));
+        let err = reader.seek_next_file().unwrap_err();
+        assert!(reader.take_inner().is_none());
+        assert_eq!(io::Error::from(err).kind(), io::ErrorKind::UnexpectedEof);
+
+        let rdlimit = PhonySeek.take(u64::MAX);
+        reader.begin_with_header_and_decoder(header,
+                    DecoderAny::new_from_compression(CompressionMethod::Lh0, rdlimit));
+        let err = reader.next_file().unwrap_err();
+        assert_eq!(io::Error::from(err).kind(), io::ErrorKind::UnexpectedEof);
+
+        let mut data: &[u8] = &[];
+        let err = LhaDecodeReader::new(&mut data).unwrap_err();
+        println!("{:?}", err);
+        assert_eq!(err.to_string(), "LHA decode error: while parsing LHA header: header not found");
+        assert_eq!(io::Error::from(err).to_string(), "while parsing LHA header: header not found");
+
+        assert_eq!(<LhaDecodeReader::<&[u8]> as Read>::unexpected_eof().kind(),
+                   io::ErrorKind::UnexpectedEof);
+    }
+
+    #[should_panic]
+    #[test]
+    fn decode_panics() {
+        LhaDecodeReader::<&[u8]>::default().into_inner();
     }
 
     #[test]
     fn decode_works() {
         static HEADER_0: &[u8] = {
-            b"\x1F\xC3-lh0-\0\0\0\0\0\0\0\0\xCA\x83\xE7\x2C\x20\x00\x09test\\test\0\0"
+            b"\x1F\xC1-lh0-\0\0\0\0\0\0\0\0\xCA\x83\xE7\x2C\x20\x00\x09test\\test\xFF\xFF"
         };
 
         let mut data = HEADER_0;
-        let reader = LhaDecodeReader::new(&mut data).unwrap();
+        let mut reader = LhaDecodeReader::new(&mut data).unwrap();
         assert!(reader.is_present());
 
+        assert!(matches!(reader.get_decoder().unwrap(), &DecoderAny::PassthroughDecoder(..))); 
+        assert!(matches!(reader.get_mut_decoder().unwrap(), &mut DecoderAny::PassthroughDecoder(..))); 
+        assert_eq!(reader.get_ref().unwrap(), &&mut &[]); 
+        assert_eq!(reader.get_mut().unwrap(), &mut &mut &[]);
+        assert!(matches!(reader.crc_check().unwrap_err(), LhaError::Checksum));
         let (header, decoder) = reader.into_parts();
-        let decoder = decoder.unwrap();
+        let mut decoder = decoder.unwrap();
         assert!(decoder.is_supported());
         assert!(matches!(decoder, DecoderAny::PassthroughDecoder(..)));
+        assert_eq!(decoder.get_ref().get_ref(), &&mut &[]);
+        assert_eq!(decoder.get_mut().get_mut(), &mut &mut &[]);
         let data = decoder.into_inner().into_inner();
         assert!(data.is_empty());
         assert_eq!(header.level, 0);
         assert_eq!(header.original_size, 0);
         assert_eq!(header.compressed_size, 0);
         assert_eq!(header.parse_os_type().unwrap(), OsType::Generic);
+        assert!(!header.is_directory());
         assert!(!header.compression_method().unwrap().is_compressed());
         assert_eq!(header.parse_pathname_to_str(), "test/test");
-        assert_eq!(header.file_crc, 0);
+        assert_eq!(header.file_crc, u16::MAX);
 
         static HEADER_1: &[u8] = {
             b"\x1D\xFF-lh0-\x0D\0\0\0\0\0\0\0\xCA\x83\xE7\x2C\x20\x01\x04test\0\0J\x05\x00\x00\x40\x7F\x08\x00\x02test\xFF\0\0"
         };
-        println!("{:02x?}", HEADER_1);
         let mut data = HEADER_1;
         let mut reader = LhaDecodeReader::new(&mut data).unwrap();
         assert!(reader.is_present());
@@ -806,12 +882,19 @@ mod tests {
             assert_eq!(header.compressed_size, 0);
             assert_eq!(header.parse_os_type().unwrap(), OsType::Java);
             assert!(!header.compression_method().unwrap().is_compressed());
+            assert!(!header.is_directory());
             assert_eq!(header.parse_pathname_to_str(), "test/test");
             assert_eq!(header.file_crc, 0);
         }
-        let decoder = reader.take_decoder().unwrap();
+        assert!(matches!(reader.get_decoder().unwrap(), &DecoderAny::PassthroughDecoder(..))); 
+        assert!(matches!(reader.get_mut_decoder().unwrap(), &mut DecoderAny::PassthroughDecoder(..))); 
+        assert_eq!(reader.get_ref().unwrap(), &&mut &[]); 
+        assert_eq!(reader.get_mut().unwrap(), &mut &mut &[]);
+        let mut decoder = reader.take_decoder().unwrap();
         assert!(decoder.is_supported());
         assert!(matches!(decoder, DecoderAny::PassthroughDecoder(..)));
+        assert_eq!(decoder.get_ref().get_ref(), &&mut &[]);
+        assert_eq!(decoder.get_mut().get_mut(), &mut &mut &[]);
         let data = decoder.into_inner().into_inner();
         assert!(data.is_empty());
         let decoder = DecoderAny::new_from_header(&header, data);
@@ -820,6 +903,13 @@ mod tests {
         reader.begin_with_header_and_decoder(header.clone(), decoder);
         assert_eq!(&header, reader.header());
         assert_eq!(reader.header().level, 0);
+        let rd = reader.take_decoder().unwrap().into_inner();
+        reader.begin_with_header_and_decoder(header.clone(),
+            DecoderAny::new_from_compression(CompressionMethod::Lhd, rd));
+        assert!(matches!(reader.get_decoder().unwrap(), &DecoderAny::UnsupportedDecoder(..))); 
+        assert!(matches!(reader.get_mut_decoder().unwrap(), &mut DecoderAny::UnsupportedDecoder(..))); 
+        assert_eq!(reader.get_ref().unwrap(), &&mut &[]); 
+        assert_eq!(reader.get_mut().unwrap(), &mut &mut &[]);
 
         static HEADER_1A: &[u8] = {
             static INNER: [[u8; 16];11] = [
@@ -840,6 +930,7 @@ mod tests {
             assert_eq!(header.level, 1);
             assert_eq!(header.original_size, 0);
             assert_eq!(header.compressed_size, 0);
+            assert!(!header.is_directory());
             assert_eq!(header.parse_os_type().unwrap(), OsType::Java);
             assert!(!header.compression_method().unwrap().is_compressed());
             assert_eq!(header.parse_pathname_to_str(), concat!(
@@ -853,5 +944,7 @@ mod tests {
         reader.begin_new(&mut data).unwrap();
         assert_eq!(&header, reader.header());
         assert_eq!(reader.header().level, 0);
+        let data = reader.into_inner();
+        assert_eq!(data, &[]);
     }
 }

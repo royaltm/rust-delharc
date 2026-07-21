@@ -653,9 +653,15 @@ mod tests {
         code_length.resize(0x8000, 0u8);
         tree.try_reserve_for_leaves(0x4000).unwrap();
         assert_eq!(tree.try_reserve_for_leaves(0x4001).unwrap_err(), BuildError::LeavesOverflow);
+        assert_eq!(tree.try_reserve_for_leaves(0x4001).unwrap_err().to_string(),
+                                            "too many leaf nodes in code lengths");
         assert_eq!(tree.build_tree(&code_length).unwrap_err(), BuildError::LeavesUndeflow);
+        assert_eq!(tree.build_tree(&code_length).unwrap_err().to_string(),
+                                            "not enough leaf nodes in code lengths");
         code_length.push(1);
         assert_eq!(tree.build_tree(&code_length).unwrap_err(), BuildError::CodeLengthOverflow);
+        assert_eq!(tree.build_tree(&code_length).unwrap_err().to_string(),
+                                            "too many code lengths");
         assert!(tree.is_empty());
         assert_eq!(tree.len(), 0);
 
