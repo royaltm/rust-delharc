@@ -379,7 +379,7 @@ impl LhaHeader {
             }
         }
         if self.compression.starts_with(b"-pm") && !self.extended_area.is_empty() {
-            let comment = parse_str_nilterm(&*self.extended_area, false, true);
+            let comment = parse_str_nilterm(&self.extended_area, false, true);
             (!comment.is_empty()).then_some(comment)
         }
         else if let Ok(os_type) = self.parse_os_type() &&
@@ -407,8 +407,8 @@ impl LhaHeader {
                data.len() >= 4
             {
                 let (gid, uid) = data[0..4].split_at(2);
-                let gid = read_u16(&gid).unwrap();
-                let uid = read_u16(&uid).unwrap();
+                let gid = read_u16(gid).unwrap();
+                let uid = read_u16(uid).unwrap();
                 return Some((uid, gid))
             }
         }
@@ -418,8 +418,8 @@ impl LhaHeader {
         {
             let len = self.extended_area.len();
             let (uid, gid) = self.extended_area[len - 4..len].split_at(2);
-            let uid = read_u16(&uid).unwrap();
-            let gid = read_u16(&gid).unwrap();
+            let uid = read_u16(uid).unwrap();
+            let gid = read_u16(gid).unwrap();
             return Some((uid, gid))
         }
         None
@@ -448,10 +448,7 @@ impl LhaHeader {
     /// The [`Os9Attrs`] object properly identifies attributes flags only
     /// if the file was created on OS-9 or OS-9/68k operating systems.
     pub fn parse_os_9_attrs(&self) -> Option<Os9Attrs> {
-        match self.parse_extended_attrs()? {
-            Err(os9_attr) => Some(os9_attr),
-            Ok(..) => None
-        }
+        self.parse_extended_attrs()?.err()
     }
 
     fn parse_extended_attrs(&self) -> Option<Result<Permissions, Os9Attrs>> {

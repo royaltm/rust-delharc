@@ -448,7 +448,7 @@ impl<R: Read> Pm1Decoder<R> {
             }) & 0x0f;
             // Reached a leaf node?
             match child {
-                10.. => break Ok(BYTE_RANGES[usize::from(child) - 10]),
+                10.. => break Ok(BYTE_RANGES[child - 10]),
                 i => {
                     assert!(i < tree.len());
                     tree = &tree[i..];

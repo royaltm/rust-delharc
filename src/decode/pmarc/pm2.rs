@@ -204,7 +204,7 @@ impl<R: Read> Pm2Decoder<R> {
 
         // Build the tree.
         self.offset_tree.build_tree(&offset_lengths[0..num_offsets])?;
-        return Ok(())
+        Ok(())
     }
 
     /// Rebuild the decode trees used to compress data when

@@ -86,7 +86,7 @@ macro_rules! unsafe_assert {
 
 impl HuffTree {
     /// The maximum number of unique values (leaves) this object can hold.
-    pub const MAX_LEAVES: usize = (TreeEntry::MAX_INDEX + 1) / 2;
+    pub const MAX_LEAVES: usize = TreeEntry::MAX_INDEX.div_ceil(2);
     /// The maximum number of nodes this object can hold.
     pub const MAX_NODES: usize = Self::MAX_LEAVES * 2 - 1;
     /// Creates a new and empty [`HuffTree`] without allocating anything.
@@ -292,6 +292,7 @@ impl HuffTree {
             node_index = end_index;
             // add all leaves at the current depth
             // the last iteration here should be in leaf_index..tree.len() range
+            #[allow(clippy::mut_range_bound)]
             for i in node_index..max_allocated {
                 // SAFETY: end_index (previous max_allocated) <= leaf_index (condition below)
                 //         max_allocated <= tree.len()
