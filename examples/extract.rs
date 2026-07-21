@@ -8,7 +8,7 @@ use std::{io, fs, path::Path};
 use delharc::{LhaError, LhaResult, Read, UnexpectedEofError};
 
 #[cfg(feature = "std")]
-fn extract_to_stdout<R: io::Read, P: AsRef<Path>>(
+fn extract_to_stdout<R: io::Read + io::Seek, P: AsRef<Path>>(
         mut lha_reader: delharc::LhaDecodeReader<R>,
         matching_path: P
     ) -> io::Result<bool>
@@ -36,7 +36,7 @@ fn extract_to_stdout<R: io::Read, P: AsRef<Path>>(
             }
         }
 
-        if !lha_reader.next_file()? {
+        if !lha_reader.seek_next_file()? {
             break;
         }
     }
@@ -100,14 +100,6 @@ fn main() -> io::Result<()> {
     eprintln!("  Extracting from io::File...");
     eprintln!("================================================================");
     let lha_reader = delharc::parse_file(ARCHIVE_NAME)?;
-    extract_to_stdout(lha_reader, FILE_MATCH)?;
-
-    eprintln!("");
-    eprintln!("================================================================");
-    eprintln!("  Extracting from &[u8]...");
-    eprintln!("================================================================");
-    const SLICE: &[u8] = include_bytes!(concat!("../", archive_name!()));
-    let lha_reader = delharc::LhaDecodeReader::new(SLICE)?;
     extract_to_stdout(lha_reader, FILE_MATCH)?;
 
     eprintln!("");

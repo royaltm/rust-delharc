@@ -93,7 +93,7 @@ fn extract_to_stdout<P: AsRef<Path>>(
             }
         }
 
-        if !lha_reader.next_file()? {
+        if !lha_reader.seek_next_file()? {
             break;
         }
     }
