@@ -6,10 +6,10 @@ methods used by the archive format.
 This library does not provide high level methods for creating files or directories from the extracted archives.
 
 There are many extensions to the base LHA headers, used by many different archive programs, in many different
-operating systems. This library only allows for parsing some basic properties of the archived files, such as
-file path names and last modification timestamps.
+operating systems. This library only allows for parsing some properties of the archived files, such as file
+path names, last modification timestamps, UNIX/OS-9 permission flags and file owner IDs.
 
-The [LhaHeader] exposes properties and methods to inspect the raw content of header extensions, as well as
+The [`LhaHeader`] exposes properties and methods to inspect the raw content of header extensions, as well as
 extended header data and may be explored by the user program in case extra archive properties are needed to be read.
 
 LHA header levels: 0, 1, 2 and 3 are recognized.
@@ -17,37 +17,47 @@ LHA header levels: 0, 1, 2 and 3 are recognized.
 
 ## Compression methods
 
-You may include or opt out of some of the decoders:
+You may include or opt out of some of the compression decoders:
 
 ```toml
 [dependencies.delharc]
-version = "0.7"
+version = "0.8"
 default-features = false
 features = ["std", "lh1"] # select desired features
 ```
 
-`lh1` and `lz` features are enabled by **default**.
+`std`, `lh1`, `lz` and `pm` features are enabled by **default**.
 
 When using `default-features = false` the `std` feature needs to be added back along with other
 compression method features. Otherwise the library will be compiled in the `no_std` mode.
 
-| identifier | decoder            | feature | description
-|------------|--------------------|---------|------------
-| `-lh0-`    | PassthroughDecoder |         | no compression
-| `-lh1-`    | Lh1Decoder         | lh1     | LHarc version 1, 4kB sliding window, dynamic huffman
-| `-lh4-`    | Lh5Decoder         |         | LHarc version 2, 4kB sliding window, static huffman
-| `-lh5-`    | Lh5Decoder         |         | LHarc version 2, 8kB sliding window, static huffman
-| `-lh6-`    | Lh7Decoder         |         | LHarc version 2, 32kB sliding window, static huffman
-| `-lh7-`    | Lh7Decoder         |         | LHarc version 2, 64kB sliding window, static huffman
-| `-lhd-`    | unsupported        |         | an empty directory, data should be empty and should be skipped
-| `-lhx-`    | LhxDecoder         | lhx     | UNLHA32.DLL method, 128-512kb sliding window, static huffman
-| `-lz4-`    | PassthroughDecoder |         | no compression
-| `-lzs-`    | LzsDecoder         | lz      | LArc, 2kb sliding window
-| `-lz5-`    | Lz5Decoder         | lz      | LArc, 4kb sliding window
-| `-pm0-`    | PassthroughDecoder |         | no compression
-| `-pm1-`    | unsupported        | N/A     | PMarc, 8 Kb sliding window, static huffman
-| `-pm2-`    | unsupported        | N/A     | PMarc, 4 Kb sliding window, static huffman
+| identifier | decoder                | feature | description
+|------------|------------------------|---------|------------
+| `-lh0-`    | [`PassthroughDecoder`] |         | no compression
+| `-lh1-`    | [`Lh1Decoder`]         | `lh1`   | LHarc version 1, 4kB sliding window, dynamic huffman
+| `-lh4-`    | [`Lh5Decoder`]         |         | LHarc version 2, 4kB sliding window, static huffman
+| `-lh5-`    | [`Lh5Decoder`]         |         | LHarc version 2, 8kB sliding window, static huffman
+| `-lh6-`    | [`Lh7Decoder`]         |         | LHarc version 2, 32kB sliding window, static huffman
+| `-lh7-`    | [`Lh7Decoder`]         |         | LHarc version 2, 64kB sliding window, static huffman
+| `-lhd-`    | [`unsupported`]        |         | an empty directory, data should be empty and should be skipped
+| `-lhx-`    | [`LhxDecoder`]         | `lhx`   | UNLHA32.DLL method, 128-512kb sliding window, static huffman
+| `-lz4-`    | [`PassthroughDecoder`] |         | no compression
+| `-lzs-`    | [`LzsDecoder`]         | `lz`    | LArc, 2kb sliding window
+| `-lz5-`    | [`Lz5Decoder`]         | `lz`    | LArc, 4kb sliding window
+| `-pm0-`    | [`PassthroughDecoder`] |         | no compression
+| `-pm1-`    | [`Pm1Decoder`]         | `pm`    | PMarc, 16 Kb sliding window, built-in huffman, history list
+| `-pm2-`    | [`Pm2Decoder`]         | `pm`    | PMarc,  8 Kb sliding window, static huffman, history list
 
+[`Lh1Decoder`]: decode::Lh1Decoder
+[`Lh5Decoder`]: decode::Lh5Decoder
+[`Lh7Decoder`]: decode::Lh7Decoder
+[`LhxDecoder`]: decode::LhxDecoder
+[`LzsDecoder`]: decode::LzsDecoder
+[`Lz5Decoder`]: decode::Lz5Decoder
+[`Pm1Decoder`]: decode::Pm1Decoder
+[`Pm2Decoder`]: decode::Pm2Decoder
+[`PassthroughDecoder`]: decode::PassthroughDecoder
+[`unsupported`]: decode::UnsupportedDecoder
 */
 #![cfg_attr(feature = "std", doc = r##"
 ## Example
@@ -83,7 +93,7 @@ fn extract_to_stdout<P: AsRef<Path>>(
             }
         }
 
-        if !lha_reader.next_file()? {
+        if !lha_reader.seek_next_file()? {
             break;
         }
     }
@@ -101,14 +111,14 @@ and [`stub_io::Read`] is implemented for all types that implement [`std::io::Rea
 In this instance to read decompressed files, callers should access the [`LhaDecodeReader`] using
 [`std::io::Read`] trait methods.
 
-Without the `std` feature enabled `delharc` is compiled without the `std` library. 
-The extern crate `alloc` is still required though. Because [`std::io`] is missing,
-in this instance callers should interface the [`LhaDecodeReader`] using [`stub_io::Read`]
-trait directly. [`stub_io::Read`] is implemented initially for `&[u8]` slices and `Box<R: Read>`
-and can be implemented for other types.
+Without the `std` feature enabled the `std` library is not available, but `delharc` still requires
+the `alloc` crate. Because the whole [`std::io`] is missing, callers should interface the
+[`LhaDecodeReader`] using [`stub_io::Read`] methods instead.
+[`stub_io::Read`] is implemented initially for `&[u8]` slices and `Box<R: Read>` and can be
+implemented for other types.
 
 When compiled without `std`: [`stub_io::Read`], [`stub_io::Take`] and `UnexpectedEofError` are
-re-exported directly under the crate root. `UnexpectedEofError` is only available in `no_std`.
+re-exported directly under the crate root. `UnexpectedEofError` is only available in `no_std` mode.
 
 ```ignore
 use delharc::{LhaDecodeReader, LhaError, LhaResult, Read, UnexpectedEofError};
@@ -116,29 +126,67 @@ const DATA: &[u8] = include_bytes!("file.lzh");
 //...
 let lha_reader = LhaDecodeReader::new(DATA).unwrap();
 ```
+
+## Extending `delharc`
+
+The `extend` feature exposes library implementation details, allowing users to access directly
+[bitstreams](bitstream), [ring buffers](ringbuf) or a [huffman tree](statictree) implementation,
+with the caveat that they may be changed more often in the future releases of `delharc`.
+
+For example, [`LhaV2Decoder`](crate::decode::LhaV2Decoder) is a generic LHArc version 2 decoder,
+which allows creating decoders with custom sliding window sizes, using the
+[`LhaDecoderConfig`](crate::decode::LhaDecoderConfig) trait for configuration.
+
+The `extend` feature is not enabled by default.
+
 */
-// https://web.archive.org/web/20240916153830/https://archive.gamedev.net/archive/reference/articles/article295.html
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(redundant_imports)]
+#![deny(unused_imports)]
+#![deny(missing_docs)]
+
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 pub mod crc;
-mod error;
+pub mod error;
 pub mod stub_io;
 pub mod decode;
 pub mod header;
-pub(crate) mod ringbuf;
-pub(crate) mod bitstream;
-pub(crate) mod statictree;
+
+#[cfg(not(feature = "extend"))]
+mod ringbuf;
+#[cfg(not(feature = "extend"))]
+mod bitstream;
+#[cfg(not(feature = "extend"))]
+mod statictree;
+
+#[cfg(feature = "extend")]
+#[cfg_attr(docsrs, doc(cfg(feature = "extend")))]
+pub mod ringbuf;
+#[cfg(feature = "extend")]
+#[cfg_attr(docsrs, doc(cfg(feature = "extend")))]
+pub mod bitstream;
+#[cfg(feature = "extend")]
+#[cfg_attr(docsrs, doc(cfg(feature = "extend")))]
+pub mod statictree;
 
 // Various parsers assume usize has enough bits and will break on < 32-bits.
 const _: usize = (size_of::<usize>() >= size_of::<u32>()) as usize - 1;
 
 pub use decode::LhaDecodeReader;
 pub use header::{
-    LhaHeader, CompressionMethod, OsType, TimestampResult, MsDosAttrs
+    CompressionMethod,
+    LhaHeader,
+    MsDosAttrs,
+    Os9Attrs,
+    OsType,
+    Permissions,
+    TimestampResult,
 };
 pub use error::{LhaError, LhaResult};
 #[cfg(not(feature = "std"))]
+#[cfg_attr(docsrs, doc(cfg(not(feature = "std"))))]
 pub use stub_io::{Read, Take, UnexpectedEofError};
 
 #[cfg(feature = "std")]
@@ -147,16 +195,17 @@ use std::path::Path;
 use std::fs::File;
 
 #[cfg(feature = "std")]
-/// Attempt to open a file from a filesystem in read-only mode and on success return an instance of
-/// [LhaDecodeReader] with the first parsed LHA file header, ready to decode the content of the first
-/// archived file.
+/// Attempt to open a file from a filesystem in read-only mode and on success
+/// return an instance of [`LhaDecodeReader`] with the first parsed LHA file
+/// header, ready to decode the content of the first archived file.
 ///
 /// # `no_std`
 /// Available only with `std` feature enabled.
 ///
 /// # Errors
-/// This function will return an error if an opened file is not an LHA/LZH file or the header couldn't
-/// be recognized. Other errors may also be returned from [File::open] and from attempts to read the file.
+/// This function will return an error if an opened file is not an LHA/LZH file
+/// or the header couldn't be recognized. Other errors may also be returned
+/// from [`File::open`] and from attempts to read the file.
 pub fn parse_file<P: AsRef<Path>>(path: P) -> std::io::Result<LhaDecodeReader<File>> {
   let file = File::open(path)?;
   Ok(LhaDecodeReader::new(file)?)

@@ -34,17 +34,19 @@ const CRC16_TABLE: [u16; 0x100] = [
   0x8201, 0x42c0, 0x4380, 0x8341, 0x4100, 0x81c1, 0x8081, 0x4040
 ];
 
+/// CRC-16 digest utility for archived file validation
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Crc16 {
     sum: u16
 }
 
 impl Crc16 {
+    /// Reset the calculation
     #[inline]
     pub fn reset(&mut self) {
         self.sum = 0;
     }
-
+    /// Update the checksum from data
     pub fn digest(&mut self, data: &[u8]) {
         let mut sum = self.sum;
         for n in data.iter() {
@@ -53,7 +55,7 @@ impl Crc16 {
         }
         self.sum = sum;
     }
-
+    /// Return the value of the calculated checksum
     #[inline]
     pub fn sum16(&self) -> u16 {
         self.sum

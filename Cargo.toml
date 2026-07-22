@@ -1,6 +1,6 @@
 [package]
 name = "delharc"
-version = "0.7.0"
+version = "0.8.0"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2024"
 description = "A library for parsing and extracting files from LHA/LZH archives."
@@ -11,112 +11,74 @@ repository = "https://github.com/royaltm/rust-delharc"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 exclude = [".github", ".gitignore", "tests/*", "examples/*"]
-rust-version = "1.93"
+rust-version = "1.95"
 
 [package.metadata.docs.rs]
 all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = ["std", "lh1", "lz"]
+default = ["std", "lh1", "lz", "pm"]
 std = ["chrono/std", "chrono/clock"]
+# -lh1- decompression
 lh1 = []
+# -lhx- decompression
 lhx = []
+# -lzs- and -lz5- decompression
 lz = []
+# -pm1- and -pm2- decompression
+pm = []
+# Expose internal utilities - enables LHAv2 decoder customization.
+extend = []
+# Enable HuffTree::build_tree_with_sort and it becomes default tree building method.
+# Adds ~8-15kB (depending on optimization level) bytes to code size.
+# Only slightly impacts performance on LHAv2 decoding - an increase of ~1%-4%.
+fast-tree-build = []
+# Remove assertions that eliminate boundary checks in critical functions.
+# This only affects code if debug_assertions are not enabled.
+# Enabling this feature reduces performance by ~10-50% or more.
+no-unsafe-assertions = []
 
 [dependencies]
 chrono = { version = "0.4", default-features = false }
 bitflags = "2.13"
 memchr = { version = "2", default-features = false }
-bytemuck = { version = "1.25", features = ["derive"] }
+bytemuck = { version = "1.25", features = ["derive", "min_const_generics", "extern_crate_alloc", "align_offset"] }
 
 [dev-dependencies]
 crc-any = { version = "3", default-features = false }
+criterion = { version = "0.8", features = ["html_reports"] }
+gofer = { version = "0.2", default-features = false, features = ["std", "http", "https"] }
 rand = "0.10.2"
 
-[[example]]
-name = "extract"
-path = "examples/extract.rs"
+[[bench]]
+name = "statictree"
+harness = false
+required-features = ["std", "extend", "fast-tree-build"]
+
+[[bench]]
+name = "lhav2"
+harness = false
+required-features = ["std", "lhx"]
+
+[[bench]]
+name = "aminet"
+harness = false
 required-features = ["std"]
 
-[[test]]
-name = "allocation"
-path = "tests/allocation.rs"
-required-features = ["std"]
-[[test]]
-name = "decode"
-path = "tests/decode.rs"
-required-features = ["std"]
-[[test]]
-name = "larc333"
-path = "tests/larc333.rs"
-required-features = ["std"]
-[[test]]
-name = "lenghts"
-path = "tests/lenghts.rs"
-required-features = ["std"]
-[[test]]
-name = "lha213"
-path = "tests/lha213.rs"
-required-features = ["std"]
-[[test]]
-name = "lha255e"
-path = "tests/lha255e.rs"
-required-features = ["std"]
-[[test]]
-name = "lha_amiga_122"
-path = "tests/lha_amiga_122.rs"
-required-features = ["std"]
-[[test]]
-name = "lha_amiga_212"
-path = "tests/lha_amiga_212.rs"
-required-features = ["std"]
-[[test]]
-name = "lha_os2_208"
-path = "tests/lha_os2_208.rs"
-required-features = ["std"]
-[[test]]
-name = "lha_os9_211c"
-path = "tests/lha_os9_211c.rs"
-required-features = ["std"]
-[[test]]
-name = "lha_osk_201"
-path = "tests/lha_osk_201.rs"
-required-features = ["std"]
-[[test]]
-name = "lha_unix114i"
-path = "tests/lha_unix114i.rs"
-required-features = ["std"]
-[[test]]
-name = "lha_x68k_213"
-path = "tests/lha_x68k_213.rs"
-required-features = ["std"]
-[[test]]
-name = "lharc113"
-path = "tests/lharc113.rs"
-required-features = ["std"]
-[[test]]
-name = "lharc_atari_313a"
-path = "tests/lharc_atari_313a.rs"
-required-features = ["std"]
-[[test]]
-name = "lhmelt_16536"
-path = "tests/lhmelt_16536.rs"
-required-features = ["std"]
-[[test]]
-name = "lzs"
-path = "tests/lzs.rs"
-required-features = ["std"]
-[[test]]
-name = "regression"
-path = "tests/regression.rs"
-required-features = ["std"]
-[[test]]
-name = "unlha32"
-path = "tests/unlha32.rs"
-required-features = ["std"]
+[[bench]]
+name = "pmarc"
+harness = false
+required-features = ["std", "pm"]
 
 [workspace]
 members = [
   ".",
   "examples/embedded"
 ]
+
+[profile.release]
+opt-level = 3
+lto = true
+incremental = false
+codegen-units = 1

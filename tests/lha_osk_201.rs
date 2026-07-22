@@ -1,37 +1,39 @@
+#![cfg(feature = "std")]
 use std::io;
 use delharc::header::*;
 
 mod sink;
 use sink::SinkSum;
 
+use CompressionMethod::*;
 const TESTS_CASES: &[(&str, &str, u64, u64, u16, u32, &str, u8, CompressionMethod)] = &[
-    ("h0_lh0.lzh", "gpl-2.gz", 6829,  6829, 0xB6D5, 0xE4690583, "2010-01-01 06:00:00 UTC", 0, CompressionMethod::Lh0),
+    ("h0_lh0.lzh", "gpl-2.gz", 6829,  6829, 0xB6D5, 0xE4690583, "2010-01-01 06:00:00 UTC", 0, Lh0),
     #[cfg(feature = "lh1")]
-    ("h0_lh1.lzh", "gpl-2",    7208, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 0, CompressionMethod::Lh1),
-    ("h0_lh5.lzh", "gpl-2",    7004, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 0, CompressionMethod::Lh5),
-    ("h1_lh0.lzh", "gpl-2.gz", 6829,  6829, 0xB6D5, 0xE4690583, "2010-01-01 06:00:00 UTC", 1, CompressionMethod::Lh0),
+    ("h0_lh1.lzh", "gpl-2",    7208, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 0, Lh1),
+    ("h0_lh5.lzh", "gpl-2",    7004, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 0, Lh5),
+    ("h1_lh0.lzh", "gpl-2.gz", 6829,  6829, 0xB6D5, 0xE4690583, "2010-01-01 06:00:00 UTC", 1, Lh0),
     #[cfg(feature = "lh1")]
-    ("h1_lh1.lzh", "gpl-2",    7208, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 1, CompressionMethod::Lh1),
-    ("h1_lh5.lzh", "gpl-2",    7004, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 1, CompressionMethod::Lh5),
-    ("h2_lh0.lzh", "gpl-2.gz", 6829,  6829, 0xB6D5, 0xE4690583, "2010-01-01 06:00:00 UTC", 2, CompressionMethod::Lh0),
+    ("h1_lh1.lzh", "gpl-2",    7208, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 1, Lh1),
+    ("h1_lh5.lzh", "gpl-2",    7004, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 1, Lh5),
+    ("h2_lh0.lzh", "gpl-2.gz", 6829,  6829, 0xB6D5, 0xE4690583, "2010-01-01 06:00:00 UTC", 2, Lh0),
     #[cfg(feature = "lh1")]
-    ("h2_lh1.lzh", "gpl-2",    7208, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 2, CompressionMethod::Lh1),
-    ("h2_lh5.lzh", "gpl-2",    7004, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 2, CompressionMethod::Lh5),
+    ("h2_lh1.lzh", "gpl-2",    7208, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 2, Lh1),
+    ("h2_lh5.lzh", "gpl-2",    7004, 18092, 0xA33A, 0x4E46F4A1, "2010-01-01 06:00:00 UTC", 2, Lh5),
 ];
 
-const SUBDIR_CASES: &[(&str, &[(&str, u64, u64, u16, u32, &str, u8, CompressionMethod)])] = &[
+const SUBDIR_CASES: &[(&str, &[(&str, u64, u64, u16, u32, &str, u8, CompressionMethod, bool)])] = &[
     ("h0_subdir.lzh", &[
-        ("",                          0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 0, CompressionMethod::Lhd),
-        ("",                          0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 0, CompressionMethod::Lhd),
-        ("hello.txt",                12, 12, 0x9778, 0xAF083B2D, "2010-01-01 06:00:00 UTC", 0, CompressionMethod::Lh0)]),
+        ("",                          0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 0, Lhd, true),
+        ("",                          0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 0, Lhd, true),
+        ("hello.txt",                12, 12, 0x9778, 0xAF083B2D, "2010-01-01 06:00:00 UTC", 0, Lh0, false)]),
     ("h1_subdir.lzh", &[
-        ("subdir",                    0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 1, CompressionMethod::Lhd),
-        ("subdir*subdir2",            0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 1, CompressionMethod::Lhd),
-        ("subdir*subdir2*hello.txt", 12, 12, 0x9778, 0xAF083B2D, "2010-01-01 06:00:00 UTC", 1, CompressionMethod::Lh0)]),
+        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 1, Lhd, true),
+        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 1, Lhd, true),
+        ("subdir*subdir2*hello.txt", 12, 12, 0x9778, 0xAF083B2D, "2010-01-01 06:00:00 UTC", 1, Lh0, false)]),
     ("h2_subdir.lzh", &[
-        ("subdir",                    0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 2, CompressionMethod::Lhd),
-        ("subdir*subdir2",            0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 2, CompressionMethod::Lhd),
-        ("subdir*subdir2*hello.txt", 12, 12, 0x9778, 0xAF083B2D, "2010-01-01 06:00:00 UTC", 2, CompressionMethod::Lh0)]),
+        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 2, Lhd, true),
+        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2010-07-01 05:00:00 UTC", 2, Lhd, true),
+        ("subdir*subdir2*hello.txt", 12, 12, 0x9778, 0xAF083B2D, "2010-01-01 06:00:00 UTC", 2, Lh0, false)]),
 ];
 
 #[test]
@@ -43,7 +45,12 @@ fn test_lha_osk_201() -> io::Result<()> {
             assert!(filen <= 0);
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
+            // println!("{:x?}", header);
+            // for ext in header.iter_extra() {
+            //     println!("{:x?}", ext);
+            // }
             assert_eq!(header.level, *level);
+            assert!(!header.is_directory());
             if header.level == 0 && *compr == CompressionMethod::Lhd {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
             }
@@ -57,8 +64,13 @@ fn test_lha_osk_201() -> io::Result<()> {
             assert_eq!(&header.parse_pathname().to_str().unwrap(), &path1);
             let path1 = path.replace("*", "/");
             assert_eq!(&header.parse_pathname_to_str(), &path1);
+            assert!(header.parse_comment().is_none());
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
+            let os9perm = header.parse_os_9_attrs().unwrap();
+            assert_eq!(os9perm.to_string(), "--e--ewr");
+            assert_eq!(Permissions::from(os9perm).to_string(), "-rwx--x--x");
+            assert_eq!(header.parse_unix_uid_gid().unwrap(), (0, 0));
             assert_eq!(header.file_crc, *crc16);
             assert_eq!(header.parse_os_type()?, OsType::Osk);
             if *compr == CompressionMethod::Lhd {
@@ -82,10 +94,15 @@ fn test_lha_osk_201() -> io::Result<()> {
         let mut lha_reader = delharc::parse_file(format!("tests/lha_osk_201/{}", name))?;
         for filen in 0.. {
             assert!(filen < headers.len());
-            let (path, size_c, size_o, crc16, crc32, modif, level, compr) = &headers[filen];
+            let (path, size_c, size_o, crc16, crc32, modif, level, compr, is_dir) = &headers[filen];
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
+            // println!("{:x?}", header);
+            // for ext in header.iter_extra() {
+            //     println!("{:x?}", ext);
+            // }
             assert_eq!(header.level, *level);
+            assert_eq!(header.is_directory(), *is_dir);
             if header.level == 0 && header.compression_method().unwrap() == CompressionMethod::Lhd {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
             }
@@ -101,6 +118,16 @@ fn test_lha_osk_201() -> io::Result<()> {
             assert_eq!(&header.parse_pathname_to_str(), &path1);
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
+            let os9perm = header.parse_os_9_attrs().unwrap();
+            if header.compression_method().unwrap().is_directory() {
+                assert_eq!(os9perm.to_string(), "d-ewrewr");
+                assert_eq!(Permissions::from(os9perm).to_string(), "drwxrwxrwx");
+            }
+            else {
+                assert_eq!(os9perm.to_string(), "--e--ewr");
+                assert_eq!(Permissions::from(os9perm).to_string(), "-rwx--x--x");
+            }
+            assert_eq!(header.parse_unix_uid_gid().unwrap(), (0, 0));
             assert_eq!(header.file_crc, *crc16);
             assert_eq!(header.parse_os_type()?, OsType::Osk);
             if *compr == CompressionMethod::Lhd {

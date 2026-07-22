@@ -25,7 +25,12 @@ pub trait Read {
 
     /// This method shall produce the "Unexpected EOF" error.
     fn unexpected_eof() -> Self::Error;
+    /// Read data from the stream, filling the `buf` and return the number of bytes read.
+    ///
     /// Similar to [`io::Read::read`] but continue on [`io::ErrorKind::Interrupted`].
+    ///
+    /// If the returned value is lower than the length of the `buf`, that indicates
+    /// the EOF has been reached.
     fn read_all(&mut self, buf: &mut[u8]) -> Result<usize, Self::Error>;
     /// Exactly like [`io::Read::read_exact`].
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Self::Error> {
@@ -36,7 +41,7 @@ pub trait Read {
             Ok(())
         }
     }
-    /// Similar to [`io::Read::take`] but return a replacement `Take` struct.
+    /// Similar to [`io::Read::take`] but return a replacement [`Take`] struct.
     fn take(self, limit: u64) -> Take<Self>
         where Self: Sized
     {
@@ -72,18 +77,32 @@ pub struct Take<R> {
 
 impl<R> Take<R> {
     #[inline]
+    /// Returns the number of bytes that can be read before this instance will
+    /// return EOF.
+    ///
+    /// # Note
+    /// This instance may reach EOF after reading fewer bytes than indicated by
+    /// this method if the underlying [`Read`] instance reaches EOF.
     pub fn limit(&self) -> u64 {
         self.limit
     }
-
+    /// Consumes the `Take`, returning the wrapped reader.
     pub fn into_inner(self) -> R {
         self.inner
     }
-
+    /// Get a reference to the underlying reader.
+    ///
+    /// Care should be taken to avoid modifying the internal I/O state of the
+    /// underlying reader as doing so may corrupt the internal limit of this
+    /// `Take`.
     pub fn get_ref(&self) -> &R {
         &self.inner
     }
-
+    /// Get a mutable reference to the underlying reader.
+    ///
+    /// Care should be taken to avoid modifying the internal I/O state of the
+    /// underlying reader as doing so may corrupt the internal limit of this
+    /// `Take`.
     pub fn get_mut(&mut self) -> &mut R {
         &mut self.inner
     }
@@ -132,10 +151,13 @@ impl<R: io::Read> Read for R {
 
     fn read_all(&mut self, mut buf: &mut[u8]) -> Result<usize, Self::Error> {
         let orig_len = buf.len();
-        while !buf.is_empty() {
+        loop {
             match self.read(buf) {
                 Ok(0) => break,
-                Ok(n) => buf = &mut buf[n..],
+                Ok(n) if n < buf.len() => {
+                    buf = &mut buf[n..];
+                },
+                Ok(..) => return Ok(orig_len),
                 Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
                 Err(e) => return Err(e)
             }
@@ -143,6 +165,7 @@ impl<R: io::Read> Read for R {
         Ok(orig_len - buf.len())
     }
 
+    #[inline]
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Self::Error> {
         io::Read::read_exact(self, buf)
     }
@@ -150,8 +173,12 @@ impl<R: io::Read> Read for R {
 
 /// An error when reading from slice without `std`.
 #[cfg(not(feature = "std"))]
-#[derive(Debug)]
+#[cfg_attr(docsrs, doc(cfg(not(feature = "std"))))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnexpectedEofError;
+
+#[cfg(not(feature = "std"))]
+impl core::error::Error for UnexpectedEofError {}
 
 #[cfg(not(feature = "std"))]
 impl<R: Read + ?Sized> Read for &mut R {
@@ -220,13 +247,54 @@ impl Read for &'_[u8] {
         *self = b;
         Ok(amt)
     }
+}
 
-    #[inline]
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Self::Error> {
-        if buf.len() > self.len() {
-            return Err(UnexpectedEofError);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(not(feature = "std"))]
+    #[test]
+    fn stub_io_no_std_works() {
+        use alloc::{boxed::Box, string::ToString};
+        assert_eq!((&[][..]).read_all(&mut[]).unwrap(), 0);
+        assert_eq!((&[][..]).read_all(&mut[0]).unwrap(), 0);
+        assert_eq!((&[][..]).read_exact(&mut[0]).unwrap_err(), UnexpectedEofError);
+        assert_eq!((&[][..]).take(0).read_exact(&mut[0]).unwrap_err(), UnexpectedEofError);
+        let mut data: Box<&[u8]> = Box::new(&[]);
+        assert_eq!(data.read_all(&mut[]).unwrap(), 0);
+        assert_eq!(data.read_all(&mut[0]).unwrap(), 0);
+        assert_eq!(data.read_exact(&mut[0]).unwrap_err(), UnexpectedEofError);
+        assert_eq!(<Box<&[u8]> as Read>::unexpected_eof(), UnexpectedEofError);
+        let data: &mut &mut _ = &mut &mut data;
+        assert_eq!(data.read_all(&mut[]).unwrap(), 0);
+        assert_eq!(data.read_all(&mut[0]).unwrap(), 0);
+        assert_eq!(data.read_exact(&mut[0]).unwrap_err(), UnexpectedEofError);
+        assert_eq!(<&mut &[u8] as Read>::unexpected_eof(), UnexpectedEofError);
+        assert_eq!(UnexpectedEofError.to_string(), "failed to fill whole buffer");
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn stub_io_std_works() {
+        use std::io;
+        #[derive(Debug, Eq, PartialEq)]
+        struct Interrupted(bool);
+        impl io::Read for Interrupted {
+            fn read(&mut self, _buf: &mut[u8]) -> io::Result<usize> {
+                if !self.0 {
+                    self.0 = true;
+                    Err(io::ErrorKind::Interrupted.into())
+                }
+                else {
+                    Err(io::ErrorKind::UnexpectedEof.into())
+                }
+            }
         }
-        self.read_all(buf)?;
-        Ok(())
+        assert_eq!((&[][..]).read_all(&mut[]).unwrap(), 0);
+        assert_eq!((&[][..]).read_all(&mut[0]).unwrap(), 0);
+        assert_eq!(Interrupted(false).read_all(&mut[0]).unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
+        assert_eq!(Interrupted(true).take(0).get_ref(), &Interrupted(true));
+        assert_eq!(Interrupted(true).take(0).get_mut(), &mut Interrupted(true));
     }
 }

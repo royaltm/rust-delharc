@@ -1,4 +1,5 @@
 //! https://github.com/royaltm/rust-delharc/issues/10#issuecomment-4893751087
+#![cfg(feature = "std")]
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::io::Cursor;
 use std::sync::atomic::{AtomicUsize, Ordering};

@@ -1,3 +1,4 @@
+#![cfg(feature = "std")]
 use std::io;
 use delharc::header::*;
 
@@ -17,15 +18,15 @@ const TESTS_CASES: &[(&str, &str, u64, u64, u16, u32, &str, u8, CompressionMetho
         "Long Filename.txt",     14,    14, 0x3197, 0xB19B306E, "2011-12-03 21:38:50 UTC", 3, CompressionMethod::Lh0),
 ];
 
-const SUBDIR_CASES: &[(&str, &[(&str, u64, u64, u16, u32, &str, u8, CompressionMethod)])] = &[
+const SUBDIR_CASES: &[(&str, &[(&str, u64, u64, u16, u32, &str, u8, CompressionMethod, bool)])] = &[
     ("subdir.lzh", &[
-        ("subdir",                    0,  0, 0x0000, 0x00000000, "2011-12-03 16:47:56", 1, CompressionMethod::Lhd),
-        ("subdir*subdir2",            0,  0, 0x0000, 0x00000000, "2011-12-03 16:47:58", 1, CompressionMethod::Lhd),
-        ("subdir*subdir2*HELLO.TXT", 14, 14, 0x3197, 0xB19B306E, "2011-12-03 16:38:50", 1, CompressionMethod::Lh0)]),
+        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2011-12-03 16:47:56", 1, CompressionMethod::Lhd, true),
+        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2011-12-03 16:47:58", 1, CompressionMethod::Lhd, true),
+        ("subdir*subdir2*HELLO.TXT", 14, 14, 0x3197, 0xB19B306E, "2011-12-03 16:38:50", 1, CompressionMethod::Lh0, false)]),
     ("h3_subdir.lzh", &[
-        ("subdir",                    0,  0, 0x0000, 0x00000000, "2011-12-03 21:47:56 UTC", 3, CompressionMethod::Lhd),
-        ("subdir*subdir2",            0,  0, 0x0000, 0x00000000, "2011-12-03 21:47:58 UTC", 3, CompressionMethod::Lhd),
-        ("subdir*subdir2*HELLO.TXT", 14, 14, 0x3197, 0xB19B306E, "2011-12-03 21:38:50 UTC", 3, CompressionMethod::Lh0)]),
+        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2011-12-03 21:47:56 UTC", 3, CompressionMethod::Lhd, true),
+        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2011-12-03 21:47:58 UTC", 3, CompressionMethod::Lhd, true),
+        ("subdir*subdir2*HELLO.TXT", 14, 14, 0x3197, 0xB19B306E, "2011-12-03 21:38:50 UTC", 3, CompressionMethod::Lh0, false)]),
 ];
 
 
@@ -39,6 +40,7 @@ fn test_lha_os2_208() -> io::Result<()> {
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
             assert_eq!(header.level, *level);
+            assert!(!header.is_directory());
             assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             assert_eq!(header.compression_method().unwrap(), *compr);
             assert_eq!(header.compressed_size, *size_c);
@@ -49,6 +51,10 @@ fn test_lha_os2_208() -> io::Result<()> {
             assert_eq!(&header.parse_pathname_to_str(), &path1);
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
+            assert!(header.parse_os_9_attrs().is_none());
+            assert!(header.parse_unix_permissions().is_none());
+            assert!(header.parse_unix_uid_gid().is_none());
+            assert!(header.parse_comment().is_none());
             assert_eq!(header.file_crc, *crc16);
             if header.level == 0 {
                 assert_eq!(header.parse_os_type()?, OsType::Generic);
@@ -77,10 +83,11 @@ fn test_lha_os2_208() -> io::Result<()> {
         let mut lha_reader = delharc::parse_file(format!("tests/lha_os2_208/{}", name))?;
         for filen in 0.. {
             assert!(filen < headers.len());
-            let (path, size_c, size_o, crc16, crc32, modif, level, compr) = &headers[filen];
+            let (path, size_c, size_o, crc16, crc32, modif, level, compr, is_dir) = &headers[filen];
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
             assert_eq!(header.level, *level);
+            assert_eq!(header.is_directory(), *is_dir);
             if header.compression_method().unwrap() == CompressionMethod::Lhd {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::empty());
             }
@@ -96,6 +103,10 @@ fn test_lha_os2_208() -> io::Result<()> {
             assert_eq!(&header.parse_pathname_to_str(), &path1);
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
+            assert!(header.parse_os_9_attrs().is_none());
+            assert!(header.parse_unix_permissions().is_none());
+            assert!(header.parse_unix_uid_gid().is_none());
+            assert!(header.parse_comment().is_none());
             assert_eq!(header.file_crc, *crc16);
             assert_eq!(header.parse_os_type()?, OsType::Os2);
             if *compr == CompressionMethod::Lhd {

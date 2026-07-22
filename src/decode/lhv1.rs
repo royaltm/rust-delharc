@@ -1,11 +1,20 @@
+//! LHarc -lh1- decoder
+//!
+//! Original C version: (c) 2011, 2012, Simon Howard lhasa/lib/lh1_decoder.c
+//!
+//! Rust version: (c) 2018-2026, Rafał Michalski
 use core::num::NonZeroU16;
 #[cfg(not(feature = "std"))]
 use alloc::boxed::Box;
-use crate::error::LhaResult;
-use crate::stub_io::Read;
-use crate::decode::Decoder;
-use crate::ringbuf::*;
-use crate::bitstream::*;
+use bytemuck::allocation::zeroed_box;
+use crate::{
+    bitstream::*,
+    decode::Decoder,
+    error::LhaResult,
+    ringbuf::*,
+    stub_io::Read,
+};
+use super::unsafe_assert;
 
 mod dyntree;
 use dyntree::*;
@@ -22,10 +31,12 @@ pub struct Lh1Decoder<R> {
 }
 
 impl<R: Read> Lh1Decoder<R> {
+    /// Create a new decoder instance from the given data read stream
     pub fn new(rd: R) -> Lh1Decoder<R> {
         let bit_reader = BitStream::new(rd);
-        let ringbuf = Default::default();
-        let command_tree = Box::new(DynHuffTree::new());
+        let mut ringbuf = zeroed_box::<RingArrayBuf<RING_BUFFER_SIZE>>();
+        ringbuf.initialize(b' ');
+        let command_tree = DynHuffTree::new();
         Lh1Decoder {
             bit_reader,
             ringbuf,
@@ -34,9 +45,22 @@ impl<R: Read> Lh1Decoder<R> {
         }
     }
 
-    #[inline]
-    fn read_command(&mut self) -> LhaResult<u16, R> {
-        self.command_tree.read_entry(&mut self.bit_reader)
+    /// Progressively copy data from history buffer
+    fn copy_from_history<'a, I: ExactSizeIterator<Item=&'a mut u8>>(
+            &mut self,
+            target: I,
+            offset: usize,
+            count: usize
+        )
+    {
+        let history_iter = self.ringbuf.iter_from_offset(offset);
+        let actual_count = target.len().min(count);
+        for (t, s) in target.zip(history_iter).take(actual_count) {
+            *t = s;
+        }
+        let count_after = count - actual_count;
+        self.copy_progress = NonZeroU16::new(count_after as u16)
+                             .map(|count| (offset as u16, count));
     }
 
     #[inline]
@@ -47,29 +71,25 @@ impl<R: Read> Lh1Decoder<R> {
         Ok(offset)
     }
 
-    fn copy_from_history<'a, I: Iterator<Item=&'a mut u8> + ExactSizeIterator>(
-            &mut self,
-            target: I,
-            offset: usize,
-            count: usize
-        ) -> LhaResult<(), R>
-    {
-        let history_iter = self.ringbuf.iter_from_offset(offset);
-        let count_after = count - target.len().min(count);
-        for (t, s) in target.zip(history_iter).take(count) {
-            *t = s;
-        }
-        self.copy_progress = NonZeroU16::new(count_after as u16)
-                             .map(|count| (offset as u16, count));
-        Ok(())
+    #[inline]
+    fn read_command(&mut self) -> LhaResult<u16, R> {
+        self.command_tree.read_entry(&mut self.bit_reader)
     }
 }
 
-impl<R: Read> Decoder<R> for Lh1Decoder<R> where R::Error: core::fmt::Debug {
+impl<R: Read> Decoder<R> for Lh1Decoder<R> where R::Error: core::error::Error {
     type Error = R::Error;
 
     fn into_inner(self) -> R {
         self.bit_reader.into_inner()
+    }
+
+    fn get_ref(&self) -> &R {
+        self.bit_reader.get_ref()
+    }
+
+    fn get_mut(&mut self) -> &mut R {
+        self.bit_reader.get_mut()
     }
 
     fn fill_buffer(&mut self, buf: &mut[u8]) -> LhaResult<(), R> {
@@ -78,7 +98,7 @@ impl<R: Read> Decoder<R> for Lh1Decoder<R> where R::Error: core::fmt::Debug {
         if let Some((offset, count)) = self.copy_progress {
             self.copy_from_history(&mut target,
                                    offset as usize,
-                                   count.get() as usize)?;
+                                   count.get() as usize);
         }
 
         while let Some(dst) = target.next() {
@@ -91,10 +111,13 @@ impl<R: Read> Decoder<R> for Lh1Decoder<R> where R::Error: core::fmt::Debug {
                 count => {
                     let offset = self.read_offset()?;
                     let index = buflen - target.len() - 1;
+                    // SAFETY: target.len() < buf.len() because target is an
+                    // iterator over buf which has yield at least one item
+                    unsafe_assert!(index < buf.len());
                     target = buf[index..].iter_mut();
                     self.copy_from_history(&mut target,
                                            offset as usize,
-                                           (count - 0x100 + 3).into())?;
+                                           (count - 0x100 + 3).into());
                 }
             }
         }
@@ -107,37 +130,60 @@ impl<R: Read> Decoder<R> for Lh1Decoder<R> where R::Error: core::fmt::Debug {
 fn decode_offset(bits9: u16) -> (u16, u32) {
     match bits9 & 0b111100000 {
        /* 000xxxxxx -> 000000 xxxxxx */
-        0b000000000..=0b000111111 => (bits9, 0),
+        0b000000000..=0b000111111     => (bits9, 0),
        /* 0010xxxxx -> 000001 xxxxxy */
        /* 0100xxxxx -> 000011 xxxxxy */
-        0b001000000..=0b010011111 => ((bits9 - 0b000100000) << 1, 1),
+        0b001000000..=0b010011111     => ((bits9 - 0b000100000) << 1, 1),
        /* 01010xxxx -> 000100 xxxxyy */
        /* 10001xxxx -> 001011 xxxxyy */
-        0b010100000..=0b100011111 => ((bits9 - 0b001100000) << 2, 2),
+        0b010100000..=0b100011111     => ((bits9 - 0b001100000) << 2, 2),
        /* 100100xxx -> 001100 xxxyyy */
        /* 101111xxx -> 010111 xxxyyy */
-        0b100100000..=0b101111111 => ((bits9 - 0b011000000) << 3, 3),
+        0b100100000..=0b101111111     => ((bits9 - 0b011000000) << 3, 3),
        /* 1100000xx -> 011000 xxyyyy */
        /* 1110111xx -> 101111 xxyyyy */
-        0b110000000..=0b111011111 => ((bits9 - 0b100100000) << 4, 4),
+        0b110000000..=0b111011111     => ((bits9 - 0b100100000) << 4, 4),
        /* 11110000x -> 110000 xyyyyy */
        /* 11111111x -> 111111 xyyyyy */
-        0b111100000..=0b111111111 => ((bits9 - 0b110000000) << 5, 5),
-        _ => unreachable!()
+        0b111100000../*=0b111111111*/ => ((bits9 - 0b110000000) << 5, 5),
     }
 }
 
 #[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
+    use std::{io, fs, time::{Instant, Duration}};
     use super::*;
-    use std::io;
-    use std::fs;
 
     #[test]
     fn lhav1_works() {
         println!("Lh1Decoder<Empty> {}", size_of::<Lh1Decoder<io::Empty>>());
         println!("Lh1Decoder<File> {}", size_of::<Lh1Decoder<fs::File>>());
         println!("DynHuffTree {}", size_of::<DynHuffTree>());
+        println!("RingArrayBuf<RING_BUFFER_SIZE> {}", size_of::<RingArrayBuf<RING_BUFFER_SIZE>>());
+        let mut data: &[u8] = &[];
+        let mut decoder = Lh1Decoder::new(&mut data);
+        assert_eq!(decoder.get_ref(), &&mut &[]);
+        assert_eq!(decoder.get_mut().read_all(&mut []).unwrap(), 0);
+    }
+
+    #[test]
+    #[ignore = "long tests"]
+    fn lhav1_long_tests() {
+        use rand::RngReader;
+        let mut rng = rand::rng();
+        let mut decoder = Lh1Decoder::new(RngReader(&mut rng));
+        let mut buf = Vec::new();
+        buf.resize(1024, 0);
+        let mut n = 0usize;
+        let start = Instant::now();
+        let limit = Duration::from_secs(59);
+        while start.elapsed() <= limit {
+            n += 1;
+            for i in 1..=1024 {
+                decoder.fill_buffer(&mut buf[0..i]).unwrap()
+            }
+        }        
+        println!("-lh1- iterations: {}", n);
     }
 }

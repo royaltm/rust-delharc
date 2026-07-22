@@ -1,3 +1,4 @@
+#![cfg(feature = "std")]
 use std::path::PathBuf;
 use std::{io::{self, Seek, SeekFrom}, fs};
 use delharc::header::*;
@@ -45,17 +46,26 @@ fn test_lhmelt_16536() -> io::Result<()> {
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
             assert_eq!(header.level, *level);
+            if *level == 0 {
+                assert_eq!(header.parse_os_type()?, OsType::Generic);
+            }
+            else {
+                assert_eq!(header.parse_os_type()?, OsType::MsDos);
+            }
             let path1 = path.replace("*", &std::path::MAIN_SEPARATOR.to_string());
             if filen == 1 {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
                 assert_eq!(header.compression_method().unwrap(), CompressionMethod::Lhd);
+                assert!(header.is_directory());
                 assert_eq!(header.compressed_size, 0);
                 assert_eq!(header.original_size, 0);
                 let mut fullpath = PathBuf::from(path1);
                 fullpath.pop();
+                fullpath.push("");
                 let fullpath = &fullpath.to_str().unwrap();
                 assert_eq!(&header.parse_pathname().to_str().unwrap(), fullpath);
                 assert_eq!(&header.parse_pathname_to_str(), &fullpath.replace(&std::path::MAIN_SEPARATOR.to_string(), "/"));
+                assert!(header.parse_comment().is_none());
                 let last_modified = format!("{}", header.parse_last_modified());
                 if header.level == 2 {
                     assert_eq!(&last_modified, "2000-01-01 00:00:00 UTC");
@@ -66,6 +76,7 @@ fn test_lhmelt_16536() -> io::Result<()> {
                 assert_eq!(header.file_crc, 0);
             }
             else {
+                assert!(!header.is_directory());
                 assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
                 assert_eq!(header.compression_method().unwrap(), *compr);
                 assert_eq!(header.compressed_size, *size_c);
@@ -77,12 +88,9 @@ fn test_lhmelt_16536() -> io::Result<()> {
                 assert_eq!(&last_modified, modif);
                 assert_eq!(header.file_crc, *crc16);
             }
-            if *level == 0 {
-                assert_eq!(header.parse_os_type()?, OsType::Generic);
-            }
-            else {
-                assert_eq!(header.parse_os_type()?, OsType::MsDos);
-            }
+            assert!(header.parse_os_9_attrs().is_none());
+            assert!(header.parse_unix_permissions().is_none());
+            assert!(header.parse_unix_uid_gid().is_none());
             if filen == 1 {
                 assert!(io::copy(&mut lha_reader, &mut sink).is_err());
                 assert_eq!(sink.length, 0);

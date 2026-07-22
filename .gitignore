@@ -11,3 +11,4 @@ Thumbs.db
 *.sublime-workspace
 sftp-config.json
 /resources
+/benches/.cache

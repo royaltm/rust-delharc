@@ -1,3 +1,4 @@
+#![cfg(feature = "std")]
 use std::{io::{self, Seek, SeekFrom}, fs};
 use delharc::header::*;
 
@@ -18,12 +19,12 @@ const TESTS_CASES: &[(u64, &str, &str, u64, u64, u16, u32, &str, u8, Compression
 
 const SUBDIR_CASES: &[(&str, &[(&str, u64, u64, u16, u32, &str, u8, CompressionMethod)])] = &[
     ("h1_subdir.lzh", &[
-        ("subdir",                    0,  0, 0x0000, 0x00000000, "2012-04-05 13:26:18", 1, CompressionMethod::Lhd),
-        ("subdir*subdir2",            0,  0, 0x0000, 0x00000000, "2012-04-05 13:26:22", 1, CompressionMethod::Lhd),
+        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2012-04-05 13:26:18", 1, CompressionMethod::Lhd),
+        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2012-04-05 13:26:22", 1, CompressionMethod::Lhd),
         ("subdir*subdir2*HELLO.TXT", 12, 12, 0x9778, 0xAF083B2D, "2012-04-04 21:44:30", 1, CompressionMethod::Lh0)]),
     ("h2_subdir.lzh", &[
-        ("subdir",                    0,  0, 0x0000, 0x00000000, "2012-04-05 04:26:18 UTC", 2, CompressionMethod::Lhd),
-        ("subdir*subdir2",            0,  0, 0x0000, 0x00000000, "2012-04-05 04:26:22 UTC", 2, CompressionMethod::Lhd),
+        ("subdir*",                   0,  0, 0x0000, 0x00000000, "2012-04-05 04:26:18 UTC", 2, CompressionMethod::Lhd),
+        ("subdir*subdir2*",           0,  0, 0x0000, 0x00000000, "2012-04-05 04:26:22 UTC", 2, CompressionMethod::Lhd),
         ("subdir*subdir2*HELLO.TXT", 12, 12, 0x9778, 0xAF083B2D, "2012-04-04 12:44:30 UTC", 2, CompressionMethod::Lh0)]),
 ];
 
@@ -39,6 +40,7 @@ fn test_lha_x68k_213() -> io::Result<()> {
             let mut sink = SinkSum::new();
             let header = lha_reader.header();
             assert_eq!(header.level, *level);
+            assert!(!header.is_directory());
             if header.level == 0 && *compr == CompressionMethod::Lhd {
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
             }
@@ -52,6 +54,7 @@ fn test_lha_x68k_213() -> io::Result<()> {
             assert_eq!(&header.parse_pathname().to_str().unwrap(), &path1);
             let path1 = path.replace("*", "/");
             assert_eq!(&header.parse_pathname_to_str(), &path1);
+            assert!(header.parse_comment().is_none());
             let last_modified = format!("{}", header.parse_last_modified());
             assert_eq!(&last_modified, modif);
             assert_eq!(header.file_crc, *crc16);
@@ -87,9 +90,11 @@ fn test_lha_x68k_213() -> io::Result<()> {
             let header = lha_reader.header();
             assert_eq!(header.level, *level);
             if header.compression_method().unwrap() == CompressionMethod::Lhd {
+                assert!(header.is_directory());
                 assert_eq!(header.msdos_attrs, MsDosAttrs::SUBDIR);
             }
             else {
+                assert!(!header.is_directory());
                 assert_eq!(header.msdos_attrs, MsDosAttrs::ARCHIVE);
             }
             assert_eq!(header.compression_method().unwrap(), *compr);

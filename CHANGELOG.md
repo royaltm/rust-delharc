@@ -1,67 +1,137 @@
+v0.8.0
+
+General changes:
+* Minimum supported rust version changed to Rust 1.95 (if-let guards in matches).
+* Implemented PMarc's archiver `-pm1-` and `-pm2-` compression methods decoders.
+* More unit tests to improve coverage and fuzz tests added.
+* More archive test files imported from `lhasa` project.
+* Benchmarking added to guide the changes in the critical functions.
+* `examples`: merged `extract` and `extract_nostd` into a single file.
+* `examples`: `list_files` added.
+*  clippy suggested changes.
+
+Breaking changes:
+* `Decoder::Error` now requires `core::error::Error` instead of `fmt::Debug`.
+* `LhaError` changed to include new error enums instead of static strings.
+* The way extended area is parsed on level 0 headers by `LhaHeader::read()` has changed. Previously the first byte of the extended area on level 0 was unconditionally treated as OS ID byte and removed from the extended area. Now the whole content of the extended area is stored in the `extended_area` property and the first byte of the `extended_area` is only consulted by the `parse_os_type()` method to check for selected OS identifiers.
+* `CompressionMethod::is_directory()` now takes `self` by value.
+* Fixed, but also altered the way `LhaHeader::parse_pathname()` and `parse_pathname_to_str()` treat files which have none or empty `filename` field but non-empty `directory` field. In this instance a trailing directory separator is appended to the parsed path name. If a level 0 or 1 `filename` entry contains a trailing directory separator and there is no `directory` field, the directory separator will be present at the end of the parsed path. This change helps to detect if an entry is a directory name rather than a file name.
+* The `nul` character in filename is now a terminator if either an OS ID is explicitly Amiga or if header level is 0 and OS ID is not provided in the extended area.
+* `LhaHeader::is_directory()` now returns `true` also for `-lh0-` compression methods under specific conditions.
+
+New features:
+* `pm` activates PMarc archiver decoders, enabled now by default.
+* `extend` expose previously internal implementations of a ring buffer, a static Huffman Tree and a bit-stream reader; this allows users to build custom `LhaV2Decoder` variants or build the custom implementations more easily.
+* `no-unsafe-assertions` remove unsafe assertions that eliminate boundary checks in critical functions; it only affects code if `debug_assertions` are disabled. if `debug_assertions` are enabled all unsafe assertions become the run-time assertions.
+* `fast-tree-build` enables more complex, but faster static tree building method.
+
+Improvements:
+* All error objects now implement `core::error::Error`.
+* Replace potential temporary large stack allocations in decoders with `bytemuck::zeroed_box()`.
+* Reimplemented and simplified tree building methods of the dynamic Huffman Tree used by `lhv1` decoder.
+* Static and dynamic Huffman Tree implementations refactored to use unsafe assertions instead of unsafe slice accesses, which can be disabled with the `no-unsafe-assertions` feature.
+* An alternative tree building method added to the static Huffman Tree object, gated under the `fast-tree-build` feature.
+* Improved the ring buffer implementation.
+* Error messages changed to better reflect causes of errors.
+* `LhaError` to `std::io::Error` conversion includes the orignal `LhaError` encapsulation variant.
+
+Additions:
+* New error objects: `LhaHeaderError`, `DecompressionError` and `BuildError`.
+* `LhaDecodeReader::seek_next_file()` added, using `io::Seek` instead of discarding read data.
+* `LhaDecodeReader::into_parts()`, `get_decoder()`, `get_mut_decoder()` and `take_decoder()` added.
+* `get_ref()` and `get_mut()` methods added allowing access to the underlying reader stream.
+* `CompressionMethod::is_compressed()` added.
+* `LhaHeader::parse_unix_uid_gid()` added.
+* `LhaHeader::parse_unix_permissions()` and a new `Permissions` bitflag object added.
+* `LhaHeader::parse_os_9_attrs()` and a new `Os9Attrs` bitflag object added.
+* `LhaHeader` now derives `PartialEq` and `Eq`.
+* `fmt::Display` implementation added to `MsDosAttrs` and `OsType`.
+* `LHARK` OS ID is now recognized.
+* `EXT_HEADER_METADATA=0x71` added and this is where MorphOs stores the file comment on header level 2.
+
+Fixes:
+* Remove links to integration tests and examples from the manifest - the files were never included in the crate.
+* Replace open-ended ranges with inclusive ones to be able to yield MAX values when iterating.
+* `HuffTree`: ensure a tree is cleared on any error in the `build_tree()` function.
+* `HuffTree` and `DynHuffTree`: removed `fmt::Display` implementation outside of testing.
+* Fixed `LhaV2Decoder::begin_new_block()` to set `remaining_commands` only after successful tree decoding.
+* `LhaV2Decoder`: reimplemented `read_temp_tree()` in such a way that if the `skip` value is too large,
+ignore it, and let the tree building method handle it, instead of returning a specific error.
+
+
 v0.7.0
 * Rust edition: 2024.
 * Minimum supported rust version changed to Rust 1.93 (slice::assume_init_mut).
-* Deps: bitflags bumped to 2.13.
-* bytemuck added to dependencies.
-* replaced all uses of transmute with modern functions.
+* Deps: `bytemuck` added and `bitflags` bumped to 2.13.
+* Replaced all uses of `mem::transmute()` with modern functions.
 * clippy suggested changes.
 
+
 v0.6.2
-* Fixed a bug in LhaHeader::read that could cause integer overflow.
-* Fixed a bug in LhaHeader::read that could allocate a huge memory chunk before failing.
-* Added a static assert to prevent compilation on systems with usize < 32-bit.
-* Added missing long_header_len check on lha_level=3 in in LhaHeader::read.
-* Fixed minor warnings.
 * Minimum supported rust version changed to Rust 1.65.
+* Fixed a bug in `LhaHeader::read()` that could cause integer overflow.
+* Fixed a bug in `LhaHeader::read()` that could allocate a huge memory chunk before failing.
+* Added a static assert to prevent compilation on systems with `usize` < 32-bit.
+* Added missing `long_header_len` check on lha_level=3 in in `LhaHeader::read()`.
+* Fixed minor warnings.
+
 
 v0.6.1
-* Fixed a bug in LhaV2Decoder::read_temp_tree that might cause a panic on a random bitstream.
-* Deps: bitflags bumped to 2.5.
+* Fixed a bug in `LhaV2Decoder::read_temp_tree()` that might cause a panic on a random bitstream.
+* Deps: `bitflags` bumped to 2.5.
+
 
 v0.6.0
-* no-std is enabled in the absence of the std feature.
+* `no-std` is enabled in the absence of the `std` feature.
 * Breaking changes for exported types and function signatures:
-  - Generic types and methods depending on std::io::Read now depend on stub_io::Read.
-  - Methods previously returning std::io::Error return LhaError instead.
-  - LhaHeader::read signature argument changed to &mut R.
-* LhaHeader::parse_pathname_to_string added.
-* LhaDecodeReader::next_file_with_sink added.
-* TimestampResult::to_local is only available with std feature.
-* LhaHeader::parse_pathname is only available with std feature.
-* delharc::parse_file is only available with std feature.
-* Deps: bitflags bumped to 2.4.
+  - Generic types and methods depending on `std::io::Read` now depend on `stub_io::Read`.
+  - Methods previously returning `std::io::Error` return `LhaError` instead.
+  - `LhaHeader::read()` signature argument changed to &mut R.
+* `LhaHeader::parse_pathname_to_string added()`.
+* `LhaDecodeReader::next_file_with_sink()` added.
+* `TimestampResult::to_local()` is only available with std feature.
+* `LhaHeader::parse_pathname()` is only available with std feature.
+* `delharc::parse_file()` is only available with std feature.
+* Deps: `bitflags` bumped to 2.4.
 * extract_nostd example added to showcase usage of nostd.
 * Embedded example added to test compilation of a no-std target.
 
+
 v0.5.0
 * Rust edition: 2021.
+* Minimum supported rust version changed to Rust 1.63 (array::from_fn).
 * An example added to showcase usage of different reader sources.
 * RingArrayBuf reworked with const generics.
 * dyntree: unsafe transmute replaced with array::from_fn.
-* Minimum supported rust version changed to Rust 1.63 (array::from_fn).
-* Deps: bitflags updated to 2.3.
+* Deps: `bitflags` updated to 2.3.
 * License files added.
 
+
 v0.4.0
+* Minimum supported rust version changed to Rust 1.46 (const fn improvements).
 * CI: migration to Github Actions.
 * Tests: pass all tests regardless of selected features.
-* Minimum supported rust version changed to Rust 1.46 (const fn improvements).
-* Deps: bitflags updated to 1.3, dev-deps updated.
+* Deps: `bitflags` updated to 1.3, dev-deps updated.
+
 
 v0.3.0
-* LhaHeader::parse_comment.
-* LhaHeader::parse_pathname returns the file name up to a nul character with Amiga archives.
+* `LhaHeader::parse_comment()` added.
+* `LhaHeader::parse_pathname()` returns the file name up to a `nul` character with Amiga archives.
+
 
 v0.2.2
-* Removed unnecessary static lifetime constraint on the inner reader of LhaDecodeReader.
+* Removed unnecessary static lifetime constraint on the inner reader of `LhaDecodeReader`.
+
 
 v0.2.1
-* Fixed result of LhaHeader::is_supported and LhaDecodeReader::is_decoder_supported.
+* Fixed result of `LhaHeader::is_supported()` and `LhaDecodeReader::is_decoder_supported()`.
+
 
 v0.2.0
-* Added a missing Debug trait implementation for LhaDecodeReader.
-* Some methods of LhaDecodeReader now return an error variant as LhaDecodeError, so the stream source can be retrieved.
+* Added a missing `fmt::Debug` trait implementation for `LhaDecodeReader`.
+* Some methods of `LhaDecodeReader` now return an error variant as `LhaDecodeError`, so the stream source can be retrieved.
 * Fixed a minor bug in the documentation.
+
 
 v0.1.0
 * The initial release.
