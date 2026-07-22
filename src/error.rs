@@ -225,6 +225,13 @@ impl From<io::Error> for LhaError<io::Error> {
     }
 }
 
+#[cfg(not(feature = "std"))]
+impl From<crate::UnexpectedEofError> for LhaError<crate::UnexpectedEofError> {
+    fn from(err: crate::UnexpectedEofError) -> LhaError<crate::UnexpectedEofError> {
+        LhaError::Io(err)
+    }
+}
+
 #[cfg(feature = "std")]
 impl From<LhaError<io::Error>> for io::Error {
     fn from(err: LhaError<io::Error>) -> Self {
@@ -241,10 +248,11 @@ impl From<LhaError<io::Error>> for io::Error {
 mod tests {
     use super::*;
 
-    #[cfg(feature = "std")]
     #[test]
     fn errors_works() {
-        use core::error::Error;
+        #[cfg(not(feature = "std"))]
+        use alloc::{string::ToString, vec::Vec};
+
         let mut vec = <Vec<u8>>::new();
         assert_eq!(LhaHeaderError::try_from(vec.try_reserve(usize::MAX).unwrap_err()).unwrap(),
                    LhaHeaderError::OutOfMemory);
@@ -252,6 +260,22 @@ mod tests {
                    BuildError::OutOfMemory);
         assert_eq!(LhaHeaderError::OutOfMemory.to_string(), "memory allocation failed");
         assert_eq!(BuildError::OutOfMemory.to_string(), "memory allocation failed");
+
+        #[cfg(not(feature = "std"))]
+        {
+            use core::error::Error;
+            use crate::UnexpectedEofError;
+            let err = LhaError::from(UnexpectedEofError);
+            assert_eq!(err.source().unwrap().downcast_ref::<UnexpectedEofError>().unwrap(),
+                       &UnexpectedEofError);
+            assert_eq!(err.to_string(), "failed to fill whole buffer");
+        }
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn errors_std_works() {
+        use core::error::Error;
 
         assert_eq!(LhaError::from(std::io::Error::other("I/O error")).to_string(), "I/O error");
         assert_eq!(LhaError::<std::io::Error>::from(LhaHeaderError::OutOfMemory).to_string(),
